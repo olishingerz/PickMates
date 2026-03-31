@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Log in – PickMates</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo">
+        <span class="logo-flag">⛳</span>
+        PickMates
+        <span class="logo-sub">Masters 2026</span>
+      </a>
+      <nav>
+        <a href="/auth/register" class="btn btn-sm">Register</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="auth-container">
+      <div class="card auth-card">
+        <h1>Log in</h1>
+
+        <% if (error) { %>
+          <div class="alert alert-error"><%= error %></div>
+        <% } %>
+
+        <form action="/auth/login" method="POST">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" required autofocus autocomplete="username" />
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required autocomplete="current-password" />
+          </div>
+          <button type="submit" class="btn btn-block">Log in</button>
+        </form>
+
+        <p class="auth-link">Don't have an account? <a href="/auth/register">Register</a></p>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <p>Scores scraped from Flashscore every 30 minutes during the tournament.</p>
+  </footer>
+</body>
+</html>

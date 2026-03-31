@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Draft – PickMates</title>
+  <link rel="stylesheet" href="/style.css" />
+  <% if (!state.is_complete && !draftNotStarted) { %>
+  <meta http-equiv="refresh" content="30" />
+  <% } %>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo">
+        <span class="logo-flag">⛳</span> PickMates
+        <span class="logo-sub">Masters 2026</span>
+      </a>
+      <nav>
+        <% if (user) { %>
+          <span class="nav-user">👤 <%= user.username %></span>
+          <a href="/" class="btn btn-sm btn-ghost">Leaderboard</a>
+          <form action="/auth/logout" method="POST" style="display:inline">
+            <button type="submit" class="btn btn-sm btn-ghost">Log out</button>
+          </form>
+        <% } %>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+
+    <div class="page-header">
+      <h1>Draft Room</h1>
+      <p class="last-updated">
+        <% if (state.is_complete) { %>
+          Draft complete — all squads locked in.
+        <% } else if (draftNotStarted) { %>
+          Waiting for all <%= MAX_PLAYERS %> players to register (<%= participants.length %>/<%= MAX_PLAYERS %> so far).
+        <% } else if (isMyTurn) { %>
+          <strong style="color:var(--green-dark)">It's your pick!</strong>
+        <% } else if (currentTurnUser) { %>
+          Waiting for <strong><%= currentTurnUser.username %></strong> to pick… (page auto-refreshes every 30s)
+        <% } %>
+      </p>
+    </div>
+
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+    <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+
+    <%
+      // User colour palette (cycles if > 6)
+      const colours = ['#2d6a4f','#1e6091','#9b2335','#7b4f12','#5a189a','#03045e'];
+      const posToColour = {};
+      participants.forEach((p, i) => { posToColour[p.draft_position] = colours[i % colours.length]; });
+    %>
+
+    <!-- ── Draft board ─────────────────────────────────────────────────────── -->
+    <div class="card">
+      <h2 class="section-title">Draft Board</h2>
+      <div class="draft-board-wrap">
+        <table class="draft-board">
+          <thead>
+            <tr>
+              <th>Pick</th>
+              <% participants.forEach(p => { %>
+                <th style="border-top: 3px solid <%= posToColour[p.draft_position] %>">
+                  <%= p.username %>
+                  <br /><small class="muted">#<%= p.draft_position %></small>
+                </th>
+              <% }) %>
+            </tr>
+          </thead>
+          <tbody>
+            <% board.forEach((row, pickRound) => { %>
+              <tr>
+                <td class="pick-round">Pick <%= pickRound + 1 %></td>
+                <% row.forEach(cell => { %>
+                  <td class="<%= cell.isCurrent ? 'cell-current' : '' %>"
+                      style="border-left: 3px solid <%= posToColour[cell.draftPos] || '#ccc' %>">
+                    <% if (cell.pick) { %>
+                      <span class="pick-name-cell" style="color: <%= posToColour[cell.draftPos] || '#333' %>">
+                        <%= cell.pick.player_name %>
+                      </span>
+                    <% } else if (cell.isCurrent) { %>
+                      <span class="cell-picking">← picking</span>
+                    <% } else { %>
+                      <span class="cell-empty">—</span>
+                    <% } %>
+                  </td>
+                <% }) %>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Pick form (shown only when it's your turn) ─────────────────────── -->
+    <% if (isMyTurn && !state.is_complete) { %>
+      <div class="card pick-form-card">
+        <h2 class="section-title">Your Pick — slot <%= allPicks.filter(p => p.user_id === user.id).length + 1 %> of <%= PICKS_PER_PLAYER %></h2>
+
+        <% if (allPicks.filter(p => p.user_id === user.id).length > 0) { %>
+          <div class="your-squad-mini">
+            <p class="label-small">Your picks so far:</p>
+            <div class="pill-list">
+              <% allPicks.filter(p => p.user_id === user.id).forEach(p => { %>
+                <span class="pill"><%= p.player_name %></span>
+              <% }) %>
+            </div>
+          </div>
+        <% } %>
+
+        <form action="/draft" method="POST">
+          <div class="form-group">
+            <label for="player_name">Choose a player</label>
+            <% if (available.length > 0) { %>
+              <input list="available-players" type="text" id="player_name" name="player_name"
+                     placeholder="Start typing a name…" required autocomplete="off" />
+              <datalist id="available-players">
+                <% available.forEach(name => { %><option value="<%= name %>"><% }) %>
+              </datalist>
+              <small><%= available.length %> players available. Suggestions from the Masters field.</small>
+            <% } else { %>
+              <input type="text" id="player_name" name="player_name"
+                     placeholder="e.g. Rory McIlroy" required autocomplete="off" />
+              <small>Type the player's name exactly as it appears on the leaderboard.</small>
+            <% } %>
+          </div>
+          <button type="submit" class="btn btn-block">Confirm pick</button>
+        </form>
+
+        <% if (takenSet.size > 0) { %>
+          <details class="taken-details">
+            <summary>Already taken (<%= takenSet.size %>)</summary>
+            <div class="pill-list mt-small">
+              <% [...takenSet].forEach(name => { %>
+                <span class="pill pill-taken"><%= allPicks.find(p => p.player_name.toLowerCase() === name)?.player_name %></span>
+              <% }) %>
+            </div>
+          </details>
+        <% } %>
+      </div>
+    <% } %>
+
+    <!-- ── Admin controls ─────────────────────────────────────────────────── -->
+    <% if (user && user.isAdmin) { %>
+      <div class="card admin-card">
+        <h2 class="section-title">Admin</h2>
+        <div class="admin-row">
+          <% if (!state.is_complete && state.current_pick_index === 0) { %>
+            <form action="/draft/randomise" method="POST" style="display:inline">
+              <button type="submit" class="btn btn-sm">Randomise draft order</button>
+            </form>
+          <% } %>
+          <form action="/draft/reset" method="POST" style="display:inline"
+                onsubmit="return confirm('Reset the entire draft? This deletes all picks.')">
+            <button type="submit" class="btn btn-sm btn-danger">Reset draft</button>
+          </form>
+        </div>
+      </div>
+    <% } %>
+
+    <!-- ── Squads ──────────────────────────────────────────────────────────── -->
+    <% if (squads.some(s => s.picks.length > 0)) { %>
+      <h2 class="section-title mt-lg">Squads</h2>
+      <div class="squads-grid">
+        <% squads.forEach((squad, i) => { %>
+          <div class="card squad-card" style="border-top: 4px solid <%= colours[i % colours.length] %>">
+            <div class="squad-header">
+              <strong><%= squad.username %></strong>
+              <span class="muted">#<%= squad.draft_position %> · <%= squad.picks.length %>/<%= PICKS_PER_PLAYER %> picks</span>
+            </div>
+            <% if (squad.picks.length === 0) { %>
+              <p class="muted mt-small">No picks yet.</p>
+            <% } else { %>
+              <ol class="squad-picks">
+                <% squad.picks.forEach(p => { %>
+                  <li><%= p.player_name %></li>
+                <% }) %>
+              </ol>
+            <% } %>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+
+  </main>
+
+  <footer>
+    <p>Snake draft · 6 picks each · Lowest 3 scores count · 3 must make the cut</p>
+  </footer>
+</body>
+</html>

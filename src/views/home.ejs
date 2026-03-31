@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PickMates – Masters 2026</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo">
+        <span class="logo-flag">⛳</span> PickMates
+        <span class="logo-sub">Masters 2026</span>
+      </a>
+      <nav>
+        <% if (user) { %>
+          <span class="nav-user">👤 <%= user.username %></span>
+          <a href="/draft" class="btn btn-sm">Draft</a>
+          <form action="/auth/logout" method="POST" style="display:inline">
+            <button type="submit" class="btn btn-sm btn-ghost">Log out</button>
+          </form>
+        <% } else { %>
+          <a href="/auth/login" class="btn btn-sm btn-ghost">Log in</a>
+          <a href="/auth/register" class="btn btn-sm">Register</a>
+        <% } %>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+
+    <div class="page-header">
+      <h1>Team Standings</h1>
+      <% if (lastUpdated) { %>
+        <p class="last-updated">Scores updated: <%= new Date(lastUpdated).toLocaleString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) %></p>
+      <% } else { %>
+        <p class="last-updated">Scores not yet available — tournament starts 9 April 2026</p>
+      <% } %>
+    </div>
+
+    <%
+      const colours = ['#2d6a4f','#1e6091','#9b2335','#7b4f12','#5a189a','#03045e'];
+    %>
+
+    <!-- ── Team standings ──────────────────────────────────────────────────── -->
+    <% if (standings.length === 0) { %>
+      <div class="card empty-state">
+        <p>No participants yet. <a href="/auth/register">Register</a> and join the draft!</p>
+      </div>
+    <% } else { %>
+      <div class="card">
+        <table class="leaderboard-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Team</th>
+              <th>Team Score</th>
+              <th>Cut status</th>
+              <th>Best round</th>
+              <th>Counting players</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% standings.forEach((t, i) => { %>
+              <%
+                const colour = colours[t.draft_position ? t.draft_position - 1 : i % colours.length];
+                const isMe = user && user.username === t.username;
+              %>
+              <tr class="<%= isMe ? 'my-row' : '' %>">
+                <td class="rank">
+                  <% if (i === 0 && t.teamScore !== null && t.qualified) { %>
+                    <span class="medal gold">1</span>
+                  <% } else if (i === 1 && t.teamScore !== null && t.qualified) { %>
+                    <span class="medal silver">2</span>
+                  <% } else if (i === 2 && t.teamScore !== null && t.qualified) { %>
+                    <span class="medal bronze">3</span>
+                  <% } else { %>
+                    <%= i + 1 %>
+                  <% } %>
+                </td>
+                <td>
+                  <span class="team-dot" style="background:<%= colour %>"></span>
+                  <strong><%= t.username %></strong>
+                </td>
+                <td>
+                  <% if (t.teamScore !== null) { %>
+                    <span class="score-badge <%= t.teamScore < 0 ? 'under' : t.teamScore === 0 ? 'even' : 'over' %>">
+                      <%= fmtScore(t.teamScore) %>
+                    </span>
+                    <% if (!t.qualified) { %><span class="disq-badge">DQ</span><% } %>
+                  <% } else { %>
+                    <span class="muted">TBC</span>
+                  <% } %>
+                </td>
+                <td>
+                  <% if (t.picks.length === 0) { %>
+                    <span class="muted">—</span>
+                  <% } else { %>
+                    <span class="cut-status <%= t.qualified ? 'cut-ok' : 'cut-bad' %>">
+                      <%= t.cutMakers %>/<%= SCORES_THAT_COUNT %> cut
+                      <% if (t.qualified) { %>✓<% } else { %>✗<% } %>
+                    </span>
+                  <% } %>
+                </td>
+                <td>
+                  <% if (t.bestRound !== null) { %>
+                    <strong><%= t.bestRound %></strong>
+                    <span class="muted">(<%= t.bestRoundNum %>, <%= t.bestRoundPlayer %>)</span>
+                  <% } else { %>
+                    <span class="muted">—</span>
+                  <% } %>
+                </td>
+                <td>
+                  <% if (t.counting && t.counting.length > 0) { %>
+                    <div class="counting-players">
+                      <% t.counting.forEach(p => { %>
+                        <span class="pill"><%= p.player_name %> <em><%= fmtScore(p.score_to_par) %></em></span>
+                      <% }) %>
+                    </div>
+                  <% } else { %>
+                    <span class="muted">—</span>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── Scoring rules ──────────────────────────────────────────────────── -->
+      <div class="card rules-card">
+        <div class="rules-grid">
+          <div><strong>£10</strong> team prize → lowest team score (top <%= SCORES_THAT_COUNT %> players)</div>
+          <div><strong>£2</strong> round pot → lowest single round score across all teams</div>
+          <div><strong>Qualifies</strong> if <%= SCORES_THAT_COUNT %>+ picks make the cut · <strong>DQ</strong> = disqualified from team prize</div>
+          <div><strong>Tiebreaker</strong> → team with the lowest individual player score wins</div>
+        </div>
+      </div>
+    <% } %>
+
+    <!-- ── Round pot ──────────────────────────────────────────────────────── -->
+    <% if (roundPotRankings.length > 0) { %>
+      <h2 class="section-title mt-lg">£2 Round Pot</h2>
+      <div class="card">
+        <table class="leaderboard-table">
+          <thead>
+            <tr><th>#</th><th>Team</th><th>Best round</th><th>Round</th><th>Player</th></tr>
+          </thead>
+          <tbody>
+            <% roundPotRankings.forEach((t, i) => { %>
+              <%
+                const colour = colours[t.draft_position ? t.draft_position - 1 : i % colours.length];
+                const isMe = user && user.username === t.username;
+              %>
+              <tr class="<%= isMe ? 'my-row' : '' %>">
+                <td class="rank">
+                  <% if (i === 0) { %><span class="medal gold">1</span>
+                  <% } else { %><%= i + 1 %><% } %>
+                </td>
+                <td>
+                  <span class="team-dot" style="background:<%= colour %>"></span>
+                  <strong><%= t.username %></strong>
+                </td>
+                <td><strong><%= t.bestRound %></strong></td>
+                <td><%= t.bestRoundNum %></td>
+                <td><%= t.bestRoundPlayer %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+        <p class="card-footnote">Round pot does not require making the cut.</p>
+      </div>
+    <% } %>
+
+    <!-- ── Full squad breakdown ───────────────────────────────────────────── -->
+    <% if (standings.some(t => t.picks.length > 0)) { %>
+      <h2 class="section-title mt-lg">Squads</h2>
+      <div class="squads-grid">
+        <% standings.forEach((t, i) => { %>
+          <%
+            const colour = colours[t.draft_position ? t.draft_position - 1 : i % colours.length];
+            const countingNames = new Set((t.counting || []).map(p => p.player_name));
+          %>
+          <div class="card squad-card" style="border-top: 4px solid <%= colour %>">
+            <div class="squad-header">
+              <strong><%= t.username %></strong>
+              <% if (t.teamScore !== null) { %>
+                <span class="score-badge <%= t.teamScore < 0 ? 'under' : t.teamScore === 0 ? 'even' : 'over' %>">
+                  <%= fmtScore(t.teamScore) %>
+                </span>
+              <% } %>
+            </div>
+            <% if (t.picks.length === 0) { %>
+              <p class="muted mt-small">No picks yet.</p>
+            <% } else { %>
+              <table class="squad-table">
+                <thead><tr><th>Player</th><th>Pos</th><th>Score</th><th>Rounds</th></tr></thead>
+                <tbody>
+                  <% t.picks.forEach(p => { %>
+                    <tr class="<%= countingNames.has(p.player_name) ? 'counting-row' : '' %>">
+                      <td>
+                        <%= p.player_name %>
+                        <% if (countingNames.has(p.player_name)) { %>
+                          <span class="counts-badge">counts</span>
+                        <% } %>
+                      </td>
+                      <td>
+                        <% if (p.lb_position) { %>T<%= p.lb_position %>
+                        <% } else if (p.made_cut === false) { %><span class="cut-badge">CUT</span>
+                        <% } else { %>—<% } %>
+                      </td>
+                      <td>
+                        <% if (p.score_to_par !== null && p.score_to_par !== undefined) { %>
+                          <span class="score-badge <%= p.score_to_par < 0 ? 'under' : p.score_to_par === 0 ? 'even' : 'over' %>">
+                            <%= fmtScore(p.score_to_par) %>
+                          </span>
+                        <% } else { %>—<% } %>
+                      </td>
+                      <td class="round-scores">
+                        <% [p.r1, p.r2, p.r3, p.r4].forEach((r, ri) => { %>
+                          <% if (r !== null && r !== undefined) { %>
+                            <span class="round-chip"><%= r %></span>
+                          <% } %>
+                        <% }) %>
+                      </td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+              <p class="squad-note">
+                <% const cutCount = t.picks.filter(p => p.made_cut === true).length; %>
+                <%= cutCount %> made the cut
+                <% if (!t.qualified && t.picks.some(p => p.made_cut !== null)) { %>
+                  — <span style="color:#c0392b">needs <%= SCORES_THAT_COUNT - cutCount %> more to qualify</span>
+                <% } %>
+              </p>
+            <% } %>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+
+  </main>
+
+  <footer>
+    <p>Scores scraped from Flashscore every 30 minutes · Snake draft · Lowest 3 of 6 count</p>
+  </footer>
+</body>
+</html>

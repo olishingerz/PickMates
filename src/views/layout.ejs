@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PickMates – Masters 2026</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo">
+        <span class="logo-flag">⛳</span>
+        PickMates
+        <span class="logo-sub">Masters 2026</span>
+      </a>
+      <nav>
+        <% if (user) { %>
+          <span class="nav-user">👤 <%= user.username %></span>
+          <a href="/picks" class="btn btn-sm">My Pick</a>
+          <form action="/auth/logout" method="POST" style="display:inline">
+            <button type="submit" class="btn btn-sm btn-ghost">Log out</button>
+          </form>
+        <% } else { %>
+          <a href="/auth/login" class="btn btn-sm btn-ghost">Log in</a>
+          <a href="/auth/register" class="btn btn-sm">Register</a>
+        <% } %>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <%- body %>
+  </main>
+
+  <footer>
+    <p>Scores scraped from Flashscore every 30 minutes during the tournament.</p>
+  </footer>
+</body>
+</html>

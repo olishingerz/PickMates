@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Pick – PickMates</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo">
+        <span class="logo-flag">⛳</span>
+        PickMates
+        <span class="logo-sub">Masters 2026</span>
+      </a>
+      <nav>
+        <% if (user) { %>
+          <span class="nav-user">👤 <%= user.username %></span>
+          <a href="/" class="btn btn-sm btn-ghost">Leaderboard</a>
+          <form action="/auth/logout" method="POST" style="display:inline">
+            <button type="submit" class="btn btn-sm btn-ghost">Log out</button>
+          </form>
+        <% } %>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="auth-container">
+      <div class="card auth-card">
+        <h1>My Pick</h1>
+
+        <% if (locked) { %>
+          <div class="alert alert-info">
+            Picks are locked — the Masters has started! Good luck 🤞
+          </div>
+          <% if (currentPick) { %>
+            <div class="pick-display">
+              <p class="pick-label">Your pick</p>
+              <p class="pick-name"><%= currentPick %></p>
+            </div>
+          <% } else { %>
+            <p>You didn't make a pick before the deadline.</p>
+          <% } %>
+        <% } else { %>
+
+          <% if (error) { %>
+            <div class="alert alert-error"><%= error %></div>
+          <% } %>
+          <% if (success) { %>
+            <div class="alert alert-success"><%= success %></div>
+          <% } %>
+
+          <p class="pick-deadline">
+            Picks lock on <strong>9 April 2026 at 4pm BST</strong> (first tee time).
+            You can change your pick any time before then.
+          </p>
+
+          <form action="/picks" method="POST">
+            <div class="form-group">
+              <label for="player_name">Choose your player</label>
+              <% if (players.length > 0) { %>
+                <input
+                  list="players-list"
+                  type="text"
+                  id="player_name"
+                  name="player_name"
+                  placeholder="Start typing a player's name..."
+                  value="<%= currentPick || '' %>"
+                  required
+                  autocomplete="off"
+                />
+                <datalist id="players-list">
+                  <% players.forEach(p => { %>
+                    <option value="<%= p %>"></option>
+                  <% }) %>
+                </datalist>
+                <small>Suggestions loaded from the Masters field. You can also type any name.</small>
+              <% } else { %>
+                <input
+                  type="text"
+                  id="player_name"
+                  name="player_name"
+                  placeholder="e.g. Rory McIlroy"
+                  value="<%= currentPick || '' %>"
+                  required
+                  autocomplete="off"
+                />
+                <small>Scores not loaded yet — type the player's full name exactly as it appears on the leaderboard.</small>
+              <% } %>
+            </div>
+            <button type="submit" class="btn btn-block">
+              <%= currentPick ? 'Update pick' : 'Save pick' %>
+            </button>
+          </form>
+
+        <% } %>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <p>Scores scraped from Flashscore every 30 minutes during the tournament.</p>
+  </footer>
+</body>
+</html>
