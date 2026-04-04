@@ -263,9 +263,16 @@
               <p class="muted mt-small">No picks yet.</p>
             <% } else { %>
               <table class="squad-table">
-                <thead><tr><th>Player</th><th>Pos</th><th>Score</th><th>Thru</th></tr></thead>
+                <thead><tr><th>Player</th><th>Pos</th><th>Score</th><th>Thru</th><th>Rd</th></tr></thead>
                 <tbody>
                   <% t.picks.forEach(p => { %>
+                    <%
+                      const currentRound = p.r4 !== null ? 'R4'
+                                         : p.r3 !== null ? 'R3'
+                                         : p.r2 !== null ? 'R2'
+                                         : p.r1 !== null ? 'R1'
+                                         : null;
+                    %>
                     <tr class="<%= countingNames.has(p.player_name) ? 'counting-row' : '' %>">
                       <td>
                         <%= p.player_name %>
@@ -290,6 +297,9 @@
                         <% } else if (p.thru === 18) { %>F
                         <% } else if (p.thru) { %><%= p.thru %>
                         <% } else { %>—<% } %>
+                      </td>
+                      <td class="muted" style="font-size:.82rem">
+                        <%= currentRound || '—' %>
                       </td>
                     </tr>
                   <% }) %>
