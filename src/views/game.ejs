@@ -66,6 +66,12 @@
             <button type="submit" class="btn btn-sm">Mark tournament complete</button>
           </form>
         <% } %>
+        <% if (game.tournament_complete) { %>
+          <form action="/game/<%= game.id %>/uncomplete" method="POST" style="display:inline;margin-left:.6rem"
+                onsubmit="return confirm('Unmark as complete? Scores will resume updating from ESPN.')">
+            <button type="submit" class="btn btn-sm btn-ghost" style="color:var(--text)">Unmark complete</button>
+          </form>
+        <% } %>
         <form action="/game/<%= game.id %>/delete" method="POST" style="display:inline;margin-left:.6rem"
               onsubmit="return confirm('Delete this game and all its picks? This cannot be undone.')">
           <button type="submit" class="btn btn-sm btn-danger">Delete game</button>

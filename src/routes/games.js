@@ -278,6 +278,25 @@ router.post('/:gameId/delete', async (req, res) => {
   }
 });
 
+// POST /game/:gameId/uncomplete — host or admin: unmark tournament_complete so scraping resumes
+router.post('/:gameId/uncomplete', async (req, res) => {
+  const user = req.session?.user;
+  const gameId = parseInt(req.params.gameId);
+  const { rows } = await pool.query('SELECT host_user_id FROM games WHERE id = $1', [gameId]);
+  const isHost = user?.isAdmin || user?.id === rows[0]?.host_user_id;
+  if (!isHost) return res.redirect(`/game/${gameId}`);
+  try {
+    await pool.query(
+      'UPDATE games SET tournament_complete = FALSE, winner_username = NULL, winner_individual_username = NULL WHERE id = $1',
+      [gameId]
+    );
+    res.redirect(`/game/${gameId}?success=` + encodeURIComponent('Tournament unmarked — scores will resume updating.'));
+  } catch (err) {
+    console.error('[game uncomplete]', err);
+    res.redirect(`/game/${gameId}?error=` + encodeURIComponent('Failed to unmark tournament.'));
+  }
+});
+
 // POST /game/:gameId/complete — host or admin: mark tournament as fully over
 router.post('/:gameId/complete', async (req, res) => {
   const user = req.session?.user;
