@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Profile – PickMates</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo"><span class="logo-flag">⛳</span> PickMates</a>
+      <nav><%- include('partials/nav') %></nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-header">
+      <h1>Profile</h1>
+    </div>
+
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+    <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+
+    <div class="profile-grid">
+
+      <!-- ── Avatar ──────────────────────────────────────────────────────── -->
+      <div class="card profile-avatar-card">
+        <h2 class="section-title">Profile picture</h2>
+        <div class="avatar-preview">
+          <% if (profileUser.avatar) { %>
+            <img src="<%= profileUser.avatar %>" alt="Profile picture" class="avatar-img" />
+          <% } else { %>
+            <div class="avatar-placeholder"><%= profileUser.username.charAt(0).toUpperCase() %></div>
+          <% } %>
+        </div>
+        <form action="/profile/avatar" method="POST" enctype="multipart/form-data" style="margin-top:.8rem">
+          <div class="form-group">
+            <label for="avatar">Upload image <span class="muted">(max 2 MB)</span></label>
+            <input type="file" id="avatar" name="avatar" accept="image/*" />
+          </div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button type="submit" class="btn btn-sm">Save picture</button>
+            <% if (profileUser.avatar) { %>
+              <button type="submit" name="remove_avatar" value="1" class="btn btn-sm btn-ghost" style="color:var(--text)">Remove</button>
+            <% } %>
+          </div>
+        </form>
+      </div>
+
+      <!-- ── Username ────────────────────────────────────────────────────── -->
+      <div class="card">
+        <h2 class="section-title">Username</h2>
+        <form action="/profile/username" method="POST">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username"
+                   value="<%= profileUser.username %>" required
+                   minlength="2" maxlength="50" autocomplete="username" />
+          </div>
+          <button type="submit" class="btn btn-sm">Save username</button>
+        </form>
+      </div>
+
+      <!-- ── Email / notifications ─────────────────────────────────────── -->
+      <div class="card">
+        <h2 class="section-title">Email &amp; notifications</h2>
+        <form action="/profile/email" method="POST">
+          <div class="form-group">
+            <label for="email">Email address</label>
+            <input type="email" id="email" name="email"
+                   value="<%= profileUser.email || '' %>" autocomplete="email"
+                   placeholder="you@example.com" />
+            <small>Used to notify you when it's your turn in a draft or before an LMS deadline. Never shared.</small>
+          </div>
+          <button type="submit" class="btn btn-sm">Save email</button>
+        </form>
+      </div>
+
+      <!-- ── Password ────────────────────────────────────────────────────── -->
+      <div class="card">
+        <h2 class="section-title">Change password</h2>
+        <form action="/profile/password" method="POST">
+          <div class="form-group">
+            <label for="current_password">Current password</label>
+            <input type="password" id="current_password" name="current_password"
+                   required autocomplete="current-password" />
+          </div>
+          <div class="form-group">
+            <label for="password">New password</label>
+            <input type="password" id="password" name="password"
+                   required minlength="6" autocomplete="new-password" />
+            <small>At least 6 characters</small>
+          </div>
+          <div class="form-group">
+            <label for="confirmPassword">Confirm new password</label>
+            <input type="password" id="confirmPassword" name="confirmPassword"
+                   required autocomplete="new-password" />
+          </div>
+          <button type="submit" class="btn btn-sm">Save password</button>
+        </form>
+      </div>
+
+    </div>
+  </main>
+
+  <footer>
+    <p>PickMates · Golf draft competitions</p>
+  </footer>
+</body>
+</html>

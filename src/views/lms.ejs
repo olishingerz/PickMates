@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= game.name %> – PickMates</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo"><span class="logo-flag">🏆</span> PickMates <span class="logo-sub"><%= game.name %></span></a>
+      <nav><%- include('partials/nav') %></nav>
+    </div>
+  </header>
+
+  <main>
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+    <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+
+    <div class="page-header">
+      <h1><%= game.name %></h1>
+      <p class="muted" style="margin-top:.2rem">
+        🏆 Last Man Standing
+        <% leagues.forEach(l => { %>
+          <span class="game-type-badge game-type-lms" style="margin-left:.3rem"><%= LEAGUE_NAMES[l] || l %></span>
+        <% }) %>
+      </p>
+      <%
+        const alive = standings.filter(s => !s.eliminated).length;
+        const total = standings.length;
+      %>
+      <p class="muted" style="margin-top:.3rem"><strong><%= alive %></strong> of <strong><%= total %></strong> still alive — Week <strong><%= currentWeek %></strong></p>
+    <% if (game.is_started && !weekObj?.results_locked) { %>
+      <p class="muted" style="margin-top:.2rem;font-size:.85rem">
+        <% if (allPickedIn) { %>
+          <span style="color:var(--green-dark);font-weight:600">✓ All picks in — picks revealed below</span>
+        <% } else { %>
+          <span><strong><%= pickedCount %></strong> of <strong><%= aliveStandings.length %></strong> picks submitted — picks hidden until everyone is in</span>
+        <% } %>
+      </p>
+    <% } %>
+
+      <% if (weekObj?.deadline) { %>
+        <p class="last-updated">
+          Week <%= currentWeek %> deadline: <%= new Date(weekObj.deadline).toLocaleString('en-GB', { timeZone:'Europe/London', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %>
+          <% if (weekObj.results_locked) { %><span class="status-badge status-done" style="margin-left:.5rem">Results locked</span><% } %>
+        </p>
+      <% } %>
+      <div style="margin-top:.6rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+        <% if (game.invite_code && !game.is_started && !game.tournament_complete) { %>
+          <button class="btn btn-sm btn-ghost" style="color:var(--green-dark);border-color:var(--border);background:var(--green-light)" onclick="
+            navigator.clipboard.writeText(location.origin + '/join/<%= game.invite_code %>');
+            this.textContent = '✓ Invite link copied!';
+            setTimeout(() => this.textContent = '🔗 Share invite link', 2000);
+          ">🔗 Share invite link</button>
+        <% } %>
+        <button class="btn btn-sm btn-ghost" style="color:var(--text-muted);border-color:var(--border)" onclick="
+          navigator.clipboard.writeText(location.href);
+          this.textContent = '✓ Copied!';
+          setTimeout(() => this.textContent = '📋 Share leaderboard', 2000);
+        ">📋 Share leaderboard</button>
+      </div>
+    </div>
+
+    <!-- ── Submit pick CTA ──────────────────────────────────────────── -->
+    <%
+      const alreadyJoined  = user && standings.some(s => s.user_id === user.id);
+      const myStanding     = standings.find(s => user && s.user_id === user.id);
+      const canPick        = alreadyJoined && myStanding && !myStanding.eliminated
+                             && !myStanding.myCurrentPick
+                             && !weekObj?.results_locked;
+
+      // Picks are hidden until every alive player has submitted for the current week
+      const aliveStandings   = standings.filter(s => !s.eliminated);
+      const pickedCount      = aliveStandings.filter(s => s.myCurrentPick || s.picks.some(p => p.week_number === currentWeek)).length;
+      const allPickedIn      = aliveStandings.length > 0 && pickedCount >= aliveStandings.length;
+    %>
+    <% if (user && !alreadyJoined && !game.is_complete) { %>
+      <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+        <p style="margin:0">You're not in this game yet.</p>
+        <form action="/game/<%= game.id %>/join" method="POST" style="display:inline">
+          <button type="submit" class="btn" style="background:var(--green);color:#fff">Join game</button>
+        </form>
+      </div>
+    <% } else if (canPick) { %>
+      <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;background:#fffbeb;border:1px solid #f59e0b">
+        <div>
+          <strong>Week <%= currentWeek %> — make your pick!</strong>
+          <% if (weekObj?.deadline) { %>
+            <span class="muted" style="font-size:.85rem;margin-left:.5rem">Deadline: <%= new Date(weekObj.deadline).toLocaleString('en-GB', { timeZone:'Europe/London', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %></span>
+          <% } %>
+        </div>
+        <a href="/game/<%= game.id %>/lms/picks" class="btn" style="background:#f59e0b;color:#1a1a1a">Make your pick</a>
+      </div>
+    <% } else if (alreadyJoined && myStanding?.myCurrentPick && !weekObj?.results_locked) { %>
+      <div class="card" style="background:#f0fdf4;border:1px solid var(--green)">
+        Week <%= currentWeek %> pick: <strong><%= myStanding.myCurrentPick.team_name %></strong> — awaiting result.
+      </div>
+    <% } else if (alreadyJoined && myStanding?.eliminated) { %>
+      <div class="card" style="background:#fef2f2;border:1px solid #ef4444">
+        You were eliminated in week <%= myStanding.eliminatedWeek %>. Better luck next time!
+      </div>
+    <% } %>
+
+    <!-- ── Standings ────────────────────────────────────────────────── -->
+    <h2 class="section-title mt-lg">Standings</h2>
+    <div class="card">
+      <% if (standings.length === 0) { %>
+        <p class="muted">No players yet.</p>
+      <% } else { %>
+        <table class="leaderboard-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Player</th>
+              <th>Status</th>
+              <% for (let w = 1; w <= currentWeek; w++) { %>
+                <th>Wk <%= w %></th>
+              <% } %>
+            </tr>
+          </thead>
+          <tbody>
+            <%
+              const alive_standings = standings.filter(s => !s.eliminated);
+              const elim_standings  = standings.filter(s => s.eliminated)
+                .sort((a,b) => b.eliminatedWeek - a.eliminatedWeek);
+              const sorted_standings = [...alive_standings, ...elim_standings];
+            %>
+            <% sorted_standings.forEach((s, i) => { %>
+              <% const isMe = user && s.user_id === user.id; %>
+              <tr class="<%= isMe ? 'my-row' : '' %> <%= s.eliminated ? 'lms-eliminated' : '' %>">
+                <td class="rank"><%= i + 1 %></td>
+                <td><strong><%= s.username %></strong></td>
+                <td>
+                  <% if (!s.eliminated) { %>
+                    <span class="status-badge status-live">Alive</span>
+                  <% } else { %>
+                    <span class="status-badge status-done">Out W<%= s.eliminatedWeek %></span>
+                  <% } %>
+                </td>
+                <% for (let w = 1; w <= currentWeek; w++) { %>
+                  <%
+                    const pick = s.picks.find(p => p.week_number === w);
+                    const weekLocked = weeks.find(wk => wk.week_number === w)?.results_locked;
+                    const isPastWeek = w < currentWeek;
+                    // Current week picks are hidden until everyone has submitted
+                    const revealThisWeek = w < currentWeek || allPickedIn || weekLocked;
+                    const isMyPick = user && s.user_id === user.id;
+                  %>
+                  <td class="lms-pick-cell">
+                    <% if (pick) { %>
+                      <% if (!revealThisWeek && !isMyPick) { %>
+                        <span class="lms-pick pending" title="Waiting for all picks">🔒</span>
+                      <% } else if (pick.result === 'win') { %>
+                        <span class="lms-pick win"><%= pick.team_name %> ✓</span>
+                      <% } else if (pick.result === 'loss') { %>
+                        <span class="lms-pick loss"><%= pick.team_name %> ✗</span>
+                      <% } else if (pick.result === 'draw') { %>
+                        <span class="lms-pick draw"><%= pick.team_name %> ═</span>
+                      <% } else { %>
+                        <span class="lms-pick pending"><%= pick.team_name %></span>
+                      <% } %>
+                    <% } else if (weekLocked || isPastWeek) { %>
+                      <span class="lms-pick no-pick">No pick</span>
+                    <% } else if (!revealThisWeek) { %>
+                      <span class="muted">—</span>
+                    <% } else { %>
+                      <span class="muted">—</span>
+                    <% } %>
+                  </td>
+                <% } %>
+
+                <!-- Host override controls -->
+                <% if (isHost && weeks.find(w2 => w2.week_number === currentWeek)?.results_locked) { %>
+                  <% const curPick = s.picks.find(p => p.week_number === currentWeek); %>
+                  <% if (curPick && curPick.result === 'pending') { %>
+                  <td>
+                    <form action="/game/<%= game.id %>/lms/override-result" method="POST" style="display:inline;white-space:nowrap">
+                      <input type="hidden" name="pick_id" value="<%= curPick.id %>" />
+                      <select name="result" style="font-size:.78rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:4px">
+                        <option value="pending">pending</option>
+                        <option value="win">win</option>
+                        <option value="loss">loss</option>
+                        <option value="draw">draw</option>
+                      </select>
+                      <button type="submit" class="btn btn-sm" style="padding:.15rem .4rem;font-size:.78rem">Set</button>
+                    </form>
+                  </td>
+                  <% } else { %><td></td><% } %>
+                <% } %>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+
+    <!-- ── Host controls ─────────────────────────────────────────────── -->
+    <% if (isHost) { %>
+      <h2 class="section-title mt-lg">Host Controls</h2>
+      <div class="card admin-card">
+
+        <!-- Set deadline -->
+        <div class="admin-section">
+          <p class="label-small">Week <%= currentWeek %> pick deadline</p>
+          <form action="/game/<%= game.id %>/lms/set-deadline" method="POST" style="display:flex;gap:.5rem;align-items:center;margin-top:.3rem;flex-wrap:wrap">
+            <input type="datetime-local" name="deadline"
+                   value="<%= weekObj?.deadline ? new Date(weekObj.deadline).toISOString().slice(0,16) : '' %>"
+                   style="padding:.4rem .6rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.88rem" />
+            <button type="submit" class="btn btn-sm">Save deadline</button>
+          </form>
+        </div>
+
+        <div class="admin-divider"></div>
+        <div class="admin-row" style="flex-wrap:wrap;gap:.5rem">
+          <!-- Process results -->
+          <form action="/game/<%= game.id %>/lms/process-results" method="POST" style="display:inline"
+                onsubmit="return confirm('Fetch results from ESPN and lock week <%= currentWeek %>? This cannot be undone.')">
+            <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">
+              Process results — Week <%= currentWeek %>
+            </button>
+          </form>
+
+          <!-- Advance week -->
+          <% if (weekObj?.results_locked) { %>
+            <form action="/game/<%= game.id %>/lms/advance-week" method="POST" style="display:inline"
+                  onsubmit="return confirm('Move to week <%= currentWeek + 1 %>?')">
+              <button type="submit" class="btn btn-sm">Advance to week <%= currentWeek + 1 %></button>
+            </form>
+          <% } %>
+
+          <!-- Delete game -->
+          <form action="/game/<%= game.id %>/delete" method="POST" style="display:inline"
+                onsubmit="return confirm('Delete this game and all picks? Cannot be undone.')">
+            <button type="submit" class="btn btn-sm btn-danger">Delete game</button>
+          </form>
+        </div>
+        <p class="admin-hint">Process results fetches live scores from ESPN and marks each pick as win/loss/draw. Then advance to the next week.</p>
+      </div>
+    <% } %>
+
+  </main>
+
+  <footer>
+    <p>Last Man Standing · Pick 1 team per week · Can't reuse teams · Miss a week = eliminated</p>
+  </footer>
+</body>
+</html>
