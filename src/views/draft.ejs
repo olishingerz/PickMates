@@ -164,11 +164,11 @@
     </div>
 
     <!-- ── Invite link ───────────────────────────────────────────────────── -->
-    <% if (inviteCode) { %>
+    <% if (inviteCode && !state.is_started) { %>
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap;padding:1rem 1.5rem">
         <div>
           <p class="label-small" style="margin-bottom:.25rem">Invite link</p>
-          <span id="invite-url" style="font-size:.85rem;font-family:monospace;color:var(--green-dark);word-break:break-all"></span>
+          <span id="invite-url" style="font-size:.85rem;color:var(--green-dark);word-break:break-all"></span>
           <script>
             document.getElementById('invite-url').textContent = location.origin + '/join/<%= inviteCode %>';
           </script>
