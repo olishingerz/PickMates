@@ -22,6 +22,66 @@
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
     <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
 
+    <!-- ── Stats ──────────────────────────────────────────────────────────── -->
+    <div class="card" style="margin-bottom:1.2rem">
+      <h2 class="section-title">Your stats</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem">
+        <div>
+          <p class="label-small" style="margin-bottom:.6rem">⛳ Golf Draft</p>
+          <div style="display:flex;flex-direction:column;gap:.4rem">
+            <div class="stat-row"><span class="muted">Games played</span><strong><%= golfStats.golf_played || 0 %></strong></div>
+            <div class="stat-row"><span class="muted">Team pot wins</span><strong><%= golfStats.team_wins || 0 %></strong></div>
+            <div class="stat-row"><span class="muted">Individual pot wins</span><strong><%= golfStats.indiv_wins || 0 %></strong></div>
+          </div>
+        </div>
+        <div>
+          <p class="label-small" style="margin-bottom:.6rem">🏆 Last Man Standing</p>
+          <div style="display:flex;flex-direction:column;gap:.4rem">
+            <div class="stat-row"><span class="muted">Games played</span><strong><%= lmsStats.lms_played || 0 %></strong></div>
+            <div class="stat-row"><span class="muted">Wins</span><strong><%= lmsStats.lms_wins || 0 %></strong></div>
+            <div class="stat-row"><span class="muted">Furthest week</span><strong><%= lmsStats.furthest_week || '—' %></strong></div>
+          </div>
+        </div>
+      </div>
+
+      <% if (pickHistory.length > 0) { %>
+        <%
+          // Group pick history by game
+          const gameMap = new Map();
+          pickHistory.forEach(p => {
+            if (!gameMap.has(p.game_id)) gameMap.set(p.game_id, { game_name: p.game_name, tournament_name: p.tournament_name, tournament_complete: p.tournament_complete, picks: [] });
+            gameMap.get(p.game_id).picks.push(p);
+          });
+          const games = [...gameMap.values()];
+        %>
+        <div style="margin-top:1.2rem;border-top:1px solid var(--border);padding-top:1rem">
+          <p class="label-small" style="margin-bottom:.6rem">Pick history</p>
+          <% games.forEach(g => { %>
+            <div style="margin-bottom:.8rem">
+              <p style="font-size:.85rem;font-weight:600;margin-bottom:.3rem">
+                <%= g.game_name %><% if (g.tournament_name) { %> <span class="muted">· <%= g.tournament_name %></span><% } %>
+              </p>
+              <div style="display:flex;flex-wrap:wrap;gap:.3rem">
+                <% g.picks.forEach(p => { %>
+                  <%
+                    const sc = p.score_to_par;
+                    const cls = sc === null ? '' : sc < 0 ? 'under' : sc === 0 ? 'even' : 'over';
+                    const label = sc === null ? '' : (sc === 0 ? 'E' : sc > 0 ? '+' + sc : '' + sc);
+                  %>
+                  <span style="display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .55rem;background:var(--bg);border:1px solid var(--border);border-radius:20px;font-size:.8rem">
+                    <%= p.player_name %>
+                    <% if (p.made_cut === false) { %><span class="cut-badge" style="font-size:.68rem">CUT</span>
+                    <% } else if (sc !== null) { %><span class="score-badge <%= cls %>" style="font-size:.72rem;padding:.05rem .3rem"><%= label %></span>
+                    <% } %>
+                  </span>
+                <% }) %>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+
     <div class="profile-grid">
 
       <!-- ── Avatar ──────────────────────────────────────────────────────── -->

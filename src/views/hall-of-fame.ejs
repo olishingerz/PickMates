@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hall of Fame – PickMates</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo"><span class="logo-flag">⛳</span> PickMates</a>
+      <nav><%- include('partials/nav') %></nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-header">
+      <h1>🏆 Hall of Fame</h1>
+      <p class="last-updated">All-time winners across every completed game.</p>
+    </div>
+
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+    <!-- ── All-time standings ─────────────────────────────────────────────── -->
+    <% if (allTime.length === 0) { %>
+      <div class="card empty-state">
+        <p>No completed games yet — check back after the first tournament finishes.</p>
+      </div>
+    <% } else { %>
+      <h2 class="section-title">All-time standings</h2>
+      <div class="card leaderboard-table-wrap">
+        <table class="hof-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Player</th>
+              <th>Team wins</th>
+              <th>Individual wins</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% allTime.forEach((row, i) => { %>
+              <tr>
+                <td class="rank">
+                  <% if (i === 0) { %><span class="medal gold">1</span>
+                  <% } else if (i === 1) { %><span class="medal silver">2</span>
+                  <% } else if (i === 2) { %><span class="medal bronze">3</span>
+                  <% } else { %><%= i + 1 %><% } %>
+                </td>
+                <td><strong><%= row.username %></strong></td>
+                <td><%= row.team_wins %></td>
+                <td><%= row.indiv_wins %></td>
+                <td><strong><%= row.total_wins %></strong></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+
+    <!-- ── Recent results ────────────────────────────────────────────────── -->
+    <% if (recentWins.length > 0) { %>
+      <h2 class="section-title mt-lg">All results</h2>
+      <div class="winners-grid">
+        <% recentWins.forEach(w => { %>
+          <a href="/game/<%= w.id %>" class="winner-card">
+            <div class="winner-card-tournament">
+              <span class="game-type-badge <%= w.game_type === 'last_man_standing' ? 'game-type-lms' : 'game-type-golf' %>" style="margin-bottom:.4rem;display:inline-block">
+                <%= w.game_type === 'last_man_standing' ? '🏆 Last Man Standing' : '⛳ Golf Draft' %>
+              </span>
+              <div class="winner-card-name"><%= w.name %></div>
+              <% if (w.tournament_name) { %><div class="muted" style="font-size:.8rem"><%= w.tournament_name %></div><% } %>
+              <% if (w.tournament_end_date) { %>
+                <div class="muted" style="font-size:.78rem"><%= new Date(w.tournament_end_date).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) %></div>
+              <% } %>
+            </div>
+            <div class="winner-card-prizes">
+              <% if (w.winner_username) { %>
+                <div class="winner-entry">
+                  <span class="winner-trophy">🥇</span>
+                  <span class="winner-name"><%= w.winner_username %></span>
+                  <span class="winner-label"><%= w.game_type === 'last_man_standing' ? '· Last Man Standing' : '· Team pot' %></span>
+                </div>
+              <% } %>
+              <% if (w.winner_individual_username && w.game_type === 'golf_draft') { %>
+                <div class="winner-entry">
+                  <span class="winner-trophy">🎯</span>
+                  <span class="winner-name"><%= w.winner_individual_username %></span>
+                  <span class="winner-label">· Individual pot</span>
+                </div>
+              <% } %>
+            </div>
+          </a>
+        <% }) %>
+      </div>
+    <% } %>
+
+  </main>
+
+  <footer>
+    <p>PickMates · Golf draft competitions</p>
+  </footer>
+</body>
+</html>

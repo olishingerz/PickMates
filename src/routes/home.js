@@ -1,157 +1,199 @@
 const express = require('express');
 const { pool } = require('../db');
-const { SCORES_THAT_COUNT, MIN_CUT_MAKERS } = require('../constants');
+const { fetchTournamentList, scrapeLeaderboard } = require('../services/scraper');
 
 const router = express.Router();
 
-// Format an integer score-to-par as a display string
-function fmtScore(n) {
-  if (n === null || n === undefined) return '—';
-  if (n === 0) return 'E';
-  return n > 0 ? `+${n}` : `${n}`;
-}
-
-// Calculate all scoring data for a user's picks
-function calcTeamData(picks) {
-  // Picks that have a score
-  const withScore = picks.filter(p => p.score_to_par !== null && p.score_to_par !== undefined);
-
-  // Sort ascending — lowest (best) score first
-  const sorted = [...withScore].sort((a, b) => a.score_to_par - b.score_to_par);
-
-  // Team score: sum of lowest SCORES_THAT_COUNT players
-  const counting = sorted.slice(0, SCORES_THAT_COUNT);
-  const teamScore = counting.length === SCORES_THAT_COUNT
-    ? counting.reduce((s, p) => s + p.score_to_par, 0)
-    : null; // not enough data yet
-
-  // Qualification: need MIN_CUT_MAKERS who made the cut
-  const cutMakers = picks.filter(p => p.made_cut === true).length;
-  const qualified = cutMakers >= MIN_CUT_MAKERS;
-
-  // Tiebreaker: best (lowest) individual score in the team
-  const bestIndividual = sorted[0]?.score_to_par ?? null;
-
-  // Best single round (for round pot) — raw stroke score, lower is better
-  let bestRound = null;
-  let bestRoundNum = null;
-  let bestRoundPlayer = null;
-  for (const pick of picks) {
-    for (const [key, label] of [['r1','R1'],['r2','R2'],['r3','R3'],['r4','R4']]) {
-      const val = pick[key];
-      if (val !== null && val !== undefined && (bestRound === null || val < bestRound)) {
-        bestRound = val;
-        bestRoundNum = label;
-        bestRoundPlayer = pick.player_name;
-      }
-    }
-  }
-
-  return { teamScore, qualified, cutMakers, counting, bestIndividual, bestRound, bestRoundNum, bestRoundPlayer };
-}
-
 router.get('/', async (req, res) => {
   try {
-    // Fetch all participants' picks with leaderboard data
-    const { rows } = await pool.query(`
-      SELECT
-        u.id           AS user_id,
-        u.username,
-        u.draft_position,
-        p.player_name,
-        p.pick_slot,
-        l.position     AS lb_position,
-        l.score_to_par,
-        l.made_cut,
-        l.r1, l.r2, l.r3, l.r4,
-        l.updated_at
-      FROM users u
-      LEFT JOIN picks p ON p.user_id = u.id
-      LEFT JOIN leaderboard l
-             ON LOWER(TRIM(l.player_name)) = LOWER(TRIM(p.player_name))
-      WHERE u.draft_position IS NOT NULL
-      ORDER BY u.draft_position ASC, p.pick_slot ASC
+    const userId = req.session.user?.id || null;
+    const { rows: games } = await pool.query(`
+      SELECT g.id, g.name, g.tournament_name, g.is_started, g.is_complete, g.tournament_complete, g.created_at,
+             g.game_type, g.host_user_id, g.is_public,
+             COUNT(gp.id)::int AS participant_count,
+             BOOL_OR(gp.user_id = $1) AS user_joined
+      FROM games g
+      LEFT JOIN game_participants gp ON gp.game_id = g.id
+      GROUP BY g.id
+      ORDER BY g.created_at DESC
+    `, [userId]);
+    const { rows: winners } = await pool.query(`
+      SELECT id, name, game_type, tournament_name, winner_username, winner_individual_username,
+             tournament_end_date, tournament_start_date
+      FROM games
+      WHERE tournament_complete = TRUE
+        AND (winner_username IS NOT NULL OR winner_individual_username IS NOT NULL)
+      ORDER BY tournament_end_date DESC NULLS LAST, created_at DESC
+      LIMIT 20
     `);
 
-    // Group rows into teams
-    const teamsMap = new Map();
-    for (const row of rows) {
-      if (!teamsMap.has(row.user_id)) {
-        teamsMap.set(row.user_id, {
-          user_id: row.user_id,
-          username: row.username,
-          draft_position: row.draft_position,
-          picks: [],
-          updated_at: null,
-        });
-      }
-      const team = teamsMap.get(row.user_id);
-      if (row.player_name) {
-        team.picks.push({
-          player_name:  row.player_name,
-          pick_slot:    row.pick_slot,
-          lb_position:  row.lb_position,
-          score_to_par: row.score_to_par,
-          made_cut:     row.made_cut,
-          r1: row.r1, r2: row.r2, r3: row.r3, r4: row.r4,
-        });
-        if (row.updated_at) team.updated_at = row.updated_at;
-      }
-    }
-
-    // Build scored teams array
-    const teams = [...teamsMap.values()].map(team => ({
-      ...team,
-      ...calcTeamData(team.picks),
-    }));
-
-    // Sort standings:
-    // 1. Qualified teams first, sorted by teamScore ASC, then bestIndividual ASC (tiebreaker)
-    // 2. Unqualified teams below, sorted by teamScore ASC
-    // 3. Teams with no score (draft not done / tournament hasn't started) last
-    const qualified   = teams.filter(t => t.qualified && t.teamScore !== null);
-    const unqualified = teams.filter(t => !t.qualified && t.teamScore !== null);
-    const noScore     = teams.filter(t => t.teamScore === null);
-
-    qualified.sort((a, b) =>
-      a.teamScore !== b.teamScore
-        ? a.teamScore - b.teamScore
-        : (a.bestIndividual ?? 999) - (b.bestIndividual ?? 999)
-    );
-    unqualified.sort((a, b) =>
-      a.teamScore !== b.teamScore
-        ? a.teamScore - b.teamScore
-        : (a.bestIndividual ?? 999) - (b.bestIndividual ?? 999)
-    );
-
-    const standings = [...qualified, ...unqualified, ...noScore].map((t, i) => ({
-      ...t,
-      rank: i + 1,
-    }));
-
-    // Round pot: find the user with the best (lowest) single round score
-    const roundPotRankings = [...teams]
-      .filter(t => t.bestRound !== null)
-      .sort((a, b) => a.bestRound - b.bestRound)
-      .map((t, i) => ({ ...t, rank: i + 1 }));
-
-    // Last updated
-    const lastUpdated = rows.find(r => r.updated_at)?.updated_at || null;
-
     res.render('home', {
-      standings,
-      roundPotRankings,
-      lastUpdated,
-      fmtScore,
-      SCORES_THAT_COUNT,
-      MIN_CUT_MAKERS,
+      games,
+      winners,
+      error:   req.query.error   || null,
+      success: req.query.success || null,
     });
   } catch (err) {
     console.error('[home]', err);
-    res.render('home', {
-      standings: [], roundPotRankings: [], lastUpdated: null,
-      fmtScore, SCORES_THAT_COUNT, MIN_CUT_MAKERS,
+    res.render('home', { games: [], winners: [], error: 'Could not load games.', success: null });
+  }
+});
+
+// GET /games/create — create game page
+router.get('/games/create', async (req, res) => {
+  const user = req.session.user;
+  if (!user) return res.redirect('/auth/login');
+  if (!user.isAdmin && !user.isPaid) {
+    return res.redirect('/?error=' + encodeURIComponent('You need a paid membership to create games.'));
+  }
+  let tournaments = [];
+  try {
+    const all  = await fetchTournamentList();
+    const now  = new Date();
+    // Live + next 4 upcoming only
+    const live     = all.filter(t => t.status === 'STATUS_IN_PROGRESS');
+    const upcoming = all.filter(t => t.status === 'STATUS_SCHEDULED')
+                        .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
+                        .slice(0, 4);
+    tournaments = [...live, ...upcoming];
+  } catch (e) {
+    console.warn('[create page] tournament fetch failed:', e.message);
+  }
+  res.render('create-game', { tournaments, error: req.query.error || null });
+});
+
+// POST /games/create
+router.post('/games/create', async (req, res) => {
+  const user = req.session.user;
+  if (!user) return res.redirect('/auth/login');
+  if (!user.isAdmin && !user.isPaid) {
+    return res.redirect('/?error=' + encodeURIComponent('You need a paid membership to create games.'));
+  }
+
+  const name     = req.body.name?.trim();
+  const gameType = ['golf_draft', 'last_man_standing'].includes(req.body.game_type)
+    ? req.body.game_type : 'golf_draft';
+
+  // Golf prizes
+  const prizeTeam       = Math.max(0, parseInt(req.body.prize_team)      || 0);
+  const prizeIndividual = Math.max(0, parseInt(req.body.prize_individual) || 0);
+
+  // LMS
+  const VALID_LEAGUES = ['eng.1', 'eng.2'];
+  const rawLeagues = Array.isArray(req.body.lms_leagues)
+    ? req.body.lms_leagues
+    : req.body.lms_leagues ? [req.body.lms_leagues] : [];
+  const lmsLeagues = rawLeagues.filter(l => VALID_LEAGUES.includes(l)).join(',') || 'eng.1';
+
+  if (!name || name.length < 2 || name.length > 200) {
+    return res.redirect('/games/create?error=' + encodeURIComponent('Game name must be between 2 and 200 characters.'));
+  }
+
+  const inviteCode = Math.random().toString(36).slice(2, 8).toUpperCase();
+
+  try {
+    const { rows } = await pool.query(
+      'INSERT INTO games (name, game_type, host_user_id, invite_code, prize_team, prize_individual, lms_leagues) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
+      [name, gameType, user.id, inviteCode, prizeTeam, prizeIndividual, lmsLeagues]
+    );
+    const gameId = rows[0].id;
+
+    // Golf draft: save tournament if one was selected on the create page
+    if (gameType === 'golf_draft' && req.body.tournament_id) {
+      await pool.query(
+        'UPDATE games SET tournament_id=$1, tournament_name=$2, tournament_start_date=$3, tournament_end_date=$4 WHERE id=$5',
+        [req.body.tournament_id, req.body.tournament_name,
+         req.body.tournament_start_date || null, req.body.tournament_end_date || null,
+         gameId]
+      );
+      try { await scrapeLeaderboard(gameId); }
+      catch (e) { console.warn('[create] initial scrape failed:', e.message); }
+    }
+
+    res.redirect(`/game/${gameId}/draft`);
+  } catch (err) {
+    console.error('[create game]', err);
+    res.redirect('/games/create?error=' + encodeURIComponent('Could not create game.'));
+  }
+});
+
+// GET /join/:inviteCode — join a game via invite link
+router.get('/join/:inviteCode', async (req, res) => {
+  const { inviteCode } = req.params;
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, name, is_started, tournament_complete FROM games WHERE UPPER(invite_code) = UPPER($1)',
+      [inviteCode]
+    );
+    const game = rows[0];
+    if (!game) return res.redirect('/?error=' + encodeURIComponent('Invite link not found.'));
+    if (!req.session.user) {
+      // Store invite code in session, redirect to login then back
+      req.session.pendingInvite = inviteCode;
+      return res.redirect('/auth/login?next=' + encodeURIComponent(`/join/${inviteCode}`));
+    }
+    if (game.is_started) {
+      return res.redirect(`/game/${game.id}?error=` + encodeURIComponent('This game has already started — you can no longer join.'));
+    }
+    if (game.tournament_complete) {
+      return res.redirect(`/game/${game.id}?error=` + encodeURIComponent('This game is already complete.'));
+    }
+    // Already in game?
+    const { rows: already } = await pool.query(
+      'SELECT id FROM game_participants WHERE game_id=$1 AND user_id=$2',
+      [game.id, req.session.user.id]
+    );
+    if (already.length > 0) return res.redirect(`/game/${game.id}`);
+
+    const { rows: taken } = await pool.query(
+      'SELECT COUNT(*) AS cnt FROM game_participants WHERE game_id=$1', [game.id]
+    );
+    const draftPosition = parseInt(taken[0].cnt) + 1;
+    await pool.query(
+      'INSERT INTO game_participants (game_id, user_id, draft_position) VALUES ($1,$2,$3)',
+      [game.id, req.session.user.id, draftPosition]
+    );
+    res.redirect(`/game/${game.id}?success=` + encodeURIComponent(`You've joined ${game.name}!`));
+  } catch (err) {
+    console.error('[join invite]', err);
+    res.redirect('/?error=' + encodeURIComponent('Could not join game.'));
+  }
+});
+
+// GET /hall-of-fame
+router.get('/hall-of-fame', async (req, res) => {
+  try {
+    const [allTimeRes, recentRes] = await Promise.all([
+      pool.query(`
+        SELECT u.username,
+               COUNT(*) FILTER (WHERE g.winner_username = u.username)::int              AS team_wins,
+               COUNT(*) FILTER (WHERE g.winner_individual_username = u.username)::int   AS indiv_wins,
+               COUNT(*) FILTER (WHERE g.winner_username = u.username
+                                   OR g.winner_individual_username = u.username)::int   AS total_wins
+        FROM users u
+        JOIN games g ON g.tournament_complete = TRUE
+                     AND (g.winner_username = u.username OR g.winner_individual_username = u.username)
+        GROUP BY u.username
+        ORDER BY total_wins DESC, team_wins DESC
+      `),
+      pool.query(`
+        SELECT id, name, game_type, tournament_name, winner_username, winner_individual_username,
+               tournament_end_date, tournament_start_date
+        FROM games
+        WHERE tournament_complete = TRUE
+          AND (winner_username IS NOT NULL OR winner_individual_username IS NOT NULL)
+        ORDER BY tournament_end_date DESC NULLS LAST, created_at DESC
+      `),
+    ]);
+    res.render('hall-of-fame', {
+      allTime: allTimeRes.rows,
+      recentWins: recentRes.rows,
+      error:   req.query.error   || null,
+      success: req.query.success || null,
     });
+  } catch (err) {
+    console.error('[hall-of-fame]', err);
+    res.redirect('/');
   }
 });
 

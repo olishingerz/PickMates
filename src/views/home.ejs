@@ -3,248 +3,146 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PickMates – Masters 2026</title>
+  <title>PickMates</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
   <header>
     <div class="header-inner">
-      <a href="/" class="logo">
-        <span class="logo-flag">⛳</span> PickMates
-        <span class="logo-sub">Masters 2026</span>
-      </a>
-      <nav>
-        <% if (user) { %>
-          <span class="nav-user">👤 <%= user.username %></span>
-          <a href="/draft" class="btn btn-sm">Draft</a>
-          <form action="/auth/logout" method="POST" style="display:inline">
-            <button type="submit" class="btn btn-sm btn-ghost">Log out</button>
-          </form>
-        <% } else { %>
-          <a href="/auth/login" class="btn btn-sm btn-ghost">Log in</a>
-          <a href="/auth/register" class="btn btn-sm">Register</a>
-        <% } %>
-      </nav>
+      <a href="/" class="logo"><span class="logo-flag">⛳</span> PickMates</a>
+      <nav><%- include('partials/nav') %></nav>
     </div>
   </header>
 
   <main>
-
     <div class="page-header">
-      <h1>Team Standings</h1>
-      <% if (lastUpdated) { %>
-        <p class="last-updated">Scores updated: <%= new Date(lastUpdated).toLocaleString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) %></p>
-      <% } else { %>
-        <p class="last-updated">Scores not yet available — tournament starts 9 April 2026</p>
-      <% } %>
+      <h1>Games</h1>
+      <p class="last-updated">Pick your tournament, draft your squad, track the action.</p>
     </div>
 
-    <%
-      const colours = ['#2d6a4f','#1e6091','#9b2335','#7b4f12','#5a189a','#03045e'];
-    %>
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+    <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
 
-    <!-- ── Team standings ──────────────────────────────────────────────────── -->
-    <% if (standings.length === 0) { %>
+    <!-- ── Game list ──────────────────────────────────────────────────────── -->
+    <% if (games.length === 0) { %>
       <div class="card empty-state">
-        <p>No participants yet. <a href="/auth/register">Register</a> and join the draft!</p>
+        <p>No games yet.<% if (user && user.isAdmin) { %> Create the first one below.<% } %></p>
       </div>
     <% } else { %>
-      <div class="card">
-        <table class="leaderboard-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Team</th>
-              <th>Team Score</th>
-              <th>Cut status</th>
-              <th>Best round</th>
-              <th>Counting players</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% standings.forEach((t, i) => { %>
-              <%
-                const colour = colours[t.draft_position ? t.draft_position - 1 : i % colours.length];
-                const isMe = user && user.username === t.username;
-              %>
-              <tr class="<%= isMe ? 'my-row' : '' %>">
-                <td class="rank">
-                  <% if (i === 0 && t.teamScore !== null && t.qualified) { %>
-                    <span class="medal gold">1</span>
-                  <% } else if (i === 1 && t.teamScore !== null && t.qualified) { %>
-                    <span class="medal silver">2</span>
-                  <% } else if (i === 2 && t.teamScore !== null && t.qualified) { %>
-                    <span class="medal bronze">3</span>
-                  <% } else { %>
-                    <%= i + 1 %>
-                  <% } %>
-                </td>
-                <td>
-                  <span class="team-dot" style="background:<%= colour %>"></span>
-                  <strong><%= t.username %></strong>
-                </td>
-                <td>
-                  <% if (t.teamScore !== null) { %>
-                    <span class="score-badge <%= t.teamScore < 0 ? 'under' : t.teamScore === 0 ? 'even' : 'over' %>">
-                      <%= fmtScore(t.teamScore) %>
-                    </span>
-                    <% if (!t.qualified) { %><span class="disq-badge">DQ</span><% } %>
-                  <% } else { %>
-                    <span class="muted">TBC</span>
-                  <% } %>
-                </td>
-                <td>
-                  <% if (t.picks.length === 0) { %>
-                    <span class="muted">—</span>
-                  <% } else { %>
-                    <span class="cut-status <%= t.qualified ? 'cut-ok' : 'cut-bad' %>">
-                      <%= t.cutMakers %>/<%= SCORES_THAT_COUNT %> cut
-                      <% if (t.qualified) { %>✓<% } else { %>✗<% } %>
-                    </span>
-                  <% } %>
-                </td>
-                <td>
-                  <% if (t.bestRound !== null) { %>
-                    <strong><%= t.bestRound %></strong>
-                    <span class="muted">(<%= t.bestRoundNum %>, <%= t.bestRoundPlayer %>)</span>
-                  <% } else { %>
-                    <span class="muted">—</span>
-                  <% } %>
-                </td>
-                <td>
-                  <% if (t.counting && t.counting.length > 0) { %>
-                    <div class="counting-players">
-                      <% t.counting.forEach(p => { %>
-                        <span class="pill"><%= p.player_name %> <em><%= fmtScore(p.score_to_par) %></em></span>
-                      <% }) %>
-                    </div>
-                  <% } else { %>
-                    <span class="muted">—</span>
-                  <% } %>
-                </td>
-              </tr>
-            <% }) %>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- ── Scoring rules ──────────────────────────────────────────────────── -->
-      <div class="card rules-card">
-        <div class="rules-grid">
-          <div><strong>£10</strong> team prize → lowest team score (top <%= SCORES_THAT_COUNT %> players)</div>
-          <div><strong>£2</strong> round pot → lowest single round score across all teams</div>
-          <div><strong>Qualifies</strong> if <%= SCORES_THAT_COUNT %>+ picks make the cut · <strong>DQ</strong> = disqualified from team prize</div>
-          <div><strong>Tiebreaker</strong> → team with the lowest individual player score wins</div>
-        </div>
-      </div>
-    <% } %>
-
-    <!-- ── Round pot ──────────────────────────────────────────────────────── -->
-    <% if (roundPotRankings.length > 0) { %>
-      <h2 class="section-title mt-lg">£2 Round Pot</h2>
-      <div class="card">
-        <table class="leaderboard-table">
-          <thead>
-            <tr><th>#</th><th>Team</th><th>Best round</th><th>Round</th><th>Player</th></tr>
-          </thead>
-          <tbody>
-            <% roundPotRankings.forEach((t, i) => { %>
-              <%
-                const colour = colours[t.draft_position ? t.draft_position - 1 : i % colours.length];
-                const isMe = user && user.username === t.username;
-              %>
-              <tr class="<%= isMe ? 'my-row' : '' %>">
-                <td class="rank">
-                  <% if (i === 0) { %><span class="medal gold">1</span>
-                  <% } else { %><%= i + 1 %><% } %>
-                </td>
-                <td>
-                  <span class="team-dot" style="background:<%= colour %>"></span>
-                  <strong><%= t.username %></strong>
-                </td>
-                <td><strong><%= t.bestRound %></strong></td>
-                <td><%= t.bestRoundNum %></td>
-                <td><%= t.bestRoundPlayer %></td>
-              </tr>
-            <% }) %>
-          </tbody>
-        </table>
-        <p class="card-footnote">Round pot does not require making the cut.</p>
-      </div>
-    <% } %>
-
-    <!-- ── Full squad breakdown ───────────────────────────────────────────── -->
-    <% if (standings.some(t => t.picks.length > 0)) { %>
-      <h2 class="section-title mt-lg">Squads</h2>
-      <div class="squads-grid">
-        <% standings.forEach((t, i) => { %>
+      <div class="games-grid">
+        <% games.forEach(g => { %>
           <%
-            const colour = colours[t.draft_position ? t.draft_position - 1 : i % colours.length];
-            const countingNames = new Set((t.counting || []).map(p => p.player_name));
+            let statusLabel = 'Pre-Draft';
+            let statusClass = 'status-upcoming';
+            if (g.tournament_complete)      { statusLabel = 'Complete';    statusClass = 'status-done'; }
+            else if (g.is_complete)         { statusLabel = 'In Progress'; statusClass = 'status-live'; }
+            else if (g.is_started)          { statusLabel = 'Draft';       statusClass = 'status-draft'; }
           %>
-          <div class="card squad-card" style="border-top: 4px solid <%= colour %>">
-            <div class="squad-header">
-              <strong><%= t.username %></strong>
-              <% if (t.teamScore !== null) { %>
-                <span class="score-badge <%= t.teamScore < 0 ? 'under' : t.teamScore === 0 ? 'even' : 'over' %>">
-                  <%= fmtScore(t.teamScore) %>
-                </span>
+          <div class="card game-card">
+            <div class="game-card-header">
+              <div>
+                <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+                  <h2 class="game-card-name"><%= g.name %></h2>
+                  <span class="game-type-badge <%= g.game_type === 'last_man_standing' ? 'game-type-lms' : 'game-type-golf' %>">
+                    <%= g.game_type === 'last_man_standing' ? '🏆 Last Man Standing' : '⛳ Golf Draft' %>
+                  </span>
+                </div>
+                <% if (g.tournament_name) { %>
+                  <p class="muted game-card-tournament"><%= g.tournament_name %></p>
+                <% } else { %>
+                  <p class="muted game-card-tournament">No tournament selected</p>
+                <% } %>
+              </div>
+              <span class="status-badge <%= statusClass %>"><%= statusLabel %></span>
+            </div>
+            <div class="game-card-meta">
+              <span class="muted"><%= g.participant_count %> player<%= g.participant_count !== 1 ? 's' : '' %></span>
+            </div>
+            <div class="game-card-actions">
+              <a href="/game/<%= g.id %>" class="btn btn-sm">Leaderboard</a>
+              <% if (user) { %>
+                <% const isGameHost = user.isAdmin || g.host_user_id === user.id; %>
+                <% if (!g.is_started) { %>
+                  <% if (g.user_joined || isGameHost) { %>
+                    <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a"><%= g.game_type === 'last_man_standing' ? 'Lobby' : 'Draft room' %></a>
+                  <% } %>
+                  <% if (!g.user_joined) { %>
+                    <form action="/game/<%= g.id %>/join" method="POST" style="display:inline">
+                      <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">Join game</button>
+                    </form>
+                  <% } %>
+                <% } else if (g.is_started && !g.is_complete) { %>
+                  <% if (g.user_joined || isGameHost) { %>
+                    <% if (g.game_type === 'last_man_standing') { %>
+                      <a href="/game/<%= g.id %>/lms/picks" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Make pick</a>
+                    <% } else { %>
+                      <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Draft room</a>
+                    <% } %>
+                  <% } %>
+                <% } %>
+                <% if (g.user_joined) { %>
+                  <span class="muted" style="font-size:.82rem;align-self:center">✓ Joined</span>
+                <% } %>
+              <% } else { %>
+                <% if (!g.is_started) { %>
+                  <a href="/auth/register" class="btn btn-sm" style="background:var(--green);color:#fff">Join game</a>
+                <% } %>
               <% } %>
             </div>
-            <% if (t.picks.length === 0) { %>
-              <p class="muted mt-small">No picks yet.</p>
-            <% } else { %>
-              <table class="squad-table">
-                <thead><tr><th>Player</th><th>Pos</th><th>Score</th><th>Rounds</th></tr></thead>
-                <tbody>
-                  <% t.picks.forEach(p => { %>
-                    <tr class="<%= countingNames.has(p.player_name) ? 'counting-row' : '' %>">
-                      <td>
-                        <%= p.player_name %>
-                        <% if (countingNames.has(p.player_name)) { %>
-                          <span class="counts-badge">counts</span>
-                        <% } %>
-                      </td>
-                      <td>
-                        <% if (p.lb_position) { %>T<%= p.lb_position %>
-                        <% } else if (p.made_cut === false) { %><span class="cut-badge">CUT</span>
-                        <% } else { %>—<% } %>
-                      </td>
-                      <td>
-                        <% if (p.score_to_par !== null && p.score_to_par !== undefined) { %>
-                          <span class="score-badge <%= p.score_to_par < 0 ? 'under' : p.score_to_par === 0 ? 'even' : 'over' %>">
-                            <%= fmtScore(p.score_to_par) %>
-                          </span>
-                        <% } else { %>—<% } %>
-                      </td>
-                      <td class="round-scores">
-                        <% [p.r1, p.r2, p.r3, p.r4].forEach((r, ri) => { %>
-                          <% if (r !== null && r !== undefined) { %>
-                            <span class="round-chip"><%= r %></span>
-                          <% } %>
-                        <% }) %>
-                      </td>
-                    </tr>
-                  <% }) %>
-                </tbody>
-              </table>
-              <p class="squad-note">
-                <% const cutCount = t.picks.filter(p => p.made_cut === true).length; %>
-                <%= cutCount %> made the cut
-                <% if (!t.qualified && t.picks.some(p => p.made_cut !== null)) { %>
-                  — <span style="color:#c0392b">needs <%= SCORES_THAT_COUNT - cutCount %> more to qualify</span>
-                <% } %>
-              </p>
-            <% } %>
           </div>
         <% }) %>
+      </div>
+    <% } %>
+
+    <% if (user && (user.isAdmin || user.isPaid)) { %>
+      <div style="margin-top:1.5rem;text-align:center">
+        <a href="/games/create" class="btn" style="font-size:.95rem;padding:.55rem 1.4rem">＋ Create New Game</a>
+      </div>
+    <% } %>
+
+    <!-- ── Winners Club ──────────────────────────────────────────────── -->
+    <% if (winners.length > 0) { %>
+      <div style="margin-top:2.5rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+          <h2 class="section-title" style="font-size:1.2rem;margin-bottom:0">🏆 Winners Club</h2>
+          <a href="/hall-of-fame" style="font-size:.82rem">See all →</a>
+        </div>
+        <div class="winners-grid">
+          <% winners.forEach(w => { %>
+            <a href="/game/<%= w.id %>" class="winner-card">
+              <div class="winner-card-tournament">
+                <span class="game-type-badge <%= w.game_type === 'last_man_standing' ? 'game-type-lms' : 'game-type-golf' %>" style="margin-bottom:.4rem;display:inline-block">
+                  <%= w.game_type === 'last_man_standing' ? '🏆 Last Man Standing' : '⛳ Golf Draft' %>
+                </span>
+                <div class="winner-card-name"><%= w.name %></div>
+                <% if (w.tournament_name) { %><div class="muted" style="font-size:.8rem"><%= w.tournament_name %></div><% } %>
+              </div>
+              <div class="winner-card-prizes">
+                <% if (w.winner_username) { %>
+                  <div class="winner-entry">
+                    <span class="winner-trophy">🥇</span>
+                    <span class="winner-name"><%= w.winner_username %></span>
+                    <span class="winner-label"><%= w.game_type === 'last_man_standing' ? '· Last Man Standing' : '· Team pot' %></span>
+                  </div>
+                <% } %>
+                <% if (w.winner_individual_username && w.game_type === 'golf_draft') { %>
+                  <div class="winner-entry">
+                    <span class="winner-trophy">🎯</span>
+                    <span class="winner-name"><%= w.winner_individual_username %></span>
+                    <span class="winner-label">· Individual pot</span>
+                  </div>
+                <% } %>
+              </div>
+            </a>
+          <% }) %>
+        </div>
       </div>
     <% } %>
 
   </main>
 
   <footer>
-    <p>Scores scraped from Flashscore every 30 minutes · Snake draft · Lowest 3 of 6 count</p>
+    <p>PickMates · Golf draft competitions</p>
   </footer>
 </body>
 </html>

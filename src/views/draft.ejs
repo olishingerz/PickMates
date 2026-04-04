@@ -394,9 +394,9 @@
                 <input type="text" id="player-search" placeholder="Filter by name…" autocomplete="off" />
               </div>
               <div class="player-grid" id="player-grid">
-                <% available.forEach(name => { %>
-                  <button type="button" class="player-btn" data-name="<%= name %>">
-                    <%= name %>
+                <% available.forEach(p => { %>
+                  <button type="button" class="player-btn" data-name="<%= p.player_name %>">
+                    <%= p.player_name %><% if (p.world_rank) { %> <span class="player-rank">(#<%= p.world_rank %>)</span><% } %>
                   </button>
                 <% }) %>
               </div>

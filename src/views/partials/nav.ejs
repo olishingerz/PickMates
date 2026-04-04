@@ -1,0 +1,37 @@
+<% if (user) { %>
+  <div class="nav-dropdown" id="nav-dropdown">
+    <button class="nav-dropdown-trigger" id="nav-dropdown-btn" type="button">
+      <% if (user.avatar) { %>
+        <img src="<%= user.avatar %>" class="nav-avatar" alt="" />
+      <% } else { %>
+        <span class="nav-avatar-initial"><%= user.username.charAt(0).toUpperCase() %></span>
+      <% } %>
+      <span class="nav-username"><%= user.username %></span>
+      <span class="dropdown-caret">▾</span>
+    </button>
+    <div class="nav-dropdown-menu" id="nav-dropdown-menu">
+      <a href="/" class="nav-dropdown-item">🏠 Games</a>
+      <a href="/hall-of-fame" class="nav-dropdown-item">🏆 Hall of Fame</a>
+      <% if (user.isAdmin || user.isPaid) { %>
+        <a href="/games/create" class="nav-dropdown-item">＋ Create Game</a>
+      <% } %>
+      <div class="nav-dropdown-divider"></div>
+      <a href="/profile" class="nav-dropdown-item">👤 Profile</a>
+      <form action="/auth/logout" method="POST" style="margin:0">
+        <button type="submit" class="nav-dropdown-item nav-dropdown-btn">🚪 Log out</button>
+      </form>
+    </div>
+  </div>
+<% } else { %>
+  <a href="/auth/login" class="btn btn-sm btn-ghost">Log in</a>
+  <a href="/auth/register" class="btn btn-sm">Register</a>
+<% } %>
+<script>
+  (function() {
+    const btn  = document.getElementById('nav-dropdown-btn');
+    const menu = document.getElementById('nav-dropdown-menu');
+    if (!btn || !menu) return;
+    btn.addEventListener('click', e => { e.stopPropagation(); menu.classList.toggle('open'); });
+    document.addEventListener('click', () => menu.classList.remove('open'));
+  })();
+</script>

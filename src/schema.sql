@@ -283,6 +283,14 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- Add world_rank to leaderboard if missing
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='leaderboard' AND column_name='world_rank') THEN
+    ALTER TABLE leaderboard ADD COLUMN world_rank INTEGER;
+  END IF;
+END $$;
+
 -- Add reminder_sent to lms_weeks if missing
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns

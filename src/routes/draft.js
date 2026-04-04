@@ -53,13 +53,13 @@ async function getDraftData(userId, gameId) {
       ORDER BY p.id ASC
     `, [gameId]),
     pool.query('SELECT id, name, tournament_id, tournament_name, current_pick_index, is_started, is_complete, player_source, game_type, invite_code FROM games WHERE id = $1', [gameId]),
-    pool.query('SELECT player_name FROM leaderboard WHERE game_id = $1 ORDER BY position ASC NULLS LAST, player_name ASC', [gameId]),
+    pool.query('SELECT player_name, world_rank FROM leaderboard WHERE game_id = $1 ORDER BY position ASC NULLS LAST, player_name ASC', [gameId]),
   ]);
 
   const participants = participantsRes.rows;
   const allPicks     = picksRes.rows;
   const state        = stateRes.rows[0] || { current_pick_index: 0, is_started: false, is_complete: false };
-  const lbPlayers    = lbRes.rows.map(r => r.player_name);
+  const lbPlayers    = lbRes.rows; // [{ player_name, world_rank }, ...]
   const numPlayers   = participants.length;
 
   const snakeOrder = numPlayers > 0 ? generateSnakeOrder(numPlayers, PICKS_PER_PLAYER) : [];
@@ -75,7 +75,7 @@ async function getDraftData(userId, gameId) {
   }
 
   const takenSet  = new Set(allPicks.map(p => p.player_name.toLowerCase()));
-  const available = lbPlayers.filter(name => !takenSet.has(name.toLowerCase()));
+  const available = lbPlayers.filter(p => !takenSet.has(p.player_name.toLowerCase()));
 
   // Board: one row per round, one column per player (always the same player per column).
   // For even rounds (forward 1→n) player at draft_position p picks at offset p-1.

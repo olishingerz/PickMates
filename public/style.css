@@ -851,6 +851,46 @@ a.nav-user:hover { color: var(--green); }
 .winner-label { color: var(--text-muted); font-size: .78rem; flex-shrink: 0; }
 .winner-name { font-weight: 700; color: var(--green-dark); }
 
+/* ── Profile stats ─────────────────────────────────────────────── */
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: .88rem;
+  padding: .15rem 0;
+}
+
+/* ── Player world rank in draft ─────────────────────────────────── */
+.player-rank {
+  color: var(--text-muted);
+  font-size: .75rem;
+  font-weight: 400;
+}
+
+/* ── Hall of fame ───────────────────────────────────────────────── */
+.hof-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .93rem;
+}
+.hof-table th {
+  text-align: left;
+  padding: .6rem .8rem;
+  background: var(--green-light);
+  color: var(--green-dark);
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  border-bottom: 2px solid var(--border);
+}
+.hof-table td {
+  padding: .7rem .8rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.hof-table tbody tr:last-child td { border-bottom: none; }
+.hof-table tbody tr:hover { background: var(--green-light); }
+
 /* ── Responsive ────────────────────────────────────────────────── */
 
 /* Leaderboard table: scrollable on small screens */

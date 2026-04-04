@@ -156,6 +156,7 @@ async function scrapeLeaderboard(gameId) {
     return {
       player_name:  c.athlete?.displayName || c.athlete?.fullName || 'Unknown',
       position:     c.order || null,
+      world_rank:   c.athlete?.rank || null,
       score_to_par: isLive ? parseScore(c.score) : null,
       made_cut:     isLive ? !missedCut : null,
       thru,
@@ -172,9 +173,9 @@ async function scrapeLeaderboard(gameId) {
       for (const p of players) {
         await client.query(
           `UPDATE leaderboard
-           SET position=$1, score_to_par=$2, made_cut=$3, thru=$4, r1=$5, r2=$6, r3=$7, r4=$8, updated_at=NOW()
-           WHERE game_id=$9 AND LOWER(TRIM(player_name)) = LOWER(TRIM($10))`,
-          [p.position, p.score_to_par, p.made_cut, p.thru, p.r1, p.r2, p.r3, p.r4, gameId, p.player_name]
+           SET position=$1, score_to_par=$2, made_cut=$3, thru=$4, r1=$5, r2=$6, r3=$7, r4=$8, world_rank=$9, updated_at=NOW()
+           WHERE game_id=$10 AND LOWER(TRIM(player_name)) = LOWER(TRIM($11))`,
+          [p.position, p.score_to_par, p.made_cut, p.thru, p.r1, p.r2, p.r3, p.r4, p.world_rank, gameId, p.player_name]
         );
       }
     } else {
@@ -182,9 +183,9 @@ async function scrapeLeaderboard(gameId) {
       await client.query('DELETE FROM leaderboard WHERE game_id = $1', [gameId]);
       for (const p of players) {
         await client.query(
-          `INSERT INTO leaderboard (game_id, player_name, position, score_to_par, made_cut, thru, r1, r2, r3, r4)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-          [gameId, p.player_name, p.position, p.score_to_par, p.made_cut, p.thru, p.r1, p.r2, p.r3, p.r4]
+          `INSERT INTO leaderboard (game_id, player_name, position, score_to_par, made_cut, thru, r1, r2, r3, r4, world_rank)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          [gameId, p.player_name, p.position, p.score_to_par, p.made_cut, p.thru, p.r1, p.r2, p.r3, p.r4, p.world_rank]
         );
       }
     }

@@ -19,9 +19,52 @@ function requireAuth(req, res, next) {
 }
 
 router.get('/', requireAuth, async (req, res) => {
-  const { rows } = await pool.query('SELECT username, avatar, email FROM users WHERE id = $1', [req.session.user.id]);
+  const id = req.session.user.id;
+  const [profileRes, golfRes, lmsRes, pickHistoryRes] = await Promise.all([
+    pool.query('SELECT username, avatar, email FROM users WHERE id = $1', [id]),
+    pool.query(`
+      SELECT
+        COUNT(DISTINCT gp.game_id) FILTER (WHERE g.game_type = 'golf_draft')::int        AS golf_played,
+        COUNT(*)                   FILTER (WHERE g.winner_username = u.username
+                                              AND g.tournament_complete = TRUE)::int       AS team_wins,
+        COUNT(*)                   FILTER (WHERE g.winner_individual_username = u.username
+                                              AND g.tournament_complete = TRUE)::int       AS indiv_wins
+      FROM users u
+      LEFT JOIN game_participants gp ON gp.user_id = u.id
+      LEFT JOIN games g ON g.id = gp.game_id AND g.game_type = 'golf_draft'
+      WHERE u.id = $1
+    `, [id]),
+    pool.query(`
+      SELECT
+        COUNT(DISTINCT gp.game_id) FILTER (WHERE g.game_type = 'last_man_standing')::int  AS lms_played,
+        COUNT(*)                   FILTER (WHERE g.winner_username = u.username
+                                              AND g.tournament_complete = TRUE)::int        AS lms_wins,
+        MAX(lp.week_number)        FILTER (WHERE lp.result != 'pending')                   AS furthest_week
+      FROM users u
+      LEFT JOIN game_participants gp ON gp.user_id = u.id
+      LEFT JOIN games g ON g.id = gp.game_id AND g.game_type = 'last_man_standing'
+      LEFT JOIN lms_picks lp ON lp.game_id = gp.game_id AND lp.user_id = u.id
+      WHERE u.id = $1
+    `, [id]),
+    pool.query(`
+      SELECT g.id AS game_id, g.name AS game_name, g.tournament_name, g.tournament_complete,
+             p.player_name, p.pick_slot,
+             l.score_to_par, l.made_cut, l.position AS lb_position
+      FROM picks p
+      JOIN games g ON g.id = p.game_id AND g.game_type = 'golf_draft'
+      LEFT JOIN leaderboard l ON l.game_id = p.game_id
+                              AND LOWER(TRIM(l.player_name)) = LOWER(TRIM(p.player_name))
+      WHERE p.user_id = $1
+      ORDER BY g.created_at DESC, p.pick_slot ASC
+      LIMIT 36
+    `, [id]),
+  ]);
+
   res.render('profile', {
-    profileUser: rows[0],
+    profileUser: profileRes.rows[0],
+    golfStats:   golfRes.rows[0],
+    lmsStats:    lmsRes.rows[0],
+    pickHistory: pickHistoryRes.rows,
     error:   req.query.error   || null,
     success: req.query.success || null,
   });
