@@ -109,7 +109,13 @@ async function getDraftData(userId, gameId) {
     board, squads, available, takenSet, PICKS_PER_PLAYER,
     playerSource: state.player_source || 'espn',
     playerListCount: lbPlayers.length,
-    inviteCode: state.invite_code || null,
+    inviteCode: await (async () => {
+      if (state.invite_code) return state.invite_code;
+      // Generate one if missing (e.g. older game)
+      const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+      await pool.query('UPDATE games SET invite_code = $1 WHERE id = $2 AND invite_code IS NULL', [code, gameId]);
+      return code;
+    })(),
     tournament: { id: state.tournament_id || null, name: state.tournament_name || null },
     draftRound: state.current_pick_index < snakeOrder.length
       ? Math.floor(state.current_pick_index / Math.max(numPlayers, 1)) + 1

@@ -214,6 +214,10 @@ DO $$ BEGIN
                  WHERE table_name='games' AND column_name='invite_code') THEN
     ALTER TABLE games ADD COLUMN invite_code VARCHAR(12);
   END IF;
+  -- Backfill invite codes for any games that don't have one
+  UPDATE games
+  SET invite_code = UPPER(SUBSTRING(MD5(RANDOM()::TEXT) FROM 1 FOR 6))
+  WHERE invite_code IS NULL;
 END $$;
 
 -- LMS columns on games
