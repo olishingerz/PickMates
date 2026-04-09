@@ -37,7 +37,7 @@ async function isHost(req, gameId) {
 async function getDraftData(userId, gameId) {
   const [participantsRes, picksRes, stateRes, lbRes] = await Promise.all([
     pool.query(`
-      SELECT u.id, u.username, gp.draft_position, gp.team_name
+      SELECT u.id, u.username, u.display_name, gp.draft_position, gp.team_name
       FROM game_participants gp
       JOIN users u ON u.id = gp.user_id
       WHERE gp.game_id = $1
@@ -131,6 +131,13 @@ router.get('/', requireAuth, async (req, res) => {
       getDraftData(req.session.user.id, gameId),
       isHost(req, gameId),
     ]);
+
+    // Only participants (or host/admin) may view the draft room
+    const isParticipant = data.participants.some(p => p.id === req.session.user.id);
+    if (!isParticipant && !hostFlag) {
+      return res.redirect(`/game/${gameId}`);
+    }
+
     res.render('draft', {
       ...data,
       isHost:  hostFlag,
@@ -618,23 +625,34 @@ router.post('/tournaments', requireAuth, async (req, res) => {
   }
 });
 
-// POST /game/:gameId/draft/team-name — player: set their own team name
+// POST /game/:gameId/draft/team-name — player: set their own team name (once only)
 router.post('/team-name', requireAuth, async (req, res) => {
   const gameId  = getGameId(req);
   const userId  = req.session.user.id;
   const rawName = req.body.team_name?.trim() || null;
 
-  if (rawName && (rawName.length < 2 || rawName.length > 50)) {
-    return res.redirect(`/game/${gameId}/draft?error=` + encodeURIComponent('Team name must be between 2 and 50 characters.'));
+  if (!rawName) {
+    return res.redirect(`/game/${gameId}/draft?error=` + encodeURIComponent('Team name cannot be empty.'));
+  }
+  if (rawName.length < 2 || rawName.length > 20) {
+    return res.redirect(`/game/${gameId}/draft?error=` + encodeURIComponent('Team name must be between 2 and 20 characters.'));
   }
 
   try {
+    // Only allow setting if not already set
+    const { rows } = await pool.query(
+      'SELECT team_name FROM game_participants WHERE game_id = $1 AND user_id = $2',
+      [gameId, userId]
+    );
+    if (rows[0]?.team_name) {
+      return res.redirect(`/game/${gameId}/draft?error=` + encodeURIComponent('Team name already set — it can only be chosen once.'));
+    }
+
     await pool.query(
       'UPDATE game_participants SET team_name = $1 WHERE game_id = $2 AND user_id = $3',
       [rawName, gameId, userId]
     );
-    const msg = rawName ? `Team name set to "${rawName}"!` : 'Team name cleared.';
-    res.redirect(`/game/${gameId}/draft?success=` + encodeURIComponent(msg));
+    res.redirect(`/game/${gameId}/draft?success=` + encodeURIComponent(`Team name set to "${rawName}"!`));
   } catch (err) {
     console.error('[team-name]', err);
     res.redirect(`/game/${gameId}/draft?error=` + encodeURIComponent('Failed to save team name.'));

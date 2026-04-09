@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin · PickMates</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo"><span class="logo-flag">⛳</span> PickMates</a>
+      <nav><%- include('partials/nav') %></nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-header">
+      <h1>Admin</h1>
+      <p class="last-updated"><%= users.length %> user<%= users.length !== 1 ? 's' : '' %> registered</p>
+    </div>
+
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+    <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+
+    <div class="leaderboard-table-wrap">
+      <table class="leaderboard-table">
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Display Name</th>
+            <th>Email</th>
+            <th>Games</th>
+            <th>Joined</th>
+            <th>Last Login</th>
+            <th>Paid</th>
+            <th>Admin</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% users.forEach(u => { %>
+            <tr>
+              <td><strong><%= u.username %></strong></td>
+              <td class="muted"><%= u.display_name || '—' %></td>
+              <td class="muted" style="font-size:.82rem"><%= u.email || '—' %></td>
+              <td class="muted" style="text-align:center"><%= u.game_count %></td>
+              <td class="muted" style="font-size:.82rem;white-space:nowrap">
+                <%= new Date(u.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) %>
+              </td>
+              <td class="muted" style="font-size:.82rem;white-space:nowrap">
+                <% if (u.last_login) { %>
+                  <%= new Date(u.last_login).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) %>
+                  <span style="color:var(--muted)"><%= new Date(u.last_login).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' }) %></span>
+                <% } else { %>
+                  <span class="muted">Never</span>
+                <% } %>
+              </td>
+              <td style="text-align:center">
+                <form action="/admin/toggle-paid" method="POST" style="display:inline">
+                  <input type="hidden" name="user_id" value="<%= u.id %>" />
+                  <button type="submit" class="btn btn-sm" style="padding:.25rem .6rem;font-size:.78rem;<%= u.is_paid ? 'background:var(--green);color:#fff' : 'background:var(--card-border);color:var(--text)' %>">
+                    <%= u.is_paid ? 'Paid' : 'Free' %>
+                  </button>
+                </form>
+              </td>
+              <td style="text-align:center">
+                <% if (u.id !== user.id) { %>
+                  <form action="/admin/toggle-admin" method="POST" style="display:inline">
+                    <input type="hidden" name="user_id" value="<%= u.id %>" />
+                    <button type="submit" class="btn btn-sm" style="padding:.25rem .6rem;font-size:.78rem;<%= u.is_admin ? 'background:#6366f1;color:#fff' : 'background:var(--card-border);color:var(--text)' %>">
+                      <%= u.is_admin ? 'Admin' : 'User' %>
+                    </button>
+                  </form>
+                <% } else { %>
+                  <span class="muted" style="font-size:.82rem">You</span>
+                <% } %>
+              </td>
+              <td>
+                <% if (u.id !== user.id) { %>
+                  <form action="/admin/delete-user" method="POST" style="display:inline"
+                        onsubmit="return confirm('Delete <%= u.username %>? This cannot be undone.')">
+                    <input type="hidden" name="user_id" value="<%= u.id %>" />
+                    <button type="submit" class="btn btn-sm" style="padding:.25rem .6rem;font-size:.78rem;background:#ef4444;color:#fff">
+                      Delete
+                    </button>
+                  </form>
+                <% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

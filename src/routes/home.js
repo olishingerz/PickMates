@@ -15,15 +15,19 @@ router.get('/', async (req, res) => {
       FROM games g
       LEFT JOIN game_participants gp ON gp.game_id = g.id
       GROUP BY g.id
-      ORDER BY g.created_at DESC
+      ORDER BY BOOL_OR(gp.user_id = $1) DESC NULLS LAST, g.created_at DESC
     `, [userId]);
     const { rows: winners } = await pool.query(`
-      SELECT id, name, game_type, tournament_name, winner_username, winner_individual_username,
-             tournament_end_date, tournament_start_date
-      FROM games
-      WHERE tournament_complete = TRUE
-        AND (winner_username IS NOT NULL OR winner_individual_username IS NOT NULL)
-      ORDER BY tournament_end_date DESC NULLS LAST, created_at DESC
+      SELECT g.id, g.name, g.game_type, g.tournament_name,
+             g.winner_username,            u1.display_name AS winner_display_name,
+             g.winner_individual_username, u2.display_name AS winner_individual_display_name,
+             g.tournament_end_date, g.tournament_start_date
+      FROM games g
+      LEFT JOIN users u1 ON LOWER(u1.username) = LOWER(g.winner_username)
+      LEFT JOIN users u2 ON LOWER(u2.username) = LOWER(g.winner_individual_username)
+      WHERE g.tournament_complete = TRUE
+        AND (g.winner_username IS NOT NULL OR g.winner_individual_username IS NOT NULL)
+      ORDER BY g.tournament_end_date DESC NULLS LAST, g.created_at DESC
       LIMIT 20
     `);
 
@@ -165,7 +169,7 @@ router.get('/hall-of-fame', async (req, res) => {
   try {
     const [allTimeRes, recentRes] = await Promise.all([
       pool.query(`
-        SELECT u.username,
+        SELECT u.username, u.display_name,
                COUNT(*) FILTER (WHERE g.winner_username = u.username)::int              AS team_wins,
                COUNT(*) FILTER (WHERE g.winner_individual_username = u.username)::int   AS indiv_wins,
                COUNT(*) FILTER (WHERE g.winner_username = u.username
@@ -173,16 +177,20 @@ router.get('/hall-of-fame', async (req, res) => {
         FROM users u
         JOIN games g ON g.tournament_complete = TRUE
                      AND (g.winner_username = u.username OR g.winner_individual_username = u.username)
-        GROUP BY u.username
+        GROUP BY u.username, u.display_name
         ORDER BY total_wins DESC, team_wins DESC
       `),
       pool.query(`
-        SELECT id, name, game_type, tournament_name, winner_username, winner_individual_username,
-               tournament_end_date, tournament_start_date
-        FROM games
-        WHERE tournament_complete = TRUE
-          AND (winner_username IS NOT NULL OR winner_individual_username IS NOT NULL)
-        ORDER BY tournament_end_date DESC NULLS LAST, created_at DESC
+        SELECT g.id, g.name, g.game_type, g.tournament_name,
+               g.winner_username,            u1.display_name AS winner_display_name,
+               g.winner_individual_username, u2.display_name AS winner_individual_display_name,
+               g.tournament_end_date, g.tournament_start_date
+        FROM games g
+        LEFT JOIN users u1 ON LOWER(u1.username) = LOWER(g.winner_username)
+        LEFT JOIN users u2 ON LOWER(u2.username) = LOWER(g.winner_individual_username)
+        WHERE g.tournament_complete = TRUE
+          AND (g.winner_username IS NOT NULL OR g.winner_individual_username IS NOT NULL)
+        ORDER BY g.tournament_end_date DESC NULLS LAST, g.created_at DESC
       `),
     ]);
     res.render('hall-of-fame', {

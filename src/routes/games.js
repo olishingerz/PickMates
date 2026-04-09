@@ -115,8 +115,9 @@ router.get('/:gameId', async (req, res) => {
       SELECT
         u.id           AS user_id,
         u.username,
-        gp.draft_position,
+        u.display_name,
         gp.team_name,
+        gp.draft_position,
         p.player_name,
         p.pick_slot,
         l.position     AS lb_position,
@@ -141,6 +142,7 @@ router.get('/:gameId', async (req, res) => {
         teamsMap.set(row.user_id, {
           user_id: row.user_id,
           username: row.username,
+          display_name: row.display_name || null,
           team_name: row.team_name || null,
           draft_position: row.draft_position,
           picks: [],
@@ -184,6 +186,14 @@ router.get('/:gameId', async (req, res) => {
 
     const lastUpdated = rows.find(r => r.updated_at)?.updated_at || null;
 
+    const { rows: rankHistory } = await pool.query(`
+      SELECT grh.round, grh.rank, grh.team_score, grh.user_id, u.username, u.display_name
+      FROM game_rank_history grh
+      JOIN users u ON u.id = grh.user_id
+      WHERE grh.game_id = $1
+      ORDER BY grh.round ASC, grh.rank ASC
+    `, [gameId]);
+
     const userId = req.session.user?.id || null;
     const isHost = req.session.user && (
       req.session.user.isAdmin || req.session.user.id === game.host_user_id
@@ -193,7 +203,7 @@ router.get('/:gameId', async (req, res) => {
       : false;
 
     res.render('game', {
-      game, standings, individualPotRankings, lastUpdated,
+      game, standings, individualPotRankings, lastUpdated, rankHistory,
       fmtScore, SCORES_THAT_COUNT, MIN_CUT_MAKERS, isHost, userInGame,
       error:   req.query.error   || null,
       success: req.query.success || null,

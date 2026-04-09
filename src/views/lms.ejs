@@ -109,6 +109,7 @@
       <% if (standings.length === 0) { %>
         <p class="muted">No players yet.</p>
       <% } else { %>
+        <div class="leaderboard-table-wrap">
         <table class="leaderboard-table">
           <thead>
             <tr>
@@ -131,7 +132,7 @@
               <% const isMe = user && s.user_id === user.id; %>
               <tr class="<%= isMe ? 'my-row' : '' %> <%= s.eliminated ? 'lms-eliminated' : '' %>">
                 <td class="rank"><%= i + 1 %></td>
-                <td><strong><%= s.username %></strong></td>
+                <td><strong><%= s.display_name || s.username %></strong></td>
                 <td>
                   <% if (!s.eliminated) { %>
                     <span class="status-badge status-live">Alive</span>
@@ -193,6 +194,7 @@
             <% }) %>
           </tbody>
         </table>
+        </div>
       <% } %>
     </div>
 
@@ -242,8 +244,6 @@
 
   </main>
 
-  <footer>
-    <p>Last Man Standing · Pick 1 team per week · Can't reuse teams · Miss a week = eliminated</p>
-  </footer>
+  <%- include('partials/footer') %>
 </body>
 </html>

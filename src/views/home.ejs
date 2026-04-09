@@ -63,20 +63,29 @@
               <% if (user) { %>
                 <% const isGameHost = user.isAdmin || g.host_user_id === user.id; %>
                 <% if (!g.is_started) { %>
-                  <% if (g.user_joined || isGameHost) { %>
-                    <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a"><%= g.game_type === 'last_man_standing' ? 'Lobby' : 'Draft room' %></a>
+                  <% if (g.game_type === 'last_man_standing') { %>
+                    <% if (g.user_joined) { %>
+                      <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Lobby</a>
+                    <% } else { %>
+                      <a href="/game/<%= g.id %>" class="btn btn-sm" style="background:var(--green);color:#fff">Join game</a>
+                    <% } %>
+                  <% } else { %>
+                    <% if (g.user_joined || isGameHost) { %>
+                      <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Draft</a>
+                    <% } %>
+                    <% if (!g.user_joined) { %>
+                      <form action="/game/<%= g.id %>/join" method="POST" style="display:inline">
+                        <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">Join game</button>
+                      </form>
+                    <% } %>
                   <% } %>
-                  <% if (!g.user_joined) { %>
-                    <form action="/game/<%= g.id %>/join" method="POST" style="display:inline">
-                      <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">Join game</button>
-                    </form>
-                  <% } %>
+
                 <% } else if (g.is_started && !g.is_complete) { %>
                   <% if (g.user_joined || isGameHost) { %>
                     <% if (g.game_type === 'last_man_standing') { %>
                       <a href="/game/<%= g.id %>/lms/picks" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Make pick</a>
                     <% } else { %>
-                      <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Draft room</a>
+                      <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Draft</a>
                     <% } %>
                   <% } %>
                 <% } %>
@@ -101,12 +110,14 @@
     <% } %>
 
     <!-- ── Winners Club ──────────────────────────────────────────────── -->
-    <% if (winners.length > 0) { %>
-      <div style="margin-top:2.5rem">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-          <h2 class="section-title" style="font-size:1.2rem;margin-bottom:0">🏆 Winners Club</h2>
-          <a href="/hall-of-fame" style="font-size:.82rem">See all →</a>
-        </div>
+    <div style="margin-top:2.5rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+        <h2 class="section-title" style="font-size:1.2rem;margin-bottom:0">🏆 Winners Club</h2>
+        <% if (winners.length > 0) { %><a href="/hall-of-fame" style="font-size:.82rem">See all →</a><% } %>
+      </div>
+      <% if (winners.length === 0) { %>
+        <div class="card empty-state"><p>No winners yet — complete a tournament to see them here.</p></div>
+      <% } else { %>
         <div class="winners-grid">
           <% winners.forEach(w => { %>
             <a href="/game/<%= w.id %>" class="winner-card">
@@ -121,14 +132,14 @@
                 <% if (w.winner_username) { %>
                   <div class="winner-entry">
                     <span class="winner-trophy">🥇</span>
-                    <span class="winner-name"><%= w.winner_username %></span>
+                    <span class="winner-name"><%= w.winner_display_name || w.winner_username %></span>
                     <span class="winner-label"><%= w.game_type === 'last_man_standing' ? '· Last Man Standing' : '· Team pot' %></span>
                   </div>
                 <% } %>
                 <% if (w.winner_individual_username && w.game_type === 'golf_draft') { %>
                   <div class="winner-entry">
                     <span class="winner-trophy">🎯</span>
-                    <span class="winner-name"><%= w.winner_individual_username %></span>
+                    <span class="winner-name"><%= w.winner_individual_display_name || w.winner_individual_username %></span>
                     <span class="winner-label">· Individual pot</span>
                   </div>
                 <% } %>
@@ -136,13 +147,11 @@
             </a>
           <% }) %>
         </div>
-      </div>
-    <% } %>
+      <% } %>
+    </div>
 
   </main>
 
-  <footer>
-    <p>PickMates · Golf draft competitions</p>
-  </footer>
+  <%- include('partials/footer') %>
 </body>
 </html>

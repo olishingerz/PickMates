@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create Game – PickMates</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo"><span class="logo-flag">⛳</span> PickMates</a>
+      <nav><%- include('partials/nav') %></nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-header">
+      <h1>Create a New Game</h1>
+    </div>
+
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+    <form action="/games/create" method="POST" id="create-form">
+
+      <!-- ── Step 1: Basic details ───────────────────────────────────── -->
+      <div class="card" style="margin-bottom:1rem">
+        <h2 class="section-title">Game Details</h2>
+        <div style="display:flex;gap:.8rem;flex-wrap:wrap;align-items:flex-end">
+          <div>
+            <label class="form-label">Game name</label>
+            <input type="text" name="name" placeholder="e.g. The Masters 2026" required maxlength="200"
+                   style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;min-width:260px;display:block;margin-top:.3rem" />
+          </div>
+          <div>
+            <label class="form-label">Game type</label>
+            <select name="game_type" id="game-type"
+                    style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;background:#fff;display:block;margin-top:.3rem">
+              <option value="golf_draft">⛳ Golf Draft</option>
+              <option value="last_man_standing">🏆 Last Man Standing</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Golf Draft options ─────────────────────────────────────── -->
+      <div id="golf-section" class="card" style="margin-bottom:1rem">
+        <h2 class="section-title">Golf Draft Settings</h2>
+
+        <!-- Prize amounts -->
+        <div style="display:flex;gap:.8rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1rem">
+          <div>
+            <label class="form-label">Team prize (£ per player)</label>
+            <input type="number" name="prize_team" id="prize-team" min="0" value="10"
+                   style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;width:130px;display:block;margin-top:.3rem" />
+          </div>
+          <div>
+            <label class="form-label">Individual prize (£ per player)</label>
+            <input type="number" name="prize_individual" id="prize-individual" min="0" value="2"
+                   style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;width:130px;display:block;margin-top:.3rem" />
+          </div>
+          <div style="padding-bottom:.5rem">
+            <span class="form-label">Entry fee per player</span>
+            <div style="font-size:1.2rem;font-weight:700;color:var(--green);margin-top:.4rem" id="entry-total">£12</div>
+          </div>
+        </div>
+
+        <!-- Tournament selection -->
+        <h3 style="font-size:.9rem;font-weight:700;margin-bottom:.6rem">Select Tournament</h3>
+        <input type="hidden" name="tournament_id"         id="t-id"    value="" />
+        <input type="hidden" name="tournament_name"       id="t-name"  value="" />
+        <input type="hidden" name="tournament_start_date" id="t-start" value="" />
+        <input type="hidden" name="tournament_end_date"   id="t-end"   value="" />
+
+        <% if (tournaments.length === 0) { %>
+          <p class="muted">Could not load tournament list from ESPN. You can select a tournament later from the draft room.</p>
+        <% } else { %>
+          <div class="tournament-list" id="tournament-list">
+            <% tournaments.forEach(t => { %>
+              <%
+                const start = t.startDate ? new Date(t.startDate) : null;
+                const end   = t.endDate   ? new Date(t.endDate)   : null;
+                const fmt   = d => d ? d.toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '';
+              %>
+              <div class="tournament-row" data-id="<%= t.id %>" data-name="<%= t.name %>"
+                   data-start="<%= t.startDate || '' %>" data-end="<%= t.endDate || '' %>">
+                <div class="tournament-row-info">
+                  <span class="tournament-row-name"><%= t.name %></span>
+                  <% if (start) { %>
+                    <span class="muted" style="font-size:.8rem"><%= fmt(start) %><% if (end) { %> – <%= fmt(end) %><% } %></span>
+                  <% } %>
+                </div>
+                <span class="tournament-row-check" style="display:none">✓</span>
+              </div>
+            <% }) %>
+          </div>
+          <p class="admin-hint" style="margin-top:.5rem">You can also change the tournament later from the draft room.</p>
+        <% } %>
+      </div>
+
+      <!-- ── LMS options ────────────────────────────────────────────── -->
+      <div id="lms-section" class="card" style="margin-bottom:1rem;display:none">
+        <h2 class="section-title">Last Man Standing Settings</h2>
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap">
+          <div>
+            <label class="form-label">Entry fee (£ per player)</label>
+            <input type="number" name="lms_entry_fee" min="0" value="0"
+                   style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;width:130px;display:block;margin-top:.3rem" />
+          </div>
+          <div>
+            <label class="form-label" style="display:block;margin-bottom:.5rem">Leagues</label>
+            <label style="display:flex;align-items:center;gap:.4rem;font-size:.9rem;cursor:pointer;margin-bottom:.4rem">
+              <input type="checkbox" name="lms_leagues" value="eng.1" checked /> Premier League
+            </label>
+            <label style="display:flex;align-items:center;gap:.4rem;font-size:.9rem;cursor:pointer">
+              <input type="checkbox" name="lms_leagues" value="eng.2" /> Championship
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn" style="font-size:1rem;padding:.6rem 1.5rem">Create game →</button>
+    </form>
+  </main>
+
+  <%- include('partials/footer') %>
+
+  <script>
+    // Game type toggle
+    const gameType    = document.getElementById('game-type');
+    const golfSection = document.getElementById('golf-section');
+    const lmsSection  = document.getElementById('lms-section');
+
+    function updateType() {
+      const isGolf = gameType.value === 'golf_draft';
+      golfSection.style.display = isGolf ? '' : 'none';
+      lmsSection.style.display  = isGolf ? 'none' : '';
+    }
+    gameType.addEventListener('change', updateType);
+    updateType();
+
+    // Entry fee total
+    const prizeTeam  = document.getElementById('prize-team');
+    const prizeIndiv = document.getElementById('prize-individual');
+    const totalEl    = document.getElementById('entry-total');
+    function updateTotal() {
+      const t = parseInt(prizeTeam.value)  || 0;
+      const i = parseInt(prizeIndiv.value) || 0;
+      totalEl.textContent = '£' + (t + i);
+    }
+    prizeTeam.addEventListener('input', updateTotal);
+    prizeIndiv.addEventListener('input', updateTotal);
+    updateTotal();
+
+    // Tournament selection
+    const tId    = document.getElementById('t-id');
+    const tName  = document.getElementById('t-name');
+    const tStart = document.getElementById('t-start');
+    const tEnd   = document.getElementById('t-end');
+
+    document.querySelectorAll('.tournament-row').forEach(row => {
+      row.addEventListener('click', () => {
+        document.querySelectorAll('.tournament-row').forEach(r => {
+          r.classList.remove('selected');
+          r.querySelector('.tournament-row-check').style.display = 'none';
+        });
+        row.classList.add('selected');
+        row.querySelector('.tournament-row-check').style.display = '';
+        tId.value    = row.dataset.id;
+        tName.value  = row.dataset.name;
+        tStart.value = row.dataset.start;
+        tEnd.value   = row.dataset.end;
+      });
+    });
+  </script>
+</body>
+</html>

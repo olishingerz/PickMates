@@ -99,6 +99,67 @@ async function saveGolfWinner(db, gameId) {
   }
 }
 
+// Save a rank snapshot for each completed round that hasn't been snapshotted yet.
+// A round is "complete" once the next round's scores have appeared (or the event is done).
+async function saveRoundSnapshot(client, gameId, players, eventCompleted) {
+  let maxRound = 0;
+  for (const p of players) {
+    if (p.r4 !== null) maxRound = Math.max(maxRound, 4);
+    else if (p.r3 !== null) maxRound = Math.max(maxRound, 3);
+    else if (p.r2 !== null) maxRound = Math.max(maxRound, 2);
+    else if (p.r1 !== null) maxRound = Math.max(maxRound, 1);
+  }
+  if (maxRound === 0) return;
+
+  // Snapshot all rounds before the current one (they're done), plus the final round if complete
+  const roundsToSnapshot = [];
+  for (let r = 1; r < maxRound; r++) roundsToSnapshot.push(r);
+  if (eventCompleted) roundsToSnapshot.push(maxRound);
+  if (roundsToSnapshot.length === 0) return;
+
+  // Compute team standings once (same logic as calcTeamData in games.js)
+  const { rows: teamRows } = await client.query(`
+    SELECT gp.user_id,
+           ARRAY_AGG(l.score_to_par ORDER BY l.score_to_par ASC)
+             FILTER (WHERE l.score_to_par IS NOT NULL) AS scores,
+           COUNT(CASE WHEN l.made_cut = TRUE THEN 1 END)::int AS cut_makers
+    FROM game_participants gp
+    LEFT JOIN picks p ON p.user_id = gp.user_id AND p.game_id = gp.game_id
+    LEFT JOIN leaderboard l ON l.game_id = gp.game_id
+                            AND LOWER(TRIM(l.player_name)) = LOWER(TRIM(p.player_name))
+    WHERE gp.game_id = $1
+    GROUP BY gp.user_id
+  `, [gameId]);
+
+  const teams = teamRows.map(t => {
+    const scores = t.scores || [];
+    const teamScore = t.cut_makers >= SCORES_THAT_COUNT && scores.length >= SCORES_THAT_COUNT
+      ? scores.slice(0, SCORES_THAT_COUNT).reduce((s, v) => s + v, 0)
+      : null;
+    return { user_id: t.user_id, teamScore };
+  });
+
+  const qualified   = teams.filter(t => t.teamScore !== null).sort((a, b) => a.teamScore - b.teamScore);
+  const unqualified = teams.filter(t => t.teamScore === null);
+  const ranked      = [...qualified, ...unqualified].map((t, i) => ({ ...t, rank: i + 1 }));
+
+  for (const round of roundsToSnapshot) {
+    const { rows: existing } = await client.query(
+      'SELECT id FROM game_rank_history WHERE game_id=$1 AND round=$2',
+      [gameId, round]
+    );
+    if (existing.length > 0) continue;
+
+    for (const t of ranked) {
+      await client.query(
+        'INSERT INTO game_rank_history (game_id, user_id, rank, team_score, round) VALUES ($1,$2,$3,$4,$5)',
+        [gameId, t.user_id, t.rank, t.teamScore, round]
+      );
+    }
+    console.log(`[scraper] Game ${gameId}: saved R${round} snapshot`);
+  }
+}
+
 // Scrape leaderboard for a specific game
 async function scrapeLeaderboard(gameId) {
   const { rows } = await pool.query('SELECT tournament_id, player_source FROM games WHERE id = $1', [gameId]);
@@ -189,6 +250,10 @@ async function scrapeLeaderboard(gameId) {
         );
       }
     }
+
+    // Save round snapshots (fire-and-forget errors so they don't break the scrape)
+    try { await saveRoundSnapshot(client, gameId, players, eventCompleted); }
+    catch (e) { console.warn(`[scraper] Game ${gameId}: snapshot failed:`, e.message); }
 
     // Auto-complete: if ESPN says the event is finished AND at least one player
     // has an R4 score (guards against ESPN firing 'completed' prematurely after cut day)

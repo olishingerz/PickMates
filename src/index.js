@@ -9,6 +9,7 @@ const authRoutes    = require('./routes/auth');
 const homeRoutes    = require('./routes/home');
 const gamesRoutes   = require('./routes/games');
 const profileRoutes = require('./routes/profile');
+const adminRoutes   = require('./routes/admin');
 const { scrapeAllGames } = require('./services/scraper');
 const { sendLmsDeadlineEmails } = require('./services/email');
 
@@ -31,12 +32,13 @@ app.use(session({
 
 app.use(async (req, res, next) => {
   res.locals.user = req.session.user || null;
-  // Keep avatar and paid status in sync
+  // Keep avatar, paid status and display name in sync
   if (req.session.user && req.session.user.avatar === undefined) {
     try {
-      const { rows } = await pool.query('SELECT avatar, is_paid FROM users WHERE id = $1', [req.session.user.id]);
-      req.session.user.avatar  = rows[0]?.avatar   || null;
-      req.session.user.isPaid  = rows[0]?.is_paid  || false;
+      const { rows } = await pool.query('SELECT avatar, is_paid, display_name FROM users WHERE id = $1', [req.session.user.id]);
+      req.session.user.avatar      = rows[0]?.avatar       || null;
+      req.session.user.isPaid      = rows[0]?.is_paid      || false;
+      req.session.user.displayName = rows[0]?.display_name || null;
     } catch (_) {}
   }
   next();
@@ -46,6 +48,7 @@ app.use('/', homeRoutes);
 app.use('/auth', authRoutes);
 app.use('/game', gamesRoutes);
 app.use('/profile', profileRoutes);
+app.use('/admin', adminRoutes);
 
 // Manual scrape trigger (protected by API key)
 app.post('/api/scrape', async (req, res) => {

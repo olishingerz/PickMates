@@ -11,22 +11,23 @@ router.get('/login', (req, res) => {
 
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
+  const next = req.query.next || req.body.next || '';
   if (!username || !password) {
-    return res.render('login', { error: 'Please fill in all fields.' });
+    return res.render('login', { error: 'Please fill in all fields.', next });
   }
   try {
     const { rows } = await pool.query('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [username.trim()]);
     const user = rows[0];
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
-      return res.render('login', { error: 'Invalid username or password.' });
+      return res.render('login', { error: 'Incorrect username or password.', next });
     }
     req.session.user = { id: user.id, username: user.username, isAdmin: user.is_admin, isPaid: user.is_paid || false };
+    await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
     if (user.must_change_password) return res.redirect('/auth/change-password');
-    const next = req.query.next || req.body.next || '/';
     res.redirect(next.startsWith('/') ? next : '/');
   } catch (err) {
     console.error(err);
-    res.render('login', { error: 'Something went wrong. Please try again.' });
+    res.render('login', { error: 'Something went wrong. Please try again.', next });
   }
 });
 

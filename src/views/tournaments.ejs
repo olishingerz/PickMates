@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Select Tournament – PickMates</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo"><span class="logo-flag">⛳</span> PickMates</a>
+      <nav>
+        <a href="/game/<%= gameId %>/draft" class="btn btn-sm btn-ghost">← Back to Draft</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-header">
+      <h1>Select Tournament</h1>
+      <p class="last-updated">PGA Tour schedule from ESPN. Pick the tournament your group is playing for.</p>
+    </div>
+
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+    <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+
+    <% if (tournaments.length === 0) { %>
+      <div class="card empty-state">
+        <p>No tournaments found. ESPN may be unavailable — try again shortly.</p>
+      </div>
+    <% } else { %>
+      <form action="/game/<%= gameId %>/draft/tournaments" method="POST">
+        <div class="card">
+          <table class="leaderboard-table tournament-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Tournament</th>
+                <th>Dates</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% tournaments.forEach(t => { %>
+                <%
+                  const start = t.startDate ? new Date(t.startDate) : null;
+                  const end   = t.endDate   ? new Date(t.endDate)   : null;
+                  const dateStr = start
+                    ? start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) +
+                      (end ? ' – ' + end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '')
+                    : '—';
+
+                  let statusLabel = 'Upcoming';
+                  let statusClass = 'status-upcoming';
+                  if (t.status === 'STATUS_IN_PROGRESS') { statusLabel = 'Live'; statusClass = 'status-live'; }
+                  else if (t.completed) { statusLabel = 'Completed'; statusClass = 'status-done'; }
+                %>
+                <tr class="tournament-row">
+                  <td>
+                    <input type="radio" name="tournament_id" value="<%= t.id %>"
+                           id="t_<%= t.id %>"
+                           <% if (t.status === 'STATUS_IN_PROGRESS') { %>checked<% } %> />
+                    <input type="hidden" name="tournament_name_<%= t.id %>" value="<%= t.name %>" />
+                    <input type="hidden" name="tournament_start_date_<%= t.id %>" value="<%= t.startDate || '' %>" />
+                    <input type="hidden" name="tournament_end_date_<%= t.id %>"   value="<%= t.endDate   || '' %>" />
+                  </td>
+                  <td>
+                    <label for="t_<%= t.id %>" class="tournament-name"><%= t.name %></label>
+                  </td>
+                  <td class="muted"><%= dateStr %></td>
+                  <td><span class="status-badge <%= statusClass %>"><%= statusLabel %></span></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+
+        <input type="hidden" name="tournament_name"       id="tournament_name_hidden"       value="" />
+        <input type="hidden" name="tournament_start_date" id="tournament_start_date_hidden" value="" />
+        <input type="hidden" name="tournament_end_date"   id="tournament_end_date_hidden"   value="" />
+
+        <div style="margin-top:1rem; display:flex; gap:.8rem; align-items:center">
+          <button type="submit" class="btn" id="select-btn">Confirm selection</button>
+          <a href="/game/<%= gameId %>/draft" class="btn btn-ghost" style="color:var(--text)">Cancel</a>
+        </div>
+      </form>
+
+      <script>
+        const radios = document.querySelectorAll('input[name="tournament_id"]');
+        const nameHidden = document.getElementById('tournament_name_hidden');
+
+        function syncName() {
+          const selected = document.querySelector('input[name="tournament_id"]:checked');
+          if (selected) {
+            const v = selected.value;
+            nameHidden.value  = document.querySelector(`input[name="tournament_name_${v}"]`)?.value       || '';
+            document.getElementById('tournament_start_date_hidden').value = document.querySelector(`input[name="tournament_start_date_${v}"]`)?.value || '';
+            document.getElementById('tournament_end_date_hidden').value   = document.querySelector(`input[name="tournament_end_date_${v}"]`)?.value   || '';
+          }
+        }
+
+        radios.forEach(r => r.addEventListener('change', syncName));
+        syncName();
+      </script>
+    <% } %>
+  </main>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

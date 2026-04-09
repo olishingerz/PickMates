@@ -299,11 +299,39 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- Add display_name to users if missing
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='users' AND column_name='display_name') THEN
+    ALTER TABLE users ADD COLUMN display_name VARCHAR(50);
+  END IF;
+END $$;
+
 -- Add email to users if missing
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                  WHERE table_name='users' AND column_name='email') THEN
     ALTER TABLE users ADD COLUMN email VARCHAR(200) UNIQUE;
+  END IF;
+END $$;
+
+-- ── Round-by-round rank history ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS game_rank_history (
+  id          SERIAL PRIMARY KEY,
+  game_id     INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rank        INTEGER NOT NULL,
+  team_score  INTEGER,
+  round       INTEGER NOT NULL,
+  recorded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(game_id, user_id, round)
+);
+
+-- Add last_login to users if missing
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='users' AND column_name='last_login') THEN
+    ALTER TABLE users ADD COLUMN last_login TIMESTAMP WITH TIME ZONE;
   END IF;
 END $$;
 
