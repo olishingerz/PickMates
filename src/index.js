@@ -74,7 +74,7 @@ app.post('/api/scrape', async (req, res) => {
 async function start() {
   await initDb();
 
-  cron.schedule('*/30 * * * *', async () => {
+  cron.schedule('*/5 * * * *', async () => {
     console.log('[cron] Running scheduled scrape…');
     try { await scrapeAllGames(); }
     catch (err) { console.error('[cron] Scrape failed:', err.message); }
