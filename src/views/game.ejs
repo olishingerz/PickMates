@@ -77,7 +77,7 @@
         </details>
       <% } %>
       <% if (lastUpdated) { %>
-        <p class="last-updated">Scores updated: <%= new Date(lastUpdated).toLocaleString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) %></p>
+        <p class="last-updated">Scores updated: <%= new Date(lastUpdated).toLocaleString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) %> <span class="muted">(updates every 5 mins)</span></p>
       <% } else { %>
         <p class="last-updated">Scores not yet available — tournament hasn't started or no picks made yet.</p>
       <% } %>
