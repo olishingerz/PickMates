@@ -327,11 +327,14 @@ CREATE TABLE IF NOT EXISTS game_rank_history (
   UNIQUE(game_id, user_id, round)
 );
 
--- Add last_login to users if missing
+-- Add last_seen to users if missing (rename from last_login if that exists)
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_name='users' AND column_name='last_login') THEN
-    ALTER TABLE users ADD COLUMN last_login TIMESTAMP WITH TIME ZONE;
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_name='users' AND column_name='last_login') THEN
+    ALTER TABLE users RENAME COLUMN last_login TO last_seen;
+  ELSIF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_name='users' AND column_name='last_seen') THEN
+    ALTER TABLE users ADD COLUMN last_seen TIMESTAMP WITH TIME ZONE;
   END IF;
 END $$;
 

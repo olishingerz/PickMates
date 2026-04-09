@@ -32,13 +32,21 @@ app.use(session({
 
 app.use(async (req, res, next) => {
   res.locals.user = req.session.user || null;
-  // Keep avatar, paid status and display name in sync
-  if (req.session.user && req.session.user.avatar === undefined) {
-    try {
-      const { rows } = await pool.query('SELECT avatar, is_paid FROM users WHERE id = $1', [req.session.user.id]);
-      req.session.user.avatar = rows[0]?.avatar  || null;
-      req.session.user.isPaid = rows[0]?.is_paid || false;
-    } catch (_) {}
+  if (req.session.user) {
+    // Sync avatar + paid status on first request of the session
+    if (req.session.user.avatar === undefined) {
+      try {
+        const { rows } = await pool.query('SELECT avatar, is_paid FROM users WHERE id = $1', [req.session.user.id]);
+        req.session.user.avatar = rows[0]?.avatar  || null;
+        req.session.user.isPaid = rows[0]?.is_paid || false;
+      } catch (_) {}
+    }
+    // Update last_seen at most once every 5 minutes per session
+    const now = Date.now();
+    if (!req.session.lastSeenAt || now - req.session.lastSeenAt > 5 * 60 * 1000) {
+      req.session.lastSeenAt = now;
+      pool.query('UPDATE users SET last_seen = NOW() WHERE id = $1', [req.session.user.id]).catch(() => {});
+    }
   }
   next();
 });

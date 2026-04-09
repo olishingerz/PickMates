@@ -22,7 +22,6 @@ router.post('/login', async (req, res) => {
       return res.render('login', { error: 'Incorrect username or password.', next });
     }
     req.session.user = { id: user.id, username: user.username, isAdmin: user.is_admin, isPaid: user.is_paid || false };
-    await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
     if (user.must_change_password) return res.redirect('/auth/change-password');
     res.redirect(next.startsWith('/') ? next : '/');
   } catch (err) {

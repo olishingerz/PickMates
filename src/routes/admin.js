@@ -12,7 +12,7 @@ router.get('/', requireAdmin, async (req, res) => {
   try {
     const { rows: users } = await pool.query(`
       SELECT u.id, u.username, u.email,
-             u.is_admin, u.is_paid, u.created_at, u.last_login,
+             u.is_admin, u.is_paid, u.created_at, u.last_seen,
              COUNT(gp.id)::int AS game_count
       FROM users u
       LEFT JOIN game_participants gp ON gp.user_id = u.id
