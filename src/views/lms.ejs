@@ -132,7 +132,7 @@
               <% const isMe = user && s.user_id === user.id; %>
               <tr class="<%= isMe ? 'my-row' : '' %> <%= s.eliminated ? 'lms-eliminated' : '' %>">
                 <td class="rank"><%= i + 1 %></td>
-                <td><strong><%= s.display_name || s.username %></strong></td>
+                <td><strong><%= s.username %></strong></td>
                 <td>
                   <% if (!s.eliminated) { %>
                     <span class="status-badge status-live">Alive</span>

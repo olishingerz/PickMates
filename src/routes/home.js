@@ -19,12 +19,10 @@ router.get('/', async (req, res) => {
     `, [userId]);
     const { rows: winners } = await pool.query(`
       SELECT g.id, g.name, g.game_type, g.tournament_name,
-             g.winner_username,            u1.display_name AS winner_display_name,
-             g.winner_individual_username, u2.display_name AS winner_individual_display_name,
+             g.winner_username,
+             g.winner_individual_username,
              g.tournament_end_date, g.tournament_start_date
       FROM games g
-      LEFT JOIN users u1 ON LOWER(u1.username) = LOWER(g.winner_username)
-      LEFT JOIN users u2 ON LOWER(u2.username) = LOWER(g.winner_individual_username)
       WHERE g.tournament_complete = TRUE
         AND (g.winner_username IS NOT NULL OR g.winner_individual_username IS NOT NULL)
       ORDER BY g.tournament_end_date DESC NULLS LAST, g.created_at DESC
@@ -169,7 +167,7 @@ router.get('/hall-of-fame', async (req, res) => {
   try {
     const [allTimeRes, recentRes] = await Promise.all([
       pool.query(`
-        SELECT u.username, u.display_name,
+        SELECT u.username,
                COUNT(*) FILTER (WHERE g.winner_username = u.username)::int              AS team_wins,
                COUNT(*) FILTER (WHERE g.winner_individual_username = u.username)::int   AS indiv_wins,
                COUNT(*) FILTER (WHERE g.winner_username = u.username
@@ -177,17 +175,15 @@ router.get('/hall-of-fame', async (req, res) => {
         FROM users u
         JOIN games g ON g.tournament_complete = TRUE
                      AND (g.winner_username = u.username OR g.winner_individual_username = u.username)
-        GROUP BY u.username, u.display_name
+        GROUP BY u.username
         ORDER BY total_wins DESC, team_wins DESC
       `),
       pool.query(`
         SELECT g.id, g.name, g.game_type, g.tournament_name,
-               g.winner_username,            u1.display_name AS winner_display_name,
-               g.winner_individual_username, u2.display_name AS winner_individual_display_name,
+               g.winner_username,
+               g.winner_individual_username,
                g.tournament_end_date, g.tournament_start_date
         FROM games g
-        LEFT JOIN users u1 ON LOWER(u1.username) = LOWER(g.winner_username)
-        LEFT JOIN users u2 ON LOWER(u2.username) = LOWER(g.winner_individual_username)
         WHERE g.tournament_complete = TRUE
           AND (g.winner_username IS NOT NULL OR g.winner_individual_username IS NOT NULL)
         ORDER BY g.tournament_end_date DESC NULLS LAST, g.created_at DESC

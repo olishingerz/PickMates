@@ -21,7 +21,7 @@ function requireAuth(req, res, next) {
 router.get('/', requireAuth, async (req, res) => {
   const id = req.session.user.id;
   const [profileRes, golfRes, lmsRes, pickHistoryRes] = await Promise.all([
-    pool.query('SELECT username, avatar, email, display_name FROM users WHERE id = $1', [id]),
+    pool.query('SELECT username, avatar, email FROM users WHERE id = $1', [id]),
     pool.query(`
       SELECT
         COUNT(DISTINCT gp.game_id) FILTER (WHERE g.game_type = 'golf_draft')::int        AS golf_played,
@@ -109,22 +109,6 @@ router.post('/password', requireAuth, async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.session.user.id]);
     res.redirect('/profile?success=' + encodeURIComponent('Password updated.'));
-  } catch (err) {
-    console.error(err);
-    res.redirect('/profile?error=' + encodeURIComponent('Something went wrong.'));
-  }
-});
-
-// POST /profile/display-name
-router.post('/display-name', requireAuth, async (req, res) => {
-  const raw = req.body.display_name?.trim() || null;
-  if (raw && (raw.length < 2 || raw.length > 50)) {
-    return res.redirect('/profile?error=' + encodeURIComponent('Display name must be between 2 and 50 characters.'));
-  }
-  try {
-    await pool.query('UPDATE users SET display_name = $1 WHERE id = $2', [raw, req.session.user.id]);
-    req.session.user.displayName = raw;
-    res.redirect('/profile?success=' + encodeURIComponent(raw ? `Display name set to "${raw}".` : 'Display name cleared.'));
   } catch (err) {
     console.error(err);
     res.redirect('/profile?error=' + encodeURIComponent('Something went wrong.'));

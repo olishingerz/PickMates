@@ -33,7 +33,7 @@
         <% } else if (isMyTurn) { %>
           <strong style="color:var(--green-dark)">It's your pick!</strong>
         <% } else if (currentTurnUser) { %>
-          Waiting for <strong><%= currentTurnUser.display_name || currentTurnUser.username %></strong> to pick… (auto-refreshes every 30s)
+          Waiting for <strong><%= currentTurnUser.username %></strong> to pick… (auto-refreshes every 30s)
         <% } %>
       </p>
     </div>
@@ -68,7 +68,7 @@
           <form action="/game/<%= gameId %>/draft/team-name" method="POST"
                 style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap"
                 onsubmit="return confirm('Set your team name to \'' + this.team_name.value.trim() + '\'? You won\'t be able to change it again.')">
-            <input type="text" name="team_name" placeholder="e.g. The Eagles" maxlength="20" required
+            <input type="text" name="team_name" placeholder="e.g. The Eagles" maxlength="25" required
                    class="team-name-input"
                    style="padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;min-width:160px" />
             <button type="submit" class="btn btn-sm">Save</button>
@@ -96,7 +96,7 @@
               <li class="drag-item" data-id="<%= p.id %>" style="border-left: 4px solid <%= colours[i % colours.length] %>">
                 <span class="drag-handle">&#9776;</span>
                 <span class="reg-pos">#<%= p.draft_position || (i+1) %></span>
-                <span class="reg-name"><%= p.display_name || p.username %></span>
+                <span class="reg-name"><%= p.username %></span>
                 <button type="submit"
                         formaction="/game/<%= gameId %>/draft/remove-user"
                         name="user_id" value="<%= p.id %>"
@@ -177,7 +177,7 @@
           <% participants.forEach((p, i) => { %>
             <div class="reg-player" style="border-left: 4px solid <%= colours[i % colours.length] %>">
               <span class="reg-pos">#<%= p.draft_position %></span>
-              <span class="reg-name"><%= p.display_name || p.username %></span>
+              <span class="reg-name"><%= p.username %></span>
             </div>
           <% }) %>
         </div>
@@ -333,7 +333,7 @@
                 <th>Pick</th>
                 <% participants.forEach(p => { %>
                   <th style="border-top: 3px solid <%= posToColour[p.draft_position] %>">
-                    <%= p.display_name || p.username %><br /><small class="muted">#<%= p.draft_position %></small>
+                    <%= p.username %><br /><small class="muted">#<%= p.draft_position %></small>
                   </th>
                 <% }) %>
               </tr>
@@ -371,11 +371,11 @@
         <div class="card pick-form-card">
           <% if (!isMyTurn && isHost) { %>
             <div class="alert alert-info" style="margin-bottom:.8rem">
-              Picking on behalf of <strong><%= currentTurnUser.display_name || currentTurnUser.username %></strong>
+              Picking on behalf of <strong><%= currentTurnUser.username %></strong>
             </div>
           <% } %>
           <h2 class="section-title">
-            <% if (isMyTurn) { %>Your Pick<% } else { %><%= (currentTurnUser.display_name || currentTurnUser.username) %>'s Pick<% } %>
+            <% if (isMyTurn) { %>Your Pick<% } else { %><%= currentTurnUser.username %>'s Pick<% } %>
             — slot <%= myPicks.length + 1 %> of <%= PICKS_PER_PLAYER %>
           </h2>
 
@@ -463,7 +463,7 @@
         <% squads.forEach((squad, i) => { %>
           <div class="card squad-card" style="border-top: 4px solid <%= colours[i % colours.length] %>">
             <div class="squad-header">
-              <strong><%= squad.display_name || squad.username %></strong>
+              <strong><%= squad.username %></strong>
               <span class="muted">#<%= squad.draft_position %> · <%= squad.picks.length %>/<%= PICKS_PER_PLAYER %></span>
             </div>
             <% if (squad.picks.length === 0) { %>

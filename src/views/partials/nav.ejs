@@ -6,7 +6,7 @@
       <% } else { %>
         <span class="nav-avatar-initial"><%= user.username.charAt(0).toUpperCase() %></span>
       <% } %>
-      <span class="nav-username"><%= user.displayName || user.username %></span>
+      <span class="nav-username"><%= user.username %></span>
       <span class="dropdown-caret">▾</span>
     </button>
     <div class="nav-dropdown-menu" id="nav-dropdown-menu">

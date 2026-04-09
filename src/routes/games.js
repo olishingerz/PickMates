@@ -115,7 +115,6 @@ router.get('/:gameId', async (req, res) => {
       SELECT
         u.id           AS user_id,
         u.username,
-        u.display_name,
         gp.team_name,
         gp.draft_position,
         p.player_name,
@@ -142,7 +141,6 @@ router.get('/:gameId', async (req, res) => {
         teamsMap.set(row.user_id, {
           user_id: row.user_id,
           username: row.username,
-          display_name: row.display_name || null,
           team_name: row.team_name || null,
           draft_position: row.draft_position,
           picks: [],
@@ -187,7 +185,7 @@ router.get('/:gameId', async (req, res) => {
     const lastUpdated = rows.find(r => r.updated_at)?.updated_at || null;
 
     const { rows: rankHistory } = await pool.query(`
-      SELECT grh.round, grh.rank, grh.team_score, grh.user_id, u.username, u.display_name
+      SELECT grh.round, grh.rank, grh.team_score, grh.user_id, u.username
       FROM game_rank_history grh
       JOIN users u ON u.id = grh.user_id
       WHERE grh.game_id = $1

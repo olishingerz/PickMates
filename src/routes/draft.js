@@ -37,7 +37,7 @@ async function isHost(req, gameId) {
 async function getDraftData(userId, gameId) {
   const [participantsRes, picksRes, stateRes, lbRes] = await Promise.all([
     pool.query(`
-      SELECT u.id, u.username, u.display_name, gp.draft_position, gp.team_name
+      SELECT u.id, u.username, gp.draft_position, gp.team_name
       FROM game_participants gp
       JOIN users u ON u.id = gp.user_id
       WHERE gp.game_id = $1
@@ -634,8 +634,8 @@ router.post('/team-name', requireAuth, async (req, res) => {
   if (!rawName) {
     return res.redirect(`/game/${gameId}/draft?error=` + encodeURIComponent('Team name cannot be empty.'));
   }
-  if (rawName.length < 2 || rawName.length > 20) {
-    return res.redirect(`/game/${gameId}/draft?error=` + encodeURIComponent('Team name must be between 2 and 20 characters.'));
+  if (rawName.length < 2 || rawName.length > 25) {
+    return res.redirect(`/game/${gameId}/draft?error=` + encodeURIComponent('Team name must be between 2 and 25 characters.'));
   }
 
   try {

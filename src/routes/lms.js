@@ -27,7 +27,7 @@ async function getLmsData(gameId, userId) {
       [gameId]
     ),
     pool.query(`
-      SELECT u.id AS user_id, u.username, u.display_name, gp.draft_position
+      SELECT u.id AS user_id, u.username, gp.draft_position
       FROM game_participants gp
       JOIN users u ON u.id = gp.user_id
       WHERE gp.game_id = $1

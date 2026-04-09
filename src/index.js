@@ -35,10 +35,9 @@ app.use(async (req, res, next) => {
   // Keep avatar, paid status and display name in sync
   if (req.session.user && req.session.user.avatar === undefined) {
     try {
-      const { rows } = await pool.query('SELECT avatar, is_paid, display_name FROM users WHERE id = $1', [req.session.user.id]);
-      req.session.user.avatar      = rows[0]?.avatar       || null;
-      req.session.user.isPaid      = rows[0]?.is_paid      || false;
-      req.session.user.displayName = rows[0]?.display_name || null;
+      const { rows } = await pool.query('SELECT avatar, is_paid FROM users WHERE id = $1', [req.session.user.id]);
+      req.session.user.avatar = rows[0]?.avatar  || null;
+      req.session.user.isPaid = rows[0]?.is_paid || false;
     } catch (_) {}
   }
   next();

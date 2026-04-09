@@ -134,7 +134,7 @@
                       <%
                         const prev   = prevEntries.find(p => p.user_id === entry.user_id);
                         const change = prev ? prev.rank - entry.rank : 0;
-                        const name   = entry.display_name || entry.username;
+                        const name   = entry.username;
                       %>
                       <tr style="border-bottom:1px solid var(--border)">
                         <td style="padding:.4rem .6rem;font-weight:700"><%= entry.rank %></td>
@@ -204,10 +204,9 @@
                   <span class="team-dot" style="background:<%= colour %>"></span>
                   <% if (t.team_name) { %>
                     <strong><%= t.team_name.length > 22 ? t.team_name.slice(0, 22) + '…' : t.team_name %></strong>
-                    <br /><span class="muted" style="font-size:.75rem"><%= t.display_name || t.username %></span>
+                    <br /><span class="muted" style="font-size:.75rem"><%= t.username %></span>
                   <% } else { %>
-                    <% const displayName = t.display_name || t.username; %>
-                    <strong><%= displayName.length > 22 ? displayName.slice(0, 22) + '…' : displayName %></strong>
+                    <strong><%= t.username.length > 22 ? t.username.slice(0, 22) + '…' : t.username %></strong>
                   <% } %>
                 </td>
                 <td>
@@ -277,7 +276,7 @@
                 </td>
                 <td>
                   <span class="team-dot" style="background:<%= colour %>"></span>
-                  <strong><%= t.display_name || t.username %></strong>
+                  <strong><%= t.username %></strong>
                 </td>
                 <td><%= t.bestIndividualPlayer %></td>
                 <td>
@@ -307,10 +306,10 @@
               <% if (t.team_name) { %>
                 <div>
                   <strong><%= t.team_name %></strong>
-                  <div class="muted" style="font-size:.75rem"><%= t.display_name || t.username %></div>
+                  <div class="muted" style="font-size:.75rem"><%= t.username %></div>
                 </div>
               <% } else { %>
-                <strong><%= t.display_name || t.username %></strong>
+                <strong><%= t.username %></strong>
               <% } %>
               <% if (t.teamScore !== null) { %>
                 <span class="score-badge <%= t.teamScore < 0 ? 'under' : t.teamScore === 0 ? 'even' : 'over' %>">

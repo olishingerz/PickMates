@@ -122,27 +122,6 @@
         </form>
       </div>
 
-      <!-- ── Display name ──────────────────────────────────────────────── -->
-      <div class="card">
-        <h2 class="section-title">Display name</h2>
-        <form action="/profile/display-name" method="POST">
-          <div class="form-group">
-            <label for="display_name">Display name</label>
-            <input type="text" id="display_name" name="display_name"
-                   value="<%= profileUser.display_name || '' %>"
-                   minlength="2" maxlength="50" autocomplete="nickname"
-                   placeholder="e.g. McIlroy's Minions" />
-            <small>Shown instead of your username on leaderboards and standings. Leave blank to use your username.</small>
-          </div>
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-            <button type="submit" class="btn btn-sm">Save</button>
-            <% if (profileUser.display_name) { %>
-              <button type="submit" name="display_name" value="" class="btn btn-sm btn-ghost" style="color:var(--text)">Clear</button>
-            <% } %>
-          </div>
-        </form>
-      </div>
-
       <!-- ── Email / notifications ─────────────────────────────────────── -->
       <div class="card">
         <h2 class="section-title">Email &amp; notifications</h2>
