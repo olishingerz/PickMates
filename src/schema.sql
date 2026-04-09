@@ -335,6 +335,14 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- Drop display_name from users (feature removed)
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_name='users' AND column_name='display_name') THEN
+    ALTER TABLE users DROP COLUMN display_name;
+  END IF;
+END $$;
+
 -- ── Sessions ──────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS session (
   sid     VARCHAR NOT NULL COLLATE "default",

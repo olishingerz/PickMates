@@ -11,7 +11,7 @@ function requireAdmin(req, res, next) {
 router.get('/', requireAdmin, async (req, res) => {
   try {
     const { rows: users } = await pool.query(`
-      SELECT u.id, u.username, u.display_name, u.email,
+      SELECT u.id, u.username, u.email,
              u.is_admin, u.is_paid, u.created_at, u.last_login,
              COUNT(gp.id)::int AS game_count
       FROM users u
