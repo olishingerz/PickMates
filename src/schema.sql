@@ -355,3 +355,11 @@ CREATE TABLE IF NOT EXISTS session (
 );
 
 CREATE INDEX IF NOT EXISTS session_expire_idx ON session(expire);
+
+-- ── One-time data fixes ───────────────────────────────────────────────────────
+-- Fix ESPN name mismatches for Masters 2026 (Samuel Stevens / Nicolas Echavarria)
+UPDATE picks SET player_name = 'Sam Stevens'
+WHERE LOWER(TRIM(player_name)) = 'samuel stevens';
+
+UPDATE picks SET player_name = 'Nico Echavarria'
+WHERE LOWER(TRIM(player_name)) = 'nicolas echavarria';
