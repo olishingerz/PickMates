@@ -261,6 +261,10 @@ DO $$ BEGIN
                  WHERE table_name='game_participants' AND column_name='team_name') THEN
     ALTER TABLE game_participants ADD COLUMN team_name VARCHAR(50);
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='game_participants' AND column_name='last_rank') THEN
+    ALTER TABLE game_participants ADD COLUMN last_rank INTEGER;
+  END IF;
 END $$;
 
 -- Add winner_username to games if missing

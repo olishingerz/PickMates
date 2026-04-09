@@ -160,6 +160,46 @@ async function saveRoundSnapshot(client, gameId, players, eventCompleted) {
   }
 }
 
+// Save current team standings as last_rank on game_participants (for position-change arrows)
+async function saveCurrentRanks(gameId) {
+  try {
+    const { rows } = await pool.query(`
+      SELECT gp.user_id,
+             ARRAY_AGG(l.score_to_par ORDER BY l.score_to_par ASC)
+               FILTER (WHERE l.score_to_par IS NOT NULL AND l.made_cut = TRUE) AS cut_scores,
+             MIN(l.score_to_par) AS best_individual,
+             COUNT(CASE WHEN l.made_cut = TRUE THEN 1 END)::int AS cut_makers
+      FROM game_participants gp
+      LEFT JOIN picks p ON p.user_id = gp.user_id AND p.game_id = gp.game_id
+      LEFT JOIN leaderboard l ON l.game_id = gp.game_id
+                              AND LOWER(TRIM(l.player_name)) = LOWER(TRIM(p.player_name))
+      WHERE gp.game_id = $1
+      GROUP BY gp.user_id
+    `, [gameId]);
+
+    const teams = rows.map(t => {
+      const scores = t.cut_scores || [];
+      const qualified = t.cut_makers >= SCORES_THAT_COUNT && scores.length >= SCORES_THAT_COUNT;
+      const teamScore = qualified ? scores.slice(0, SCORES_THAT_COUNT).reduce((s, v) => s + v, 0) : null;
+      return { user_id: t.user_id, teamScore, bestIndividual: t.best_individual ?? 999 };
+    });
+
+    const qualified   = teams.filter(t => t.teamScore !== null).sort((a, b) =>
+      a.teamScore !== b.teamScore ? a.teamScore - b.teamScore : a.bestIndividual - b.bestIndividual);
+    const unqualified = teams.filter(t => t.teamScore === null);
+    const ranked      = [...qualified, ...unqualified].map((t, i) => ({ ...t, rank: i + 1 }));
+
+    for (const t of ranked) {
+      await pool.query(
+        'UPDATE game_participants SET last_rank = $1 WHERE game_id = $2 AND user_id = $3',
+        [t.rank, gameId, t.user_id]
+      );
+    }
+  } catch (err) {
+    console.warn(`[scraper] Game ${gameId}: saveCurrentRanks failed:`, err.message);
+  }
+}
+
 // Scrape leaderboard for a specific game
 async function scrapeLeaderboard(gameId) {
   const { rows } = await pool.query('SELECT tournament_id, player_source FROM games WHERE id = $1', [gameId]);
@@ -272,6 +312,9 @@ async function scrapeLeaderboard(gameId) {
 
     await client.query('COMMIT');
     console.log(`[scraper] Game ${gameId}: updated ${players.length} players (${isLive ? 'live' : 'pre-tournament'}, source: ${playerSource})`);
+
+    // Save current ranks for position-change arrows (after commit so scores are final)
+    if (isLive) await saveCurrentRanks(gameId);
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;

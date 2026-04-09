@@ -117,6 +117,7 @@ router.get('/:gameId', async (req, res) => {
         u.username,
         gp.team_name,
         gp.draft_position,
+        gp.last_rank,
         p.player_name,
         p.pick_slot,
         l.position     AS lb_position,
@@ -143,6 +144,7 @@ router.get('/:gameId', async (req, res) => {
           username: row.username,
           team_name: row.team_name || null,
           draft_position: row.draft_position,
+          last_rank: row.last_rank || null,
           picks: [],
           updated_at: null,
         });

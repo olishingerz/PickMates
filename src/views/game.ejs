@@ -199,6 +199,12 @@
                   <% } else { %>
                     <%= i + 1 %>
                   <% } %>
+                  <% if (t.last_rank && t.last_rank !== (i + 1)) {
+                       const move = t.last_rank - (i + 1); %>
+                    <span style="font-size:.7rem;font-weight:700;color:<%= move > 0 ? 'var(--green-dark)' : '#c0392b' %>">
+                      <%= move > 0 ? '▲' : '▼' %>
+                    </span>
+                  <% } %>
                 </td>
                 <td>
                   <span class="team-dot" style="background:<%= colour %>"></span>
