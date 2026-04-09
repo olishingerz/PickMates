@@ -267,6 +267,9 @@ async function scrapeLeaderboard(gameId) {
 
   const client = await pool.connect();
   try {
+    // Snapshot current ranks BEFORE updating scores — these become the "previous" ranks for arrows
+    if (isLive) await saveCurrentRanks(gameId);
+
     await client.query('BEGIN');
 
     if (playerSource === 'custom') {
@@ -312,9 +315,6 @@ async function scrapeLeaderboard(gameId) {
 
     await client.query('COMMIT');
     console.log(`[scraper] Game ${gameId}: updated ${players.length} players (${isLive ? 'live' : 'pre-tournament'}, source: ${playerSource})`);
-
-    // Save current ranks for position-change arrows (after commit so scores are final)
-    if (isLive) await saveCurrentRanks(gameId);
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
