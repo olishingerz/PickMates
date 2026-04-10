@@ -47,8 +47,8 @@
               </td>
               <td class="muted" style="font-size:.82rem;white-space:nowrap">
                 <% if (u.last_seen) { %>
-                  <%= new Date(u.last_seen).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) %>
-                  <span style="color:var(--muted)"><%= new Date(u.last_seen).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' }) %></span>
+                  <%= new Date(u.last_seen).toLocaleDateString('en-GB', { timeZone: 'Europe/London', day:'numeric', month:'short', year:'numeric' }) %>
+                  <span style="color:var(--muted)"><%= new Date(u.last_seen).toLocaleTimeString('en-GB', { timeZone: 'Europe/London', hour:'2-digit', minute:'2-digit' }) %></span>
                 <% } else { %>
                   <span class="muted">Never</span>
                 <% } %>
