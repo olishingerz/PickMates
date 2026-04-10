@@ -32,6 +32,7 @@ app.use(session({
 
 app.use(async (req, res, next) => {
   res.locals.user = req.session.user || null;
+  res.locals.impersonating = req.session.adminUserId ? true : false;
   if (req.session.user) {
     // Sync avatar + paid status on first request of the session
     if (req.session.user.avatar === undefined) {

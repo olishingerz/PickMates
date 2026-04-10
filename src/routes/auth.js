@@ -21,6 +21,9 @@ router.post('/login', async (req, res) => {
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
       return res.render('login', { error: 'Incorrect username or password.', next });
     }
+    if (user.is_banned) {
+      return res.render('login', { error: 'This account has been suspended. Please contact the host.', next });
+    }
     req.session.user = { id: user.id, username: user.username, isAdmin: user.is_admin, isPaid: user.is_paid || false };
     if (user.must_change_password) return res.redirect('/auth/change-password');
     res.redirect(next.startsWith('/') ? next : '/');

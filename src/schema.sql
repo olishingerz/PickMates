@@ -331,6 +331,14 @@ CREATE TABLE IF NOT EXISTS game_rank_history (
   UNIQUE(game_id, user_id, round)
 );
 
+-- Add is_banned to users if missing
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='users' AND column_name='is_banned') THEN
+    ALTER TABLE users ADD COLUMN is_banned BOOLEAN DEFAULT FALSE;
+  END IF;
+END $$;
+
 -- Add last_seen to users if missing (rename from last_login if that exists)
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.columns
