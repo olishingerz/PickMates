@@ -185,7 +185,6 @@
           <tbody>
             <% standings.forEach((t, i) => { %>
               <%
-                const colour = colours[(t.draft_position ? t.draft_position - 1 : i) % colours.length];
                 const isMe = user && user.username === t.username;
               %>
               <tr class="<%= isMe ? 'my-row' : '' %>">
@@ -207,7 +206,6 @@
                   <% } %>
                 </td>
                 <td>
-                  <span class="team-dot" style="background:<%= colour %>"></span>
                   <% if (t.team_name) { %>
                     <strong><%= t.team_name.length > 22 ? t.team_name.slice(0, 22) + '…' : t.team_name %></strong>
                     <br /><span class="muted" style="font-size:.75rem"><%= t.username %></span>
@@ -273,7 +271,6 @@
           <tbody>
             <% individualPotRankings.forEach((t, i) => { %>
               <%
-                const colour = colours[(t.draft_position ? t.draft_position - 1 : i) % colours.length];
                 const isMe = user && user.username === t.username;
               %>
               <tr class="<%= isMe ? 'my-row' : '' %>">
@@ -281,7 +278,6 @@
                   <% if (i === 0) { %><span class="medal gold">1</span><% } else { %><%= i + 1 %><% } %>
                 </td>
                 <td>
-                  <span class="team-dot" style="background:<%= colour %>"></span>
                   <strong><%= t.username %></strong>
                 </td>
                 <td><%= t.bestIndividualPlayer %></td>
