@@ -280,8 +280,11 @@ async function scrapeLeaderboard(gameId) {
     for (const ls of (c.linescores || [])) {
       const idx = (ls.period || 1) - 1;
       if (idx >= 0 && idx < 4 && ls.displayValue != null) {
-        rounds[idx] = parseScore(ls.displayValue);
-        if (idx === 2) hasR3Linescore = true;
+        const score = parseScore(ls.displayValue);
+        rounds[idx] = score;
+        // ESPN sends a placeholder R3 entry with displayValue "-" for cut players —
+        // only count it as "played" if it parsed to a real score.
+        if (idx === 2 && score !== null) hasR3Linescore = true;
         // Holes played only meaningful for current (in-progress) round
         if (isLive && ls.linescores?.length > 0) {
           thru = ls.linescores.length;
