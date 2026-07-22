@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= game.name %> – PickMates</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
@@ -44,6 +45,32 @@
       <% } else { %>
         <span class="status-badge <%= gameStatusClass %>" style="margin-top:.4rem;display:inline-block"><%= gameStatusLabel %></span>
       <% } %>
+      <%
+        // ── Round status bar ──
+        const rs = game.round_status;
+        if (rs && rs.round) {
+          const roundLabels = [];
+          for (let r = 1; r < rs.round; r++) {
+            roundLabels.push({ r, done: true });
+          }
+          roundLabels.push({ r: rs.round, done: false, current: true });
+      %>
+        <div class="round-status-bar" style="margin-top:.5rem;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+          <% roundLabels.forEach(function(rl) { %>
+            <% if (rl.done) { %>
+              <span class="round-status-chip round-status-done">R<%= rl.r %> ✓</span>
+            <% } else if (rs.suspended) { %>
+              <span class="round-status-chip round-status-suspended">R<%= rl.r %> Suspended</span>
+            <% } else { %>
+              <span class="round-status-chip round-status-live">R<%= rl.r %> Live</span>
+            <% } %>
+          <% }) %>
+          <% if (rs.suspended && rs.resumeNote) { %>
+            <span style="font-size:.78rem;color:var(--text-muted)">· <%= rs.resumeNote %></span>
+          <% } %>
+        </div>
+      <% } %>
+
       <% if (_teamPot || _indivPot) { %>
         <p class="muted" style="font-size:.8rem;margin-top:.2rem">
           <% if (_teamPot)  { %>Team pot: <strong style="color:var(--text)">£<%= _teamPot %></strong><% } %>
@@ -77,7 +104,25 @@
         </details>
       <% } %>
       <% if (lastUpdated) { %>
-        <p class="last-updated">Scores updated: <%= new Date(lastUpdated).toLocaleString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) %> <span class="muted">(updates every 5 mins)</span></p>
+        <p class="last-updated">Scores updated: <%= new Date(lastUpdated).toLocaleString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) %>
+          · <span id="scores-ago" class="muted"></span>
+          <span class="muted">(updates every 5 mins)</span>
+        </p>
+        <script>
+          (function() {
+            var updatedAt = new Date(<%= JSON.stringify(lastUpdated) %>);
+            function tick() {
+              var diff = Math.floor((Date.now() - updatedAt.getTime()) / 1000);
+              var el = document.getElementById('scores-ago');
+              if (!el) return;
+              if (diff < 60) el.textContent = diff + 's ago · ';
+              else if (diff < 3600) el.textContent = Math.floor(diff / 60) + 'm ago · ';
+              else el.textContent = Math.floor(diff / 3600) + 'h ago · ';
+            }
+            tick();
+            setInterval(tick, 10000);
+          })();
+        </script>
       <% } else { %>
         <p class="last-updated">Scores not yet available — tournament hasn't started or no picks made yet.</p>
       <% } %>
@@ -101,6 +146,7 @@
       const colours = ['#2d6a4f','#1e6091','#9b2335','#7b4f12','#5a189a','#03045e',
                        '#b5451b','#0f7173','#6b2d8b','#1a535c'];
     %>
+
 
     <% if (rankHistory.length > 0) { %>
       <%
@@ -186,8 +232,9 @@
             <% standings.forEach((t, i) => { %>
               <%
                 const isMe = user && user.username === t.username;
+                const rowClass = isMe ? 'my-row' : i === 0 && t.teamScore !== null && t.qualified ? 'row-gold' : i === 1 && t.teamScore !== null && t.qualified ? 'row-silver' : i === 2 && t.teamScore !== null && t.qualified ? 'row-bronze' : '';
               %>
-              <tr class="<%= isMe ? 'my-row' : '' %>">
+              <tr class="<%= rowClass %>">
                 <td class="rank">
                   <% if (i === 0 && t.teamScore !== null && t.qualified) { %>
                     <span class="medal gold">1</span>
@@ -381,5 +428,6 @@
   </main>
 
   <%- include('partials/footer') %>
+
 </body>
 </html>

@@ -6,8 +6,11 @@
   --green-dark:   #004d35;
   --green-light:  #e8f5f0;
   --gold:         #c9a84c;
+  --gold-light:   rgba(201,168,76,.1);
   --silver:       #a0a0a0;
+  --silver-light: rgba(160,160,160,.1);
   --bronze:       #b87333;
+  --bronze-light: rgba(184,115,51,.1);
   --text:         #1a1a1a;
   --text-muted:   #666;
   --bg:           #f5f5f0;
@@ -15,6 +18,7 @@
   --border:       #e0e0d8;
   --radius:       10px;
   --shadow:       0 2px 12px rgba(0,0,0,.08);
+  --shadow-hover: 0 6px 24px rgba(0,0,0,.14);
 }
 
 html { font-size: 16px; }
@@ -26,6 +30,12 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  animation: pageFadeIn .18s ease;
+}
+
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 a { color: var(--green); text-decoration: none; }
@@ -127,7 +137,9 @@ main {
   box-shadow: var(--shadow);
   padding: 1.5rem;
   margin-bottom: 1.2rem;
+  transition: box-shadow .18s;
 }
+.card:hover { box-shadow: var(--shadow-hover); }
 
 /* ── Page header ───────────────────────────────────────────────── */
 .page-header {
@@ -154,7 +166,7 @@ main {
 
 .leaderboard-table th {
   text-align: left;
-  padding: .6rem .8rem;
+  padding: .7rem .9rem;
   background: var(--green-light);
   color: var(--green-dark);
   font-size: .78rem;
@@ -164,7 +176,7 @@ main {
 }
 
 .leaderboard-table td {
-  padding: .75rem .8rem;
+  padding: .9rem .9rem;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
@@ -178,21 +190,29 @@ main {
 }
 .leaderboard-table tbody tr.my-row:hover { background: #fff5c8; }
 
+/* Top-3 row tints */
+.leaderboard-table tbody tr.row-gold   { background: var(--gold-light); }
+.leaderboard-table tbody tr.row-silver { background: var(--silver-light); }
+.leaderboard-table tbody tr.row-bronze { background: var(--bronze-light); }
+.leaderboard-table tbody tr.row-gold:hover   { background: rgba(201,168,76,.18); }
+.leaderboard-table tbody tr.row-silver:hover { background: rgba(160,160,160,.18); }
+.leaderboard-table tbody tr.row-bronze:hover { background: rgba(184,115,51,.18); }
+
 /* Medals */
 .medal {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   font-weight: 700;
-  font-size: .82rem;
+  font-size: .85rem;
   color: #fff;
 }
-.medal.gold   { background: var(--gold); color: #1a1a1a; }
-.medal.silver { background: var(--silver); }
-.medal.bronze { background: var(--bronze); }
+.medal.gold   { background: var(--gold); color: #1a1a1a; box-shadow: 0 2px 6px rgba(201,168,76,.4); }
+.medal.silver { background: var(--silver); box-shadow: 0 2px 6px rgba(160,160,160,.4); }
+.medal.bronze { background: var(--bronze); box-shadow: 0 2px 6px rgba(184,115,51,.4); }
 
 .no-pick  { color: var(--text-muted); font-style: italic; }
 .tbc      { color: var(--text-muted); font-size: .82rem; }
@@ -200,14 +220,14 @@ main {
 /* Score badges */
 .score-badge {
   display: inline-block;
-  padding: .15rem .45rem;
-  border-radius: 4px;
-  font-weight: 600;
-  font-size: .85rem;
+  padding: .25rem .6rem;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: .9rem;
 }
-.score-badge.under { background: #d4edda; color: #155724; }
-.score-badge.over  { background: #f8d7da; color: #721c24; }
-.score-badge.even  { background: #e2e3e5; color: #383d41; }
+.score-badge.under { background: #c3e6cb; color: #0a4020; }
+.score-badge.over  { background: #f5c6cb; color: #5a0d14; }
+.score-badge.even  { background: #d6d8db; color: #2b2d30; }
 
 .points-key {
   text-align: center;
@@ -309,6 +329,13 @@ main {
   padding: 3rem 1rem;
   color: var(--text-muted);
 }
+.empty-state-icon {
+  font-size: 2.5rem;
+  margin-bottom: .75rem;
+  display: block;
+  opacity: .6;
+}
+.empty-state p { font-size: .95rem; }
 
 /* ── Footer ────────────────────────────────────────────────────── */
 footer {
@@ -582,6 +609,27 @@ footer {
   border-radius: 3px;
 }
 
+
+/* ── Round status bar ───────────────────────────────────────────── */
+.round-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .2rem .55rem;
+  border-radius: 20px;
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.round-status-done      { background: var(--green-light); color: var(--green-dark); }
+.round-status-live      { background: #d1fae5; color: #065f46; animation: pulseLive 2s ease-in-out infinite; }
+.round-status-suspended { background: #fff3cd; color: #856404; }
+
+@keyframes pulseLive {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .7; }
+}
+
 .round-scores  { white-space: nowrap; }
 .round-chip {
   display: inline-block;
@@ -628,21 +676,30 @@ a.nav-user {
 }
 a.nav-user:hover { color: var(--green); }
 .nav-avatar {
-  width: 28px; height: 28px;
+  width: 34px; height: 34px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--border);
+  border: 2px solid rgba(255,255,255,.5);
 }
 .nav-avatar-initial {
-  width: 28px; height: 28px;
+  width: 34px; height: 34px;
   border-radius: 50%;
-  background: var(--green);
+  background: rgba(255,255,255,.2);
+  border: 2px solid rgba(255,255,255,.5);
   color: #fff;
-  font-size: .78rem;
+  font-size: .9rem;
   font-weight: 700;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
+
+/* Active nav item */
+.nav-dropdown-item.active {
+  color: var(--green);
+  font-weight: 700;
+  background: var(--green-light);
+}
+
 
 /* ── Profile page ────────────────────────────────────────────────── */
 .profile-grid {
@@ -907,7 +964,8 @@ a.nav-user:hover { color: var(--green); }
 
   /* Leaderboard table */
   .leaderboard-table { font-size: .82rem; }
-  .leaderboard-table td, .leaderboard-table th { padding: .55rem .4rem; }
+  .leaderboard-table td { padding: .7rem .5rem; }
+  .leaderboard-table th { padding: .6rem .5rem; }
   /* Hide "Best player" column (5th) — visible above */
   .leaderboard-table th:nth-child(5),
   .leaderboard-table td:nth-child(5) { display: none; }
@@ -963,6 +1021,5 @@ a.nav-user:hover { color: var(--green); }
   /* Nav dropdown: constrain width on narrow screens */
   .nav-dropdown-menu { min-width: 160px; }
 
-  /* Safe area bottom padding */
-  body { padding-bottom: env(safe-area-inset-bottom); }
 }
+/* End @media 600px */

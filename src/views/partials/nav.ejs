@@ -43,5 +43,14 @@
     if (!btn || !menu) return;
     btn.addEventListener('click', e => { e.stopPropagation(); menu.classList.toggle('open'); });
     document.addEventListener('click', () => menu.classList.remove('open'));
+
+    // Active nav item: highlight current page
+    const path = location.pathname;
+    document.querySelectorAll('.nav-dropdown-item[href]').forEach(function(a) {
+      const href = a.getAttribute('href');
+      if (href === '/' ? path === '/' : (href !== '/' && path.startsWith(href))) {
+        a.classList.add('active');
+      }
+    });
   })();
 </script>

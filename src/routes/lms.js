@@ -1,6 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
-const { fetchFixtures, processResults } = require('../services/football');
+const { fetchFixtures, processResults, LEAGUE_NAMES } = require('../services/football');
 
 const router = express.Router({ mergeParams: true });
 
@@ -103,6 +103,7 @@ router.get('/picks', requireAuth, async (req, res) => {
       ...data,
       fixtures: availableFixtures,
       isHost: hostFlag,
+      LEAGUE_NAMES,
       error:   req.query.error   || null,
       success: req.query.success || null,
     });

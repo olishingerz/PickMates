@@ -358,6 +358,18 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- Drop event feed tables if they exist (feature removed)
+DROP TABLE IF EXISTS game_event_reactions;
+DROP TABLE IF EXISTS game_events;
+
+-- Add round_status to games if missing
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='games' AND column_name='round_status') THEN
+    ALTER TABLE games ADD COLUMN round_status JSONB;
+  END IF;
+END $$;
+
 -- ── Sessions ──────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS session (
   sid     VARCHAR NOT NULL COLLATE "default",

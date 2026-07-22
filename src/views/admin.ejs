@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin · PickMates</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
@@ -47,6 +48,9 @@
             <tr>
               <td class="muted" style="font-size:.82rem"><%= g.id %></td>
               <td><a href="/game/<%= g.id %>" style="font-weight:600"><%= g.name %></a>
+                <% if (g.game_type !== 'last_man_standing') { %>
+                  <a href="/admin/espn-debug/<%= g.id %>" target="_blank" style="font-size:.72rem;margin-left:.4rem">ESPN debug</a>
+                <% } %>
                 <% if (g.tournament_name) { %><br/><span class="muted" style="font-size:.78rem"><%= g.tournament_name %></span><% } %>
               </td>
               <td class="muted" style="font-size:.82rem"><%= typLabel %></td>

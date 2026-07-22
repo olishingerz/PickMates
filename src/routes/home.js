@@ -1,6 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
-const { fetchTournamentList, scrapeLeaderboard } = require('../services/scraper');
+const { fetchTournamentList, scrapeLeaderboard, computeRanks } = require('../services/scraper');
 
 const router = express.Router();
 
@@ -17,6 +17,21 @@ router.get('/', async (req, res) => {
       GROUP BY g.id
       ORDER BY BOOL_OR(gp.user_id = $1) DESC NULLS LAST, g.created_at DESC
     `, [userId]);
+
+    // Current standing (not the stale last_rank snapshot used for arrows on the game page)
+    if (userId) {
+      await Promise.all(games
+        .filter(g => g.user_joined && g.is_started && g.game_type !== 'last_man_standing')
+        .map(async g => {
+          try {
+            const ranks = await computeRanks(g.id);
+            g.user_rank = ranks.get(userId) || null;
+          } catch (e) {
+            console.warn(`[home] computeRanks failed for game ${g.id}:`, e.message);
+            g.user_rank = null;
+          }
+        }));
+    }
     const { rows: winners } = await pool.query(`
       SELECT g.id, g.name, g.game_type, g.tournament_name,
              g.winner_username,
@@ -170,8 +185,8 @@ router.get('/hall-of-fame', async (req, res) => {
         SELECT u.username,
                COUNT(*) FILTER (WHERE g.winner_username = u.username)::int              AS team_wins,
                COUNT(*) FILTER (WHERE g.winner_individual_username = u.username)::int   AS indiv_wins,
-               COUNT(*) FILTER (WHERE g.winner_username = u.username
-                                   OR g.winner_individual_username = u.username)::int   AS total_wins
+               (COUNT(*) FILTER (WHERE g.winner_username = u.username)
+                 + COUNT(*) FILTER (WHERE g.winner_individual_username = u.username))::int AS total_wins
         FROM users u
         JOIN games g ON g.tournament_complete = TRUE
                      AND (g.winner_username = u.username OR g.winner_individual_username = u.username)

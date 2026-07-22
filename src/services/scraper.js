@@ -160,43 +160,59 @@ async function saveRoundSnapshot(client, gameId, players, eventCompleted) {
   }
 }
 
-// Save current team standings as last_rank on game_participants (for position-change arrows)
-async function saveCurrentRanks(gameId) {
+// Compute current team standings and return a Map of user_id → rank
+async function computeRanks(gameId) {
+  const { rows } = await pool.query(`
+    SELECT gp.user_id,
+           ARRAY_AGG(l.score_to_par ORDER BY l.score_to_par ASC)
+             FILTER (WHERE l.score_to_par IS NOT NULL AND l.made_cut = TRUE) AS cut_scores,
+           MIN(l.score_to_par) AS best_individual,
+           COUNT(CASE WHEN l.made_cut = TRUE THEN 1 END)::int AS cut_makers
+    FROM game_participants gp
+    LEFT JOIN picks p ON p.user_id = gp.user_id AND p.game_id = gp.game_id
+    LEFT JOIN leaderboard l ON l.game_id = gp.game_id
+                            AND LOWER(TRIM(l.player_name)) = LOWER(TRIM(p.player_name))
+    WHERE gp.game_id = $1
+    GROUP BY gp.user_id
+  `, [gameId]);
+
+  const teams = rows.map(t => {
+    const scores = t.cut_scores || [];
+    const qualified = t.cut_makers >= SCORES_THAT_COUNT && scores.length >= SCORES_THAT_COUNT;
+    const teamScore = qualified ? scores.slice(0, SCORES_THAT_COUNT).reduce((s, v) => s + v, 0) : null;
+    return { user_id: t.user_id, teamScore, bestIndividual: t.best_individual ?? 999 };
+  });
+
+  const qualified   = teams.filter(t => t.teamScore !== null).sort((a, b) =>
+    a.teamScore !== b.teamScore ? a.teamScore - b.teamScore : a.bestIndividual - b.bestIndividual);
+  const unqualified = teams.filter(t => t.teamScore === null);
+  return new Map([...qualified, ...unqualified].map((t, i) => [t.user_id, i + 1]));
+}
+
+// Update last_rank only for players whose rank changed since preRanks snapshot.
+// This keeps arrows visible across scrapes until the rank actually moves again.
+async function updateLastRanks(gameId, preRanks) {
   try {
-    const { rows } = await pool.query(`
-      SELECT gp.user_id,
-             ARRAY_AGG(l.score_to_par ORDER BY l.score_to_par ASC)
-               FILTER (WHERE l.score_to_par IS NOT NULL AND l.made_cut = TRUE) AS cut_scores,
-             MIN(l.score_to_par) AS best_individual,
-             COUNT(CASE WHEN l.made_cut = TRUE THEN 1 END)::int AS cut_makers
-      FROM game_participants gp
-      LEFT JOIN picks p ON p.user_id = gp.user_id AND p.game_id = gp.game_id
-      LEFT JOIN leaderboard l ON l.game_id = gp.game_id
-                              AND LOWER(TRIM(l.player_name)) = LOWER(TRIM(p.player_name))
-      WHERE gp.game_id = $1
-      GROUP BY gp.user_id
-    `, [gameId]);
-
-    const teams = rows.map(t => {
-      const scores = t.cut_scores || [];
-      const qualified = t.cut_makers >= SCORES_THAT_COUNT && scores.length >= SCORES_THAT_COUNT;
-      const teamScore = qualified ? scores.slice(0, SCORES_THAT_COUNT).reduce((s, v) => s + v, 0) : null;
-      return { user_id: t.user_id, teamScore, bestIndividual: t.best_individual ?? 999 };
-    });
-
-    const qualified   = teams.filter(t => t.teamScore !== null).sort((a, b) =>
-      a.teamScore !== b.teamScore ? a.teamScore - b.teamScore : a.bestIndividual - b.bestIndividual);
-    const unqualified = teams.filter(t => t.teamScore === null);
-    const ranked      = [...qualified, ...unqualified].map((t, i) => ({ ...t, rank: i + 1 }));
-
-    for (const t of ranked) {
-      await pool.query(
-        'UPDATE game_participants SET last_rank = $1 WHERE game_id = $2 AND user_id = $3',
-        [t.rank, gameId, t.user_id]
-      );
+    const postRanks = await computeRanks(gameId);
+    for (const [userId, newRank] of postRanks) {
+      const oldRank = preRanks.get(userId);
+      if (oldRank === undefined) {
+        // First time we've seen this player — initialise last_rank
+        await pool.query(
+          'UPDATE game_participants SET last_rank = $1 WHERE game_id = $2 AND user_id = $3',
+          [newRank, gameId, userId]
+        );
+      } else if (newRank !== oldRank) {
+        // Rank changed: set last_rank to where they were before this scrape
+        await pool.query(
+          'UPDATE game_participants SET last_rank = $1 WHERE game_id = $2 AND user_id = $3',
+          [oldRank, gameId, userId]
+        );
+      }
+      // If rank unchanged: leave last_rank as-is so arrow persists
     }
   } catch (err) {
-    console.warn(`[scraper] Game ${gameId}: saveCurrentRanks failed:`, err.message);
+    console.warn(`[scraper] Game ${gameId}: updateLastRanks failed:`, err.message);
   }
 }
 
@@ -224,29 +240,48 @@ async function scrapeLeaderboard(gameId) {
     return [];
   }
 
-  const competitors    = event.competitions?.[0]?.competitors || [];
-  const eventState     = event.competitions?.[0]?.status?.type?.state;
-  const eventCompleted = event.competitions?.[0]?.status?.type?.completed === true;
+  const competition    = event.competitions?.[0];
+  const competitors    = competition?.competitors || [];
+  const eventState     = competition?.status?.type?.state;
+  const eventCompleted = competition?.status?.type?.completed === true;
   // Treat both 'in' (active) and 'post' (suspended/complete) as having valid scores
   const isLive         = eventState === 'in' || eventState === 'post';
+
+  // Build round status object for display on leaderboard
+  const statusTypeName = competition?.status?.type?.name || '';
+  const statusPeriod   = competition?.status?.period || null;
+  const statusDetail   = competition?.status?.type?.detail || competition?.status?.type?.description || '';
+  // Look for resume time in competition notes (ESPN uses this for weather suspensions)
+  const notes          = competition?.notes || [];
+  const resumeNote     = notes.find(n => /resum/i.test(n.headline || ''));
+  const roundStatus = isLive ? {
+    round:       statusPeriod,
+    statusName:  statusTypeName,
+    detail:      statusDetail,
+    suspended:   statusTypeName.includes('SUSPENDED') || statusTypeName.includes('DELAY'),
+    completed:   eventCompleted,
+    resumeNote:  resumeNote?.headline || null,
+  } : null;
 
   if (competitors.length === 0) {
     console.warn(`[scraper] Game ${gameId}: no competitors returned`);
     return [];
   }
 
-  const players = competitors.map(c => {
-    const statusName = c.status?.type?.name || '';
-    const missedCut  = statusName.includes('CUT') || statusName.includes('WD') || statusName.includes('DQ');
+  // Current round from competition-level status (1–4)
+  const currentPeriod = competition?.status?.period || 1;
 
+  const players = competitors.map(c => {
     // Each top-level linescore is a round. displayValue = score-to-par for that round.
     // Inner linescores array = individual hole scores, so its length = holes played this round.
     const rounds = [null, null, null, null];
+    let hasR3Linescore = false;
     let thru = null;
     for (const ls of (c.linescores || [])) {
       const idx = (ls.period || 1) - 1;
       if (idx >= 0 && idx < 4 && ls.displayValue != null) {
         rounds[idx] = parseScore(ls.displayValue);
+        if (idx === 2) hasR3Linescore = true;
         // Holes played only meaningful for current (in-progress) round
         if (isLive && ls.linescores?.length > 0) {
           thru = ls.linescores.length;
@@ -255,32 +290,64 @@ async function scrapeLeaderboard(gameId) {
     }
 
     return {
-      player_name:  c.athlete?.displayName || c.athlete?.fullName || 'Unknown',
-      position:     c.order || null,
-      world_rank:   c.athlete?.rank || null,
-      score_to_par: isLive ? parseScore(c.score) : null,
-      made_cut:     isLive ? !missedCut : null,
+      player_name:    c.athlete?.displayName || c.athlete?.fullName || 'Unknown',
+      position:       c.order || null,
+      world_rank:     c.athlete?.rank || null,
+      score_to_par:   isLive ? parseScore(c.score) : null,
+      hasR3Linescore,
       thru,
       r1: rounds[0], r2: rounds[1], r3: rounds[2], r4: rounds[3],
     };
   });
 
+  // Determine cut status from linescores rather than the missing status field.
+  // R3+ and at least one player has teed off in R3 → players without R3 scores missed the cut.
+  // Still in R1/R2 → cut hasn't happened yet, everyone is in.
+  const r3HasStarted = currentPeriod >= 3 && players.some(p => p.hasR3Linescore);
+  for (const p of players) {
+    if (!isLive) {
+      p.made_cut = null;
+    } else if (r3HasStarted) {
+      p.made_cut = p.hasR3Linescore;
+    } else {
+      // R1/R2, or R3 period but nobody teed off yet — don't overwrite existing cut status
+      p.made_cut = null;  // null = "leave DB value unchanged" (handled below in UPDATE)
+    }
+    delete p.hasR3Linescore;
+  }
+
+  console.log(`[scraper] Game ${gameId}: period=${currentPeriod}, r3Started=${r3HasStarted}, cutTracking=${r3HasStarted ? 'active' : 'not yet'}`);
+
+  // Capture pre-scrape ranks in memory before touching the DB
+  let preRanks = new Map();
+  if (isLive) {
+    try { preRanks = await computeRanks(gameId); } catch (_) {}
+  }
+
   const client = await pool.connect();
   try {
-    // Snapshot current ranks BEFORE updating scores — these become the "previous" ranks for arrows
-    if (isLive) await saveCurrentRanks(gameId);
-
     await client.query('BEGIN');
 
     if (playerSource === 'custom') {
       // Custom list: update scores for existing players only — don't wipe the admin's list
       for (const p of players) {
-        await client.query(
-          `UPDATE leaderboard
-           SET position=$1, score_to_par=$2, made_cut=$3, thru=$4, r1=$5, r2=$6, r3=$7, r4=$8, world_rank=$9, updated_at=NOW()
-           WHERE game_id=$10 AND LOWER(TRIM(player_name)) = LOWER(TRIM($11))`,
-          [p.position, p.score_to_par, p.made_cut, p.thru, p.r1, p.r2, p.r3, p.r4, p.world_rank, gameId, p.player_name]
-        );
+        if (p.made_cut !== null) {
+          // We have cut data — update everything including made_cut
+          await client.query(
+            `UPDATE leaderboard
+             SET position=$1, score_to_par=$2, made_cut=$3, thru=$4, r1=$5, r2=$6, r3=$7, r4=$8, world_rank=$9, updated_at=NOW()
+             WHERE game_id=$10 AND LOWER(TRIM(player_name)) = LOWER(TRIM($11))`,
+            [p.position, p.score_to_par, p.made_cut, p.thru, p.r1, p.r2, p.r3, p.r4, p.world_rank, gameId, p.player_name]
+          );
+        } else {
+          // No cut data yet — update scores but leave made_cut as-is in the DB
+          await client.query(
+            `UPDATE leaderboard
+             SET position=$1, score_to_par=$2, thru=$3, r1=$4, r2=$5, r3=$6, r4=$7, world_rank=$8, updated_at=NOW()
+             WHERE game_id=$9 AND LOWER(TRIM(player_name)) = LOWER(TRIM($10))`,
+            [p.position, p.score_to_par, p.thru, p.r1, p.r2, p.r3, p.r4, p.world_rank, gameId, p.player_name]
+          );
+        }
       }
     } else {
       // ESPN source: full replace
@@ -315,11 +382,24 @@ async function scrapeLeaderboard(gameId) {
 
     await client.query('COMMIT');
     console.log(`[scraper] Game ${gameId}: updated ${players.length} players (${isLive ? 'live' : 'pre-tournament'}, source: ${playerSource})`);
+
+    // Update last_rank after commit — only changes for players whose rank moved
+    if (isLive) await updateLastRanks(gameId, preRanks);
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
   } finally {
     client.release();
+  }
+
+  // Save round status outside transaction (best-effort)
+  try {
+    await pool.query('UPDATE games SET round_status = $1 WHERE id = $2', [
+      roundStatus ? JSON.stringify(roundStatus) : null,
+      gameId,
+    ]);
+  } catch (e) {
+    console.warn(`[scraper] Game ${gameId}: round_status save failed:`, e.message);
   }
 
   return players;
@@ -347,4 +427,4 @@ async function scrapeAllGames() {
   }
 }
 
-module.exports = { scrapeLeaderboard, scrapeAllGames, fetchTournamentList };
+module.exports = { scrapeLeaderboard, scrapeAllGames, fetchTournamentList, computeRanks };

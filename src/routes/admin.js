@@ -2,6 +2,13 @@ const express = require('express');
 const bcrypt  = require('bcrypt');
 const { pool } = require('../db');
 
+const ESPN_SCOREBOARD = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
+async function fetchJSON(url) {
+  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } });
+  if (!res.ok) throw new Error(`ESPN ${res.status}`);
+  return res.json();
+}
+
 const router = express.Router();
 
 function requireAdmin(req, res, next) {
@@ -228,6 +235,63 @@ router.post('/rename-pick', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('[admin rename-pick]', err);
     res.redirect('/admin?error=' + encodeURIComponent('Could not rename pick.'));
+  }
+});
+
+// ── GET /admin/espn-debug/:gameId — show raw ESPN cut statuses ────────────────
+router.get('/espn-debug/:gameId', requireAdmin, async (req, res) => {
+  const gameId = parseInt(req.params.gameId);
+  try {
+    const { rows } = await pool.query('SELECT tournament_id, name FROM games WHERE id=$1', [gameId]);
+    if (!rows[0]) return res.send('Game not found');
+    const { tournament_id, name } = rows[0];
+    if (!tournament_id) return res.send('No tournament linked to this game');
+
+    const data = await fetchJSON(`${ESPN_SCOREBOARD}?tournamentId=${tournament_id}&lang=en`);
+    const competitors = data.events?.[0]?.competitions?.[0]?.competitors || [];
+
+    // Also get current DB leaderboard for this game
+    const { rows: lb } = await pool.query(
+      'SELECT player_name, made_cut FROM leaderboard WHERE game_id=$1 ORDER BY player_name',
+      [gameId]
+    );
+    const dbMap = Object.fromEntries(lb.map(r => [r.player_name.toLowerCase(), r.made_cut]));
+
+    const currentPeriod = data.events?.[0]?.competitions?.[0]?.status?.period || 1;
+    const rows2 = competitors.map(c => {
+      const lsPeriodsRaw = (c.linescores || []).map(ls => ls.period);
+      const hasR3 = lsPeriodsRaw.includes(3);
+      const name  = c.athlete?.displayName || '?';
+      return {
+        name,
+        score:      c.score,
+        lsPeriods:  lsPeriodsRaw.join(',') || '(none)',
+        hasR3,
+        db_made_cut: dbMap[name.toLowerCase()] ?? '(not in DB)',
+      };
+    });
+
+    const r3HasStarted = currentPeriod >= 3 && rows2.some(r => r.hasR3);
+
+    res.setHeader('Content-Type', 'text/html');
+    res.send(`
+      <h2>ESPN Debug: ${name} (game ${gameId})</h2>
+      <p>Tournament ID: ${tournament_id} · Current period: ${currentPeriod} · R3 started: ${r3HasStarted}</p>
+      <p><em>Cut detection: ${r3HasStarted ? 'ACTIVE — players without R3 linescore = missed cut' : 'NOT YET — still in R1/R2'}</em></p>
+      <table border="1" cellpadding="4" style="border-collapse:collapse;font-family:monospace;font-size:13px">
+        <tr><th>ESPN Name</th><th>score</th><th>linescore periods</th><th>hasR3</th><th>→ made_cut</th><th>DB made_cut</th></tr>
+        ${rows2.map(r => {
+          const computed = r3HasStarted ? r.hasR3 : null;
+          const mismatch = computed !== null && computed !== r.db_made_cut;
+          return `<tr style="background:${!r.hasR3 && r3HasStarted ? '#fee2e2' : mismatch ? '#fef9c3' : ''}">
+            <td>${r.name}</td><td>${r.score}</td><td>${r.lsPeriods}</td>
+            <td>${r.hasR3}</td><td>${computed}</td><td>${r.db_made_cut}</td>
+          </tr>`;
+        }).join('')}
+      </table>
+    `);
+  } catch (err) {
+    res.send('Error: ' + err.message);
   }
 });
 

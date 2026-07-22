@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PickMates</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
@@ -26,6 +27,7 @@
     <!-- ── Game list ──────────────────────────────────────────────────────── -->
     <% if (games.length === 0) { %>
       <div class="card empty-state">
+        <span class="empty-state-icon">⛳</span>
         <p>No games yet.<% if (user && user.isAdmin) { %> Create the first one below.<% } %></p>
       </div>
     <% } else { %>
@@ -55,8 +57,13 @@
               </div>
               <span class="status-badge <%= statusClass %>"><%= statusLabel %></span>
             </div>
-            <div class="game-card-meta">
+            <div class="game-card-meta" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
               <span class="muted"><%= g.participant_count %> player<%= g.participant_count !== 1 ? 's' : '' %></span>
+              <% if (user && g.user_joined && g.is_started && g.user_rank) { %>
+                <span style="font-size:.8rem;font-weight:700;color:var(--green-dark);background:var(--green-light);padding:.15rem .45rem;border-radius:20px">
+                  #<%= g.user_rank %> of <%= g.participant_count %>
+                </span>
+              <% } %>
             </div>
             <div class="game-card-actions">
               <a href="/game/<%= g.id %>" class="btn btn-sm">Leaderboard</a>
