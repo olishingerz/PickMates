@@ -308,6 +308,49 @@ main {
 .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
 .alert-info    { background: var(--green-light); color: var(--green-dark); border: 1px solid #b2ddd0; }
 
+/* ── Countdown / deadline urgency ─────────────────────────────────── */
+.countdown-timer {
+  display: inline-block;
+  font-weight: 700;
+  padding: .1rem .5rem;
+  border-radius: 20px;
+  background: var(--card-border);
+  color: var(--text);
+}
+.countdown-timer.countdown-urgent {
+  background: #fef3c7;
+  color: #92400e;
+}
+.countdown-timer.countdown-critical {
+  background: #fee2e2;
+  color: #b91c1c;
+  animation: countdown-pulse 1s infinite;
+}
+@keyframes countdown-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .55; }
+}
+.deadline-banner {
+  background: #fee2e2;
+  border: 1px solid #ef4444;
+  color: #991b1b;
+  padding: .75rem 1rem;
+  border-radius: var(--radius);
+  margin-bottom: 1rem;
+  font-size: .92rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  flex-wrap: wrap;
+}
+.deadline-banner a {
+  color: #991b1b;
+  text-decoration: underline;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 /* ── Pick page specifics ───────────────────────────────────────── */
 .pick-deadline {
   font-size: .88rem;

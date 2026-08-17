@@ -19,6 +19,28 @@
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
     <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
 
+    <%
+      const alreadyJoined  = user && standings.some(s => s.user_id === user.id);
+      const myStanding     = standings.find(s => user && s.user_id === user.id);
+      const canPick        = game.is_started && alreadyJoined && myStanding && !myStanding.eliminated
+                             && !myStanding.myCurrentPick
+                             && !weekObj?.results_locked;
+
+      // Picks are hidden until every alive player has submitted for the current week
+      const aliveStandings   = standings.filter(s => !s.eliminated);
+      const pickedCount      = aliveStandings.filter(s => s.myCurrentPick || s.picks.some(p => p.week_number === currentWeek)).length;
+      const allPickedIn      = aliveStandings.length > 0 && pickedCount >= aliveStandings.length;
+    %>
+    <% if (canPick && weekObj?.deadline) { %>
+      <div class="deadline-banner">
+        <span>⏳ You haven't picked yet this week — pick before the deadline or you're <strong>OUT!</strong></span>
+        <span style="display:flex;align-items:center;gap:.6rem">
+          <span class="countdown-timer" data-deadline="<%= new Date(weekObj.deadline).toISOString() %>">…</span>
+          <a href="/game/<%= game.id %>/lms/picks">Pick now →</a>
+        </span>
+      </div>
+    <% } %>
+
     <div class="page-header">
       <h1><%= game.name %></h1>
       <p class="muted" style="margin-top:.2rem">
@@ -71,18 +93,6 @@
     </div>
 
     <!-- ── Submit pick CTA ──────────────────────────────────────────── -->
-    <%
-      const alreadyJoined  = user && standings.some(s => s.user_id === user.id);
-      const myStanding     = standings.find(s => user && s.user_id === user.id);
-      const canPick        = game.is_started && alreadyJoined && myStanding && !myStanding.eliminated
-                             && !myStanding.myCurrentPick
-                             && !weekObj?.results_locked;
-
-      // Picks are hidden until every alive player has submitted for the current week
-      const aliveStandings   = standings.filter(s => !s.eliminated);
-      const pickedCount      = aliveStandings.filter(s => s.myCurrentPick || s.picks.some(p => p.week_number === currentWeek)).length;
-      const allPickedIn      = aliveStandings.length > 0 && pickedCount >= aliveStandings.length;
-    %>
     <% if (user && !alreadyJoined && !game.is_complete) { %>
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
         <p style="margin:0">You're not in this game yet.</p>
@@ -99,7 +109,7 @@
         <div>
           <strong>Week <%= currentWeek %> — make your pick!</strong>
           <% if (weekObj?.deadline) { %>
-            <span class="muted" style="font-size:.85rem;margin-left:.5rem">Deadline: <%= new Date(weekObj.deadline).toLocaleString('en-GB', { timeZone:'Europe/London', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %></span>
+            <span class="muted" style="font-size:.85rem;margin-left:.5rem">Deadline: <span class="countdown-timer" data-deadline="<%= new Date(weekObj.deadline).toISOString() %>">…</span></span>
           <% } %>
         </div>
         <a href="/game/<%= game.id %>/lms/picks" class="btn" style="background:#f59e0b;color:#1a1a1a">Make your pick</a>
@@ -265,6 +275,33 @@
     <% } %>
 
   </main>
+
+  <script>
+    (function() {
+      function fmt(ms) {
+        if (ms <= 0) return 'Deadline passed';
+        const s = Math.floor(ms / 1000);
+        const d = Math.floor(s / 86400);
+        const h = Math.floor((s % 86400) / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        const sec = s % 60;
+        if (d > 0) return d + 'd ' + h + 'h left';
+        if (h > 0) return h + 'h ' + m + 'm left';
+        if (m > 0) return m + 'm ' + sec + 's left';
+        return sec + 's left!';
+      }
+      function tick() {
+        document.querySelectorAll('.countdown-timer[data-deadline]').forEach(function(el) {
+          const ms = new Date(el.dataset.deadline).getTime() - Date.now();
+          el.textContent = fmt(ms);
+          el.classList.toggle('countdown-urgent', ms > 0 && ms < 3 * 60 * 60 * 1000);
+          el.classList.toggle('countdown-critical', ms > 0 && ms < 10 * 60 * 1000);
+        });
+      }
+      tick();
+      setInterval(tick, 1000);
+    })();
+  </script>
 
   <%- include('partials/footer') %>
 </body>

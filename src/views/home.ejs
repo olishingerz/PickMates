@@ -67,6 +67,9 @@
                   #<%= g.user_rank %> of <%= g.participant_count %>
                 </span>
               <% } %>
+              <% if (g.pickDeadline) { %>
+                <span class="countdown-timer" style="font-size:.8rem" data-deadline="<%= new Date(g.pickDeadline).toISOString() %>">…</span>
+              <% } %>
             </div>
             <div class="game-card-actions">
               <a href="/game/<%= g.id %>" class="btn btn-sm">Leaderboard</a>
@@ -161,6 +164,35 @@
     </div>
 
   </main>
+
+  <script>
+    (function() {
+      const timers = document.querySelectorAll('.countdown-timer[data-deadline]');
+      if (timers.length === 0) return;
+      function fmt(ms) {
+        if (ms <= 0) return 'Deadline passed';
+        const s = Math.floor(ms / 1000);
+        const d = Math.floor(s / 86400);
+        const h = Math.floor((s % 86400) / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        const sec = s % 60;
+        if (d > 0) return d + 'd ' + h + 'h left';
+        if (h > 0) return h + 'h ' + m + 'm left';
+        if (m > 0) return m + 'm ' + sec + 's left';
+        return sec + 's left!';
+      }
+      function tick() {
+        timers.forEach(function(el) {
+          const ms = new Date(el.dataset.deadline).getTime() - Date.now();
+          el.textContent = fmt(ms);
+          el.classList.toggle('countdown-urgent', ms > 0 && ms < 3 * 60 * 60 * 1000);
+          el.classList.toggle('countdown-critical', ms > 0 && ms < 10 * 60 * 1000);
+        });
+      }
+      tick();
+      setInterval(tick, 1000);
+    })();
+  </script>
 
   <%- include('partials/footer') %>
 </body>

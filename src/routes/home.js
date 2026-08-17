@@ -3,6 +3,7 @@ const { pool } = require('../db');
 const { fetchTournamentList, scrapeLeaderboard, computeRanks } = require('../services/scraper');
 const { LEAGUE_NAMES } = require('../services/football');
 const { PICKS_PER_PLAYER, SCORES_THAT_COUNT, MIN_CUT_MAKERS } = require('../constants');
+const { getLmsData } = require('./lms');
 
 const router = express.Router();
 
@@ -31,6 +32,21 @@ router.get('/', async (req, res) => {
           } catch (e) {
             console.warn(`[home] computeRanks failed for game ${g.id}:`, e.message);
             g.user_rank = null;
+          }
+        }));
+
+      // LMS pick deadline — only shown if the viewer still needs to pick this week
+      await Promise.all(games
+        .filter(g => g.user_joined && g.is_started && g.game_type === 'last_man_standing')
+        .map(async g => {
+          try {
+            const data = await getLmsData(g.id, userId);
+            const mine = data.standings.find(s => s.user_id === userId);
+            if (mine && !mine.eliminated && !mine.myCurrentPick && data.weekObj?.deadline) {
+              g.pickDeadline = data.weekObj.deadline;
+            }
+          } catch (e) {
+            console.warn(`[home] getLmsData failed for game ${g.id}:`, e.message);
           }
         }));
     }
