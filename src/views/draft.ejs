@@ -287,6 +287,10 @@
                   onsubmit="return confirm('Reset the game? This removes all picks.')">
               <button type="submit" class="btn btn-sm btn-danger">↺ Reset</button>
             </form>
+            <form action="/game/<%= gameId %>/delete" method="POST" style="display:inline"
+                  onsubmit="return confirm('Delete this game and all picks? Cannot be undone.')">
+              <button type="submit" class="btn btn-sm btn-danger">Delete game</button>
+            </form>
           </div>
 
         <% } else { %>

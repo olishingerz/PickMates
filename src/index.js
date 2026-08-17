@@ -125,9 +125,9 @@ async function start() {
     }
   });
 
-  // Every 15 minutes: auto-process LMS results once the gameweek's fixtures have
+  // Every 5 minutes: auto-process LMS results once the gameweek's fixtures have
   // all finished, so the host doesn't have to click "Process results" manually
-  cron.schedule('*/15 * * * *', async () => {
+  cron.schedule('*/5 * * * *', async () => {
     try {
       const { rows: games } = await pool.query(`
         SELECT g.id, g.lms_leagues, g.lms_current_week

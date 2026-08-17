@@ -33,7 +33,7 @@
       %>
       <p class="muted" style="margin-top:.3rem"><strong><%= alive %></strong> of <strong><%= total %></strong> still alive — Week <strong><%= currentWeek %></strong></p>
       <% if (game.prize_individual > 0) { %>
-        <p class="muted" style="margin-top:.2rem;font-size:.85rem">Prize: <strong>£<%= game.prize_individual %></strong> per player</p>
+        <p class="muted" style="margin-top:.2rem;font-size:.85rem">Prize pot: <strong>£<%= game.prize_individual * total %></strong> <span class="muted" style="font-size:.78rem">(£<%= game.prize_individual %> × <%= total %> player<%= total !== 1 ? 's' : '' %>)</span></p>
       <% } %>
     <% if (game.is_started && !weekObj?.results_locked) { %>
       <p class="muted" style="margin-top:.2rem;font-size:.85rem">
@@ -206,53 +206,43 @@
 
     <!-- ── Host controls ─────────────────────────────────────────────── -->
     <% if (isHost) { %>
-      <details class="mt-lg">
-        <summary class="card admin-card" style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">
-          <h2 class="section-title" style="margin:0">Host Controls</h2>
-          <span class="muted" style="font-size:.82rem">tap to expand</span>
-        </summary>
-      <div class="card admin-card" style="margin-top:.5rem;border-top-left-radius:0;border-top-right-radius:0">
+      <details style="display:inline-block;margin-top:1rem;position:relative">
+        <summary class="btn btn-sm btn-ghost" style="cursor:pointer;list-style:none;color:var(--text-muted)">⚙ Host controls</summary>
+        <div style="position:absolute;top:calc(100% + .3rem);left:0;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.6rem;display:flex;flex-direction:column;gap:.5rem;min-width:230px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.08)">
 
-        <!-- Set deadline -->
-        <div class="admin-section">
-          <p class="label-small">Week <%= currentWeek %> pick deadline</p>
-          <form action="/game/<%= game.id %>/lms/set-deadline" method="POST" style="display:flex;gap:.5rem;align-items:center;margin-top:.3rem;flex-wrap:wrap">
-            <input type="datetime-local" name="deadline"
-                   value="<%= weekObj?.deadline ? new Date(weekObj.deadline).toISOString().slice(0,16) : (suggestedDeadline ? new Date(suggestedDeadline).toISOString().slice(0,16) : '') %>"
-                   style="padding:.4rem .6rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.88rem" />
-            <button type="submit" class="btn btn-sm">Save deadline</button>
-          </form>
-          <% if (!weekObj?.deadline && suggestedDeadline) { %>
-            <p class="muted" style="font-size:.78rem;margin-top:.3rem">Auto-suggested: this gameweek's first kickoff — change it above if needed.</p>
-          <% } %>
-        </div>
+          <!-- Set deadline -->
+          <div>
+            <p class="label-small" style="margin-bottom:.3rem">Week <%= currentWeek %> deadline</p>
+            <form action="/game/<%= game.id %>/lms/set-deadline" method="POST" style="display:flex;gap:.3rem;align-items:center;flex-wrap:wrap">
+              <input type="datetime-local" name="deadline"
+                     value="<%= weekObj?.deadline ? new Date(weekObj.deadline).toISOString().slice(0,16) : (suggestedDeadline ? new Date(suggestedDeadline).toISOString().slice(0,16) : '') %>"
+                     style="padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.82rem;width:100%" />
+              <button type="submit" class="btn btn-sm" style="width:100%">Save deadline</button>
+            </form>
+          </div>
 
-        <div class="admin-divider"></div>
-        <div class="admin-row" style="flex-wrap:wrap;gap:.5rem">
           <!-- Process results -->
-          <form action="/game/<%= game.id %>/lms/process-results" method="POST" style="display:inline"
+          <form action="/game/<%= game.id %>/lms/process-results" method="POST"
                 onsubmit="return confirm('Fetch results from ESPN and lock week <%= currentWeek %>? This cannot be undone.')">
-            <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">
-              Process results — Week <%= currentWeek %>
+            <button type="submit" class="btn btn-sm" style="width:100%;background:var(--green);color:#fff">
+              Process results — Wk <%= currentWeek %>
             </button>
           </form>
 
           <!-- Advance week -->
           <% if (weekObj?.results_locked) { %>
-            <form action="/game/<%= game.id %>/lms/advance-week" method="POST" style="display:inline"
+            <form action="/game/<%= game.id %>/lms/advance-week" method="POST"
                   onsubmit="return confirm('Move to week <%= currentWeek + 1 %>?')">
-              <button type="submit" class="btn btn-sm">Advance to week <%= currentWeek + 1 %></button>
+              <button type="submit" class="btn btn-sm" style="width:100%">Advance to week <%= currentWeek + 1 %></button>
             </form>
           <% } %>
 
           <!-- Delete game -->
-          <form action="/game/<%= game.id %>/delete" method="POST" style="display:inline"
+          <form action="/game/<%= game.id %>/delete" method="POST"
                 onsubmit="return confirm('Delete this game and all picks? Cannot be undone.')">
-            <button type="submit" class="btn btn-sm btn-danger">Delete game</button>
+            <button type="submit" class="btn btn-sm btn-danger" style="width:100%">Delete game</button>
           </form>
         </div>
-        <p class="admin-hint">Results are auto-processed once this gameweek's fixtures all finish — the button above is for processing manually sooner. Then advance to the next week.</p>
-      </div>
       </details>
     <% } %>
 
