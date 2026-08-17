@@ -2,6 +2,7 @@ const express = require('express');
 const { pool } = require('../db');
 const { fetchTournamentList, scrapeLeaderboard, computeRanks } = require('../services/scraper');
 const { LEAGUE_NAMES } = require('../services/football');
+const { PICKS_PER_PLAYER, SCORES_THAT_COUNT, MIN_CUT_MAKERS } = require('../constants');
 
 const router = express.Router();
 
@@ -181,6 +182,11 @@ router.get('/join/:inviteCode', async (req, res) => {
     console.error('[join invite]', err);
     res.redirect('/?error=' + encodeURIComponent('Could not join game.'));
   }
+});
+
+// GET /how-it-works
+router.get('/how-it-works', (req, res) => {
+  res.render('how-it-works', { PICKS_PER_PLAYER, SCORES_THAT_COUNT, MIN_CUT_MAKERS });
 });
 
 // GET /hall-of-fame

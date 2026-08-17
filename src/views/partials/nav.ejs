@@ -18,6 +18,7 @@
     </button>
     <div class="nav-dropdown-menu" id="nav-dropdown-menu">
       <a href="/" class="nav-dropdown-item">🏠 Games</a>
+      <a href="/how-it-works" class="nav-dropdown-item">📖 How it Works</a>
       <a href="/hall-of-fame" class="nav-dropdown-item">🏆 Hall of Fame</a>
       <% if (user.isAdmin || user.isPaid) { %>
         <a href="/games/create" class="nav-dropdown-item">＋ Create Game</a>
@@ -33,6 +34,7 @@
     </div>
   </div>
 <% } else { %>
+  <a href="/how-it-works" class="btn btn-sm btn-ghost">How it Works</a>
   <a href="/auth/login" class="btn btn-sm btn-ghost">Log in</a>
   <a href="/auth/register" class="btn btn-sm">Register</a>
 <% } %>

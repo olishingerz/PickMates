@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>How It Works – PickMates</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo"><span class="logo-flag">⛳</span> PickMates</a>
+      <nav><%- include('partials/nav') %></nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-header">
+      <h1>How It Works</h1>
+      <p class="last-updated">The rules for both game modes.</p>
+    </div>
+
+    <!-- ── Golf Draft ─────────────────────────────────────────────────────── -->
+    <h2 class="section-title">⛳ Golf Draft</h2>
+    <div class="card" style="margin-bottom:.8rem">
+      <ol style="margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:.5rem">
+        <li>Join a game and wait for the host to start the draft.</li>
+        <li>The draft is a <strong>snake draft</strong> — players take turns picking real PGA Tour golfers, with the order reversing each round so it's fair (1→N, then N→1). Everyone drafts <strong><%= PICKS_PER_PLAYER %></strong> golfers.</li>
+        <li>Your <strong>team score</strong> is the sum of your <strong>lowest <%= SCORES_THAT_COUNT %></strong> golfers' scores relative to par — the lower, the better.</li>
+        <li>Your team needs at least <strong><%= MIN_CUT_MAKERS %></strong> golfers to make the cut to <strong>qualify</strong> for the team prize. Fewer than that and your team is <strong>DQ'd</strong> from the team prize (still eligible for the individual pot).</li>
+        <li>The <strong>team prize</strong> goes to the qualified team with the lowest score. If two teams tie, whichever has the lowest single player score wins the tiebreak.</li>
+        <li>The <strong>individual pot</strong> goes to whoever's single golfer scores lowest overall — no cut requirement.</li>
+        <li>Scores update automatically from ESPN every 5 minutes once the tournament is underway.</li>
+      </ol>
+    </div>
+
+    <!-- ── Last Man Standing ──────────────────────────────────────────────── -->
+    <h2 class="section-title mt-lg">🏆 Last Man Standing</h2>
+    <div class="card">
+      <ol style="margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:.5rem">
+        <li>Join a game before the host starts it. In the lobby, the host can add/remove players and set the entry fee per player.</li>
+        <li>Each gameweek, pick <strong>one team</strong> — from the Premier League and/or Championship, depending on the game's settings — that you think will <strong>win</strong> their match.</li>
+        <li>Picks lock at the kickoff of the gameweek's first match by default (the host can adjust the deadline). If you don't pick in time, you're <strong>automatically eliminated</strong>.</li>
+        <li><strong>Win and you survive</strong> to the next week. A draw or a loss <strong>eliminates</strong> you.</li>
+        <li>You can't pick the <strong>same team twice</strong> in the same round.</li>
+        <li>The <strong>last player standing wins</strong> the prize pot (entry fee × number of players).</li>
+        <li><strong>Rollover:</strong> if everyone gets eliminated in the same week, there's no winner — the prize <strong>doubles</strong> and the game restarts.</li>
+        <li><strong>Auto-restart:</strong> once a round ends (win or rollover), the game automatically resets to week 1 and keeps going — nobody needs to re-register — until the host clicks <strong>Stop Game</strong>.</li>
+        <li>Results are processed automatically once all of the gameweek's matches finish (the host can also process them manually at any time).</li>
+      </ol>
+    </div>
+  </main>
+
+  <%- include('partials/footer') %>
+</body>
+</html>
