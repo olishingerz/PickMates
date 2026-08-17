@@ -199,7 +199,7 @@
                 <% } %>
 
                 <!-- Host override controls -->
-                <% if (isHost && weeks.find(w2 => w2.week_number === currentWeek)?.results_locked) { %>
+                <% if (canManage && weeks.find(w2 => w2.week_number === currentWeek)?.results_locked) { %>
                   <% const curPick = s.picks.find(p => p.week_number === currentWeek); %>
                   <% if (curPick && curPick.result === 'pending') { %>
                   <td>
@@ -225,10 +225,27 @@
     </div>
 
     <!-- ── Host controls ─────────────────────────────────────────────── -->
-    <% if (isHost) { %>
+    <% if (canManage) { %>
       <details style="display:inline-block;margin-top:1rem;position:relative">
         <summary class="btn btn-sm btn-ghost" style="cursor:pointer;list-style:none;color:var(--text-muted)">⚙ Host controls</summary>
         <div style="position:absolute;top:calc(100% + .3rem);left:0;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.6rem;display:flex;flex-direction:column;gap:.5rem;min-width:230px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.08)">
+
+          <% if (isHost && participants.length > 1) { %>
+            <div>
+              <p class="label-small" style="margin-bottom:.3rem">Co-hosts</p>
+              <div style="display:flex;flex-direction:column;gap:.3rem">
+                <% participants.filter(p => p.user_id !== game.host_user_id).forEach(p => { %>
+                  <form action="/game/<%= game.id %>/draft/toggle-co-host" method="POST" style="display:flex;align-items:center;gap:.4rem">
+                    <input type="hidden" name="user_id" value="<%= p.user_id %>" />
+                    <span style="flex:1;font-size:.82rem"><%= p.username %></span>
+                    <button type="submit" class="btn btn-sm" style="padding:.15rem .4rem;font-size:.74rem;<%= p.is_co_host ? 'background:var(--green);color:#fff' : 'background:var(--card-border);color:var(--text)' %>">
+                      <%= p.is_co_host ? '👑' : 'Make co-host' %>
+                    </button>
+                  </form>
+                <% }) %>
+              </div>
+            </div>
+          <% } %>
 
           <!-- Set deadline -->
           <div>
@@ -266,10 +283,12 @@
           <% } %>
 
           <!-- Delete game -->
-          <form action="/game/<%= game.id %>/delete" method="POST"
-                onsubmit="return confirm('Delete this game and all picks? Cannot be undone.')">
-            <button type="submit" class="btn btn-sm btn-danger" style="width:100%">Delete game</button>
-          </form>
+          <% if (isHost) { %>
+            <form action="/game/<%= game.id %>/delete" method="POST"
+                  onsubmit="return confirm('Delete this game and all picks? Cannot be undone.')">
+              <button type="submit" class="btn btn-sm btn-danger" style="width:100%">Delete game</button>
+            </form>
+          <% } %>
         </div>
       </details>
     <% } %>

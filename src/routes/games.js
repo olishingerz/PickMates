@@ -2,7 +2,7 @@ const express = require('express');
 const { pool } = require('../db');
 const { SCORES_THAT_COUNT, MIN_CUT_MAKERS } = require('../constants');
 const draftRouter = require('./draft');
-const { router: lmsRouter, getLmsData, isHost: lmsIsHost } = require('./lms');
+const { router: lmsRouter, getLmsData, isHost: lmsIsHost, canManage: lmsCanManage } = require('./lms');
 const { LEAGUE_NAMES } = require('../services/football');
 
 const router = express.Router();
@@ -99,16 +99,17 @@ router.get('/:gameId', async (req, res) => {
 
     // Branch to LMS game room
     if (game.game_type === 'last_man_standing') {
-      const userId   = req.session.user?.id || null;
-      const data     = await getLmsData(gameId, userId);
-      const hostFlag = await lmsIsHost(req, gameId);
+      const userId    = req.session.user?.id || null;
+      const data      = await getLmsData(gameId, userId);
+      const hostFlag  = await lmsIsHost(req, gameId);
+      const manageFlag = await lmsCanManage(req, gameId);
 
       // Leaderboard is a pure DB read — never hits ESPN live. The fixture cache
       // is populated in the background at round-start/restart/advance-week; if
       // it's somehow not ready yet, we just skip the suggestion rather than
       // block this page on a live fetch (the picks page has its own fallback).
       let suggestedDeadline = null;
-      if (hostFlag && !data.weekObj?.deadline) {
+      if (manageFlag && !data.weekObj?.deadline) {
         const cached = data.weekObj?.fixtures_cache;
         if (cached?.length > 0) {
           const kickoffs = cached.map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
@@ -119,6 +120,7 @@ router.get('/:gameId', async (req, res) => {
       return res.render('lms', {
         ...data,
         isHost:     hostFlag,
+        canManage:  manageFlag,
         LEAGUE_NAMES,
         suggestedDeadline,
         error:   req.query.error   || null,

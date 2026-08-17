@@ -1,6 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
-const { fetchFixtures, getCurrentGameweekFixtures, processResults, LEAGUE_NAMES } = require('../services/football');
+const { getCurrentGameweekFixtures, processResults, LEAGUE_NAMES } = require('../services/football');
 
 const router = express.Router({ mergeParams: true });
 
@@ -18,6 +18,17 @@ async function isHost(req, gameId) {
   if (req.session.user.isAdmin) return true;
   const { rows } = await pool.query('SELECT host_user_id FROM games WHERE id = $1', [gameId]);
   return rows[0]?.host_user_id === req.session.user.id;
+}
+
+// Host or co-host — can manage the game day-to-day, but not delete it (that's isHost-only)
+async function canManage(req, gameId) {
+  if (await isHost(req, gameId)) return true;
+  if (!req.session.user) return false;
+  const { rows } = await pool.query(
+    'SELECT is_co_host FROM game_participants WHERE game_id = $1 AND user_id = $2',
+    [gameId, req.session.user.id]
+  );
+  return rows[0]?.is_co_host === true;
 }
 
 // Fetch the pickable team list from ESPN once and store it for this round, so the
@@ -43,7 +54,7 @@ async function getLmsData(gameId, userId) {
       [gameId]
     ),
     pool.query(`
-      SELECT u.id AS user_id, u.username, gp.draft_position, gp.team_name
+      SELECT u.id AS user_id, u.username, gp.draft_position, gp.team_name, gp.is_co_host
       FROM game_participants gp
       JOIN users u ON u.id = gp.user_id
       WHERE gp.game_id = $1
@@ -109,7 +120,7 @@ router.get('/picks', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   try {
     const data    = await getLmsData(gameId, req.session.user.id);
-    const hostFlag = await isHost(req, gameId);
+    const hostFlag = await canManage(req, gameId);
     if (!data.game) return res.redirect('/');
     if (!data.game.is_started) {
       return res.redirect(`/game/${gameId}?error=` + encodeURIComponent("The host hasn't started the game yet."));
@@ -198,7 +209,7 @@ router.post('/picks', requireAuth, async (req, res) => {
 // POST /game/:gameId/lms/set-deadline — host: set deadline for current week
 router.post('/set-deadline', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
-  if (!await isHost(req, gameId)) return res.redirect(`/game/${gameId}`);
+  if (!await canManage(req, gameId)) return res.redirect(`/game/${gameId}`);
 
   const { deadline } = req.body;
   try {
@@ -243,10 +254,12 @@ async function restartRound(gameId) {
 // Fetch ESPN results, lock the week, and resolve the game if it concluded (winner or
 // rollover). Shared by the host's manual button and the auto-process cron.
 async function processGameResults(gameId) {
-  const { rows: game } = await pool.query('SELECT lms_current_week, prize_individual, lms_continuous FROM games WHERE id=$1', [gameId]);
+  const { rows: game } = await pool.query('SELECT lms_current_week, prize_individual, lms_continuous, lms_leagues FROM games WHERE id=$1', [gameId]);
   const week = game[0]?.lms_current_week || 1;
   const continuous = game[0]?.lms_continuous === true;
-  const { updated } = await processResults(pool, gameId, week);
+  const leagues = (game[0]?.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean);
+  const { fixtures } = await getCurrentGameweekFixtures(leagues);
+  const { updated } = await processResults(pool, gameId, week, fixtures);
 
   // Lock results for this week
   await pool.query(
@@ -304,7 +317,7 @@ async function processGameResults(gameId) {
 // POST /game/:gameId/lms/process-results — host: fetch ESPN results and mark wins/losses
 router.post('/process-results', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
-  if (!await isHost(req, gameId)) return res.redirect(`/game/${gameId}`);
+  if (!await canManage(req, gameId)) return res.redirect(`/game/${gameId}`);
 
   try {
     const result = await processGameResults(gameId);
@@ -321,7 +334,7 @@ router.post('/process-results', requireAuth, async (req, res) => {
 // returns to the lobby instead of starting another round automatically.
 router.post('/stop', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
-  if (!await isHost(req, gameId)) return res.redirect(`/game/${gameId}`);
+  if (!await canManage(req, gameId)) return res.redirect(`/game/${gameId}`);
 
   try {
     await pool.query('UPDATE games SET lms_continuous = FALSE WHERE id = $1', [gameId]);
@@ -335,7 +348,7 @@ router.post('/stop', requireAuth, async (req, res) => {
 // POST /game/:gameId/lms/advance-week — host: move to next week
 router.post('/advance-week', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
-  if (!await isHost(req, gameId)) return res.redirect(`/game/${gameId}`);
+  if (!await canManage(req, gameId)) return res.redirect(`/game/${gameId}`);
 
   try {
     const { rows: game } = await pool.query('SELECT lms_current_week FROM games WHERE id=$1', [gameId]);
@@ -353,7 +366,7 @@ router.post('/advance-week', requireAuth, async (req, res) => {
 // POST /game/:gameId/lms/override-result — host: manually set a pick result
 router.post('/override-result', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
-  if (!await isHost(req, gameId)) return res.redirect(`/game/${gameId}`);
+  if (!await canManage(req, gameId)) return res.redirect(`/game/${gameId}`);
 
   const { pick_id, result } = req.body;
   if (!pick_id || !['win','loss','draw','pending'].includes(result)) {
@@ -368,4 +381,4 @@ router.post('/override-result', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = { router, getLmsData, isHost, processGameResults, refreshFixtureCache };
+module.exports = { router, getLmsData, isHost, canManage, processGameResults, refreshFixtureCache };

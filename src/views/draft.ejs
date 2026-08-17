@@ -25,7 +25,7 @@
         <% if (state.is_complete) { %>
           Draft complete — all squads locked in.
         <% } else if (!state.is_started) { %>
-          <% if (user && isHost) { %>
+          <% if (user && canManage) { %>
             <strong style="color:var(--green-dark)">Waiting to start.</strong>
             <% if (state.game_type === 'last_man_standing') { %>
               Add players then click Start Game when everyone's in.
@@ -93,7 +93,7 @@
     <!-- ── Registered players ──────────────────────────────────────────────── -->
     <div class="card">
       <h2 class="section-title"><%= participants.length %> Player<%= participants.length !== 1 ? 's' : '' %> Registered</h2>
-      <% if (user && isHost && !state.is_started && participants.length > 0 && state.game_type === 'last_man_standing') { %>
+      <% if (user && canManage && !state.is_started && participants.length > 0 && state.game_type === 'last_man_standing') { %>
         <div class="leaderboard-table-wrap">
           <table class="leaderboard-table">
             <thead>
@@ -127,7 +127,7 @@
             </tbody>
           </table>
         </div>
-      <% } else if (user && isHost && !state.is_started && participants.length > 0) { %>
+      <% } else if (user && canManage && !state.is_started && participants.length > 0) { %>
         <p class="admin-hint" style="margin-bottom:.6rem">Drag to set the pick order, then save — or use Randomise below.</p>
         <form action="/game/<%= gameId %>/draft/set-order" method="POST" id="order-form">
           <input type="hidden" name="ordered_ids" id="ordered-ids-input" value="<%= participants.map(p=>p.id).join(',') %>" />
@@ -263,13 +263,32 @@
     <% } %>
 
     <!-- ── Admin controls ─────────────────────────────────────────────────── -->
-    <% if (user && isHost) { %>
+    <% if (user && canManage) { %>
       <details <%= state.game_type === 'last_man_standing' ? 'open' : '' %>>
         <summary class="card admin-card" style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">
           <h2 class="section-title" style="margin:0">Host Controls</h2>
           <% if (state.game_type !== 'last_man_standing') { %><span class="muted" style="font-size:.82rem">tap to expand</span><% } %>
         </summary>
       <div class="card admin-card" style="margin-top:.5rem;border-top-left-radius:0;border-top-right-radius:0">
+
+        <% if (isHost && participants.length > 1) { %>
+          <div class="admin-section">
+            <p class="label-small">Co-hosts</p>
+            <p class="admin-hint" style="margin-bottom:.4rem">Co-hosts can manage everything here except deleting the game.</p>
+            <div style="display:flex;flex-direction:column;gap:.3rem">
+              <% participants.filter(p => p.id !== state.host_user_id).forEach(p => { %>
+                <form action="/game/<%= gameId %>/draft/toggle-co-host" method="POST" style="display:flex;align-items:center;gap:.5rem">
+                  <input type="hidden" name="user_id" value="<%= p.id %>" />
+                  <span style="flex:1;font-size:.88rem"><%= p.username %></span>
+                  <button type="submit" class="btn btn-sm" style="padding:.2rem .55rem;font-size:.78rem;<%= p.is_co_host ? 'background:var(--green);color:#fff' : 'background:var(--card-border);color:var(--text)' %>">
+                    <%= p.is_co_host ? '👑 Co-host' : 'Make co-host' %>
+                  </button>
+                </form>
+              <% }) %>
+            </div>
+          </div>
+          <div class="admin-divider"></div>
+        <% } %>
 
         <% if (state.game_type === 'last_man_standing') { %>
           <!-- LMS: simplified lobby controls -->
@@ -308,10 +327,12 @@
                   onsubmit="return confirm('Reset the game? This removes all picks.')">
               <button type="submit" class="btn btn-sm btn-danger">↺ Reset</button>
             </form>
-            <form action="/game/<%= gameId %>/delete" method="POST" style="display:inline"
-                  onsubmit="return confirm('Delete this game and all picks? Cannot be undone.')">
-              <button type="submit" class="btn btn-sm btn-danger">Delete game</button>
-            </form>
+            <% if (isHost) { %>
+              <form action="/game/<%= gameId %>/delete" method="POST" style="display:inline"
+                    onsubmit="return confirm('Delete this game and all picks? Cannot be undone.')">
+                <button type="submit" class="btn btn-sm btn-danger">Delete game</button>
+              </form>
+            <% } %>
           </div>
 
         <% } else { %>
@@ -438,12 +459,12 @@
       </div>
 
       <!-- ── Pick form ──────────────────────────────────────────────────────── -->
-      <% const showPickForm = !state.is_complete && (isMyTurn || (user && isHost && currentTurnUser)); %>
+      <% const showPickForm = !state.is_complete && (isMyTurn || (user && canManage && currentTurnUser)); %>
       <% if (showPickForm) { %>
         <% const pickingFor = isMyTurn ? user : currentTurnUser; %>
         <% const myPicks = allPicks.filter(p => p.user_id === pickingFor.id); %>
         <div class="card pick-form-card">
-          <% if (!isMyTurn && isHost) { %>
+          <% if (!isMyTurn && canManage) { %>
             <div class="alert alert-info" style="margin-bottom:.8rem">
               Picking on behalf of <strong><%= currentTurnUser.username %></strong>
             </div>

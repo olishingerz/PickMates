@@ -286,6 +286,10 @@ DO $$ BEGIN
                  WHERE table_name='game_participants' AND column_name='has_paid') THEN
     ALTER TABLE game_participants ADD COLUMN has_paid BOOLEAN DEFAULT FALSE;
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='game_participants' AND column_name='is_co_host') THEN
+    ALTER TABLE game_participants ADD COLUMN is_co_host BOOLEAN DEFAULT FALSE;
+  END IF;
 END $$;
 
 -- Add winner_username to games if missing

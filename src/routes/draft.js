@@ -35,10 +35,21 @@ async function isHost(req, gameId) {
   return rows[0]?.host_user_id === req.session.user.id;
 }
 
+// Host or co-host — can manage the game day-to-day, but not delete it (that's isHost-only)
+async function canManage(req, gameId) {
+  if (await isHost(req, gameId)) return true;
+  if (!req.session.user) return false;
+  const { rows } = await pool.query(
+    'SELECT is_co_host FROM game_participants WHERE game_id = $1 AND user_id = $2',
+    [gameId, req.session.user.id]
+  );
+  return rows[0]?.is_co_host === true;
+}
+
 async function getDraftData(userId, gameId) {
   const [participantsRes, picksRes, stateRes, lbRes] = await Promise.all([
     pool.query(`
-      SELECT u.id, u.username, gp.draft_position, gp.team_name, gp.has_paid
+      SELECT u.id, u.username, gp.draft_position, gp.team_name, gp.has_paid, gp.is_co_host
       FROM game_participants gp
       JOIN users u ON u.id = gp.user_id
       WHERE gp.game_id = $1
@@ -53,7 +64,7 @@ async function getDraftData(userId, gameId) {
       WHERE p.game_id = $1
       ORDER BY p.id ASC
     `, [gameId]),
-    pool.query('SELECT id, name, tournament_id, tournament_name, current_pick_index, is_started, is_complete, player_source, game_type, invite_code, prize_individual FROM games WHERE id = $1', [gameId]),
+    pool.query('SELECT id, name, tournament_id, tournament_name, current_pick_index, is_started, is_complete, player_source, game_type, invite_code, prize_individual, host_user_id FROM games WHERE id = $1', [gameId]),
     pool.query('SELECT player_name, world_rank FROM leaderboard WHERE game_id = $1 ORDER BY position ASC NULLS LAST, player_name ASC', [gameId]),
   ]);
 
@@ -128,9 +139,10 @@ async function getDraftData(userId, gameId) {
 router.get('/', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   try {
-    const [data, hostFlag] = await Promise.all([
+    const [data, hostFlag, manageFlag] = await Promise.all([
       getDraftData(req.session.user.id, gameId),
       isHost(req, gameId),
+      canManage(req, gameId),
     ]);
 
     // LMS lobby disappears once the game has started — the live game room takes over
@@ -138,9 +150,9 @@ router.get('/', requireAuth, async (req, res) => {
       return res.redirect(`/game/${gameId}`);
     }
 
-    // Only participants (or host/admin) may view the draft room
+    // Only participants (or host/co-host/admin) may view the draft room
     const isParticipant = data.participants.some(p => p.id === req.session.user.id);
-    if (!isParticipant && !hostFlag) {
+    if (!isParticipant && !manageFlag) {
       return res.redirect(`/game/${gameId}`);
     }
 
@@ -155,7 +167,8 @@ router.get('/', requireAuth, async (req, res) => {
 
     res.render('draft', {
       ...data,
-      isHost:  hostFlag,
+      isHost:    hostFlag,
+      canManage: manageFlag,
       lmsWinners,
       error:   req.query.error   || null,
       success: req.query.success || null,
@@ -204,7 +217,7 @@ router.post('/', requireAuth, async (req, res) => {
     const currentDraftPos = snakeOrder[state.current_pick_index];
     const currentUser     = participants.find(p => p.draft_position === currentDraftPos);
 
-    const isAdminOverride = await isHost(req, gameId);
+    const isAdminOverride = await canManage(req, gameId);
     if (!currentUser || (currentUser.id !== req.session.user.id && !isAdminOverride)) {
       await client.query('ROLLBACK');
       return res.redirect(base + '?error=' + encodeURIComponent("It's not your turn."));
@@ -267,7 +280,7 @@ router.post('/', requireAuth, async (req, res) => {
 router.post('/set-order', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base   = `/game/${gameId}/draft`;
-  if (!await isHost(req, gameId)) return res.redirect(base);
+  if (!await canManage(req, gameId)) return res.redirect(base);
 
   // ordered_ids is a comma-separated list of user IDs in desired draft order
   const ids = (req.body.ordered_ids || '')
@@ -320,7 +333,7 @@ router.post('/set-order', requireAuth, async (req, res) => {
 router.post('/randomise', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base   = `/game/${gameId}/draft`;
-  if (!await isHost(req, gameId)) return res.redirect(base);
+  if (!await canManage(req, gameId)) return res.redirect(base);
 
   const client = await pool.connect();
   try {
@@ -375,7 +388,7 @@ router.post('/randomise', requireAuth, async (req, res) => {
 router.post('/start', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base   = `/game/${gameId}/draft`;
-  if (!await isHost(req, gameId)) return res.redirect(base);
+  if (!await canManage(req, gameId)) return res.redirect(base);
 
   try {
     const { rows: participants } = await pool.query(
@@ -408,7 +421,7 @@ router.post('/start', requireAuth, async (req, res) => {
 router.post('/reset', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base   = `/game/${gameId}/draft`;
-  if (!await isHost(req, gameId)) return res.redirect(base);
+  if (!await canManage(req, gameId)) return res.redirect(base);
 
   try {
     await pool.query('DELETE FROM picks WHERE game_id = $1', [gameId]);
@@ -427,7 +440,7 @@ router.post('/reset', requireAuth, async (req, res) => {
 router.post('/entry-fee', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base   = `/game/${gameId}/draft`;
-  if (!await isHost(req, gameId)) return res.redirect(base);
+  if (!await canManage(req, gameId)) return res.redirect(base);
 
   const fee = Math.max(0, parseInt(req.body.entry_fee) || 0);
   try {
@@ -443,7 +456,7 @@ router.post('/entry-fee', requireAuth, async (req, res) => {
 router.post('/add-user', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base   = `/game/${gameId}/draft`;
-  if (!await isHost(req, gameId)) return res.redirect(base);
+  if (!await canManage(req, gameId)) return res.redirect(base);
 
   const username = req.body.username?.trim();
   if (!username || username.length < 2 || username.length > 50) {
@@ -523,15 +536,18 @@ router.post('/add-user', requireAuth, async (req, res) => {
 router.post('/remove-user', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base   = `/game/${gameId}/draft`;
-  if (!await isHost(req, gameId)) return res.redirect(base);
+  if (!await canManage(req, gameId)) return res.redirect(base);
 
   const userId = parseInt(req.body.user_id);
   if (!userId) return res.redirect(base + '?error=' + encodeURIComponent('Invalid user.'));
 
   try {
-    const { rows: stateRows } = await pool.query('SELECT is_started FROM games WHERE id = $1', [gameId]);
+    const { rows: stateRows } = await pool.query('SELECT is_started, host_user_id FROM games WHERE id = $1', [gameId]);
     if (stateRows[0]?.is_started) {
       return res.redirect(base + '?error=' + encodeURIComponent('Cannot remove players after the draft has started.'));
+    }
+    if (stateRows[0]?.host_user_id === userId) {
+      return res.redirect(base + '?error=' + encodeURIComponent('Cannot remove the host from the game.'));
     }
 
     await pool.query(
@@ -549,7 +565,7 @@ router.post('/remove-user', requireAuth, async (req, res) => {
 router.post('/toggle-paid', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base   = `/game/${gameId}/draft`;
-  if (!await isHost(req, gameId)) return res.redirect(base);
+  if (!await canManage(req, gameId)) return res.redirect(base);
 
   const userId = parseInt(req.body.user_id);
   if (!userId) return res.redirect(base + '?error=' + encodeURIComponent('Invalid user.'));
@@ -569,11 +585,35 @@ router.post('/toggle-paid', requireAuth, async (req, res) => {
   }
 });
 
+// POST /game/:gameId/draft/toggle-co-host — true host/admin only: promote/demote a co-host
+router.post('/toggle-co-host', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  const base   = `/game/${gameId}/draft`;
+  if (!await isHost(req, gameId)) return res.redirect(base);
+
+  const userId = parseInt(req.body.user_id);
+  if (!userId) return res.redirect(base + '?error=' + encodeURIComponent('Invalid user.'));
+
+  try {
+    const { rows } = await pool.query(
+      `UPDATE game_participants SET is_co_host = NOT is_co_host
+       WHERE game_id = $1 AND user_id = $2
+       RETURNING is_co_host`,
+      [gameId, userId]
+    );
+    if (!rows[0]) return res.redirect(base + '?error=' + encodeURIComponent('Player not found.'));
+    res.redirect(base + '?success=' + encodeURIComponent(rows[0].is_co_host ? 'Promoted to co-host.' : 'Co-host removed.'));
+  } catch (err) {
+    console.error('[toggle-co-host]', err);
+    res.redirect(base + '?error=' + encodeURIComponent('Failed to update co-host status.'));
+  }
+});
+
 // POST /game/:gameId/draft/clear-scores — host: wipe all scores but keep player names
 router.post('/clear-scores', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base   = `/game/${gameId}/draft`;
-  if (!await isHost(req, gameId)) return res.redirect(base);
+  if (!await canManage(req, gameId)) return res.redirect(base);
   try {
     await pool.query(
       'UPDATE leaderboard SET position=NULL, score_to_par=NULL, made_cut=NULL, thru=NULL, r1=NULL, r2=NULL, r3=NULL, r4=NULL, updated_at=NOW() WHERE game_id=$1',
@@ -590,7 +630,7 @@ router.post('/clear-scores', requireAuth, async (req, res) => {
 router.post('/player-source', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base   = `/game/${gameId}/draft`;
-  if (!await isHost(req, gameId)) return res.redirect(base);
+  if (!await canManage(req, gameId)) return res.redirect(base);
 
   const source = req.body.player_source === 'custom' ? 'custom' : 'espn';
   try {
@@ -606,7 +646,7 @@ router.post('/player-source', requireAuth, async (req, res) => {
 router.post('/player-list', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base   = `/game/${gameId}/draft`;
-  if (!await isHost(req, gameId)) return res.redirect(base);
+  if (!await canManage(req, gameId)) return res.redirect(base);
 
   const raw = req.body.player_names || '';
   const names = raw
@@ -646,7 +686,7 @@ router.post('/player-list', requireAuth, async (req, res) => {
 // GET /game/:gameId/draft/tournaments
 router.get('/tournaments', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
-  if (!await isHost(req, gameId)) return res.redirect(`/game/${gameId}/draft`);
+  if (!await canManage(req, gameId)) return res.redirect(`/game/${gameId}/draft`);
   try {
     const tournaments = await fetchTournamentList();
     res.render('tournaments', {
@@ -665,7 +705,7 @@ router.get('/tournaments', requireAuth, async (req, res) => {
 router.post('/tournaments', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base   = `/game/${gameId}/draft`;
-  if (!await isHost(req, gameId)) return res.redirect(base);
+  if (!await canManage(req, gameId)) return res.redirect(base);
 
   const { tournament_id, tournament_name, tournament_start_date, tournament_end_date } = req.body;
   if (!tournament_id || !tournament_name) {

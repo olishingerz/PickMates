@@ -120,12 +120,14 @@ async function getCurrentGameweekFixtures(leagueCodes) {
   return { fixtures, suggestedDeadline };
 }
 
-// Process results for a game week — updates lms_picks result column
-async function processResults(pool, gameId, weekNumber) {
-  const { rows: gameRows } = await pool.query('SELECT lms_leagues FROM games WHERE id = $1', [gameId]);
-  const leagues = (gameRows[0]?.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean);
-  const fixtures = await fetchFixtures(leagues);
-
+// Process results for a game week — updates lms_picks result column.
+// `fixtures` must be the properly gameweek-scoped list (from getCurrentGameweekFixtures),
+// not a raw fetchFixtures() call, which defaults to ESPN's ambiguous "today" view and can
+// miss matches from other days in the same gameweek. Only fixtures that have actually
+// finished (completed: true) contribute a result — everything else is left as-is, so this
+// can be called repeatedly as individual matches finish without waiting for the whole
+// gameweek to wrap up.
+async function processResults(pool, gameId, weekNumber, fixtures) {
   // Build a map from team_id → result
   const teamResults = {};
   for (const f of fixtures) {

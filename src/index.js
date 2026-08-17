@@ -12,7 +12,7 @@ const profileRoutes = require('./routes/profile');
 const adminRoutes   = require('./routes/admin');
 const { scrapeAllGames } = require('./services/scraper');
 const { sendLmsDeadlineEmails } = require('./services/email');
-const { getCurrentGameweekFixtures } = require('./services/football');
+const { getCurrentGameweekFixtures, processResults } = require('./services/football');
 const { processGameResults } = require('./routes/lms');
 
 const app = express();
@@ -125,8 +125,9 @@ async function start() {
     }
   });
 
-  // Every 5 minutes: auto-process LMS results once the gameweek's fixtures have
-  // all finished, so the host doesn't have to click "Process results" manually
+  // Every 5 minutes: grade LMS picks as their individual matches finish (no need to
+  // wait for the whole gameweek), and only lock the week / declare a winner once
+  // every alive player's match has actually been decided.
   cron.schedule('*/5 * * * *', async () => {
     try {
       const { rows: games } = await pool.query(`
@@ -140,10 +141,17 @@ async function start() {
         try {
           const leagues = (game.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean);
           const { fixtures } = await getCurrentGameweekFixtures(leagues);
-          const allFinished = fixtures.length > 0 && fixtures.every(f => f.completed);
+          if (fixtures.length === 0) continue;
+
+          // Grade whichever matches have already finished this cycle
+          const { updated } = await processResults(pool, game.id, game.lms_current_week, fixtures);
+          if (updated > 0) console.log(`[cron] LMS game ${game.id}: graded ${updated} pick(s) this cycle`);
+
+          // Only lock the week / check for a winner once everything's finished
+          const allFinished = fixtures.every(f => f.completed);
           if (!allFinished) continue;
 
-          console.log(`[cron] LMS game ${game.id}: gameweek finished, auto-processing week ${game.lms_current_week}…`);
+          console.log(`[cron] LMS game ${game.id}: gameweek finished, finalizing week ${game.lms_current_week}…`);
           const result = await processGameResults(game.id);
           console.log(`[cron] LMS game ${game.id}: ${result.message}`);
         } catch (err) {
