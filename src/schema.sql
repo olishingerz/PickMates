@@ -324,6 +324,15 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- Add fixtures_cache to lms_weeks if missing — the pickable team list is fetched
+-- from ESPN once per round and stored here, instead of live on every page view
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='lms_weeks' AND column_name='fixtures_cache') THEN
+    ALTER TABLE lms_weeks ADD COLUMN fixtures_cache JSONB;
+  END IF;
+END $$;
+
 -- Add display_name to users if missing
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns

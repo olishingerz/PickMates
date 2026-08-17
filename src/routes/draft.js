@@ -4,6 +4,7 @@ const { pool } = require('../db');
 const { PICKS_PER_PLAYER } = require('../constants');
 const { fetchTournamentList, scrapeLeaderboard } = require('../services/scraper');
 const { sendDraftTurnEmail } = require('../services/email');
+const { refreshFixtureCache } = require('./lms');
 
 // mergeParams so we can read :gameId set by the parent router in games.js
 const router = express.Router({ mergeParams: true });
@@ -392,6 +393,10 @@ router.post('/start', requireAuth, async (req, res) => {
       `UPDATE games SET is_started = TRUE, started_at = NOW()${isLms ? ', lms_continuous = TRUE' : ''} WHERE id = $1`,
       [gameId]
     );
+    if (isLms) {
+      try { await refreshFixtureCache(gameId, 1); }
+      catch (err) { console.warn(`[draft start] fixture cache refresh failed for game ${gameId}:`, err.message); }
+    }
     res.redirect(base + '?success=' + encodeURIComponent(`Draft started with ${participants.length} players!`));
   } catch (err) {
     console.error('[draft start]', err);

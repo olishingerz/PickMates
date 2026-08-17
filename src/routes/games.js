@@ -105,8 +105,14 @@ router.get('/:gameId', async (req, res) => {
 
       let suggestedDeadline = null;
       if (hostFlag && !data.weekObj?.deadline) {
-        try { ({ suggestedDeadline } = await getCurrentGameweekFixtures(data.leagues)); }
-        catch (err) { console.warn('[games] suggested deadline fetch failed:', err.message); }
+        const cached = data.weekObj?.fixtures_cache;
+        if (cached?.length > 0) {
+          const kickoffs = cached.map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
+          if (kickoffs.length) suggestedDeadline = new Date(Math.min(...kickoffs));
+        } else {
+          try { ({ suggestedDeadline } = await getCurrentGameweekFixtures(data.leagues)); }
+          catch (err) { console.warn('[games] suggested deadline fetch failed:', err.message); }
+        }
       }
 
       return res.render('lms', {

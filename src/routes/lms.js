@@ -20,6 +20,22 @@ async function isHost(req, gameId) {
   return rows[0]?.host_user_id === req.session.user.id;
 }
 
+// Fetch the pickable team list from ESPN once and store it for this round, so the
+// picks page doesn't hit ESPN live on every view. Called when a round starts,
+// auto-restarts, or advances to a new week — never on a plain page load.
+async function refreshFixtureCache(gameId, week) {
+  const { rows } = await pool.query('SELECT lms_leagues FROM games WHERE id = $1', [gameId]);
+  const leagues = (rows[0]?.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean);
+  const { fixtures } = await getCurrentGameweekFixtures(leagues);
+  await pool.query(
+    `INSERT INTO lms_weeks (game_id, week_number, fixtures_cache)
+     VALUES ($1,$2,$3)
+     ON CONFLICT (game_id, week_number) DO UPDATE SET fixtures_cache=$3`,
+    [gameId, week, JSON.stringify(fixtures)]
+  );
+  return fixtures;
+}
+
 async function getLmsData(gameId, userId) {
   const [gameRes, participantsRes, weeksRes, picksRes] = await Promise.all([
     pool.query(
@@ -99,10 +115,13 @@ router.get('/picks', requireAuth, async (req, res) => {
       return res.redirect(`/game/${gameId}?error=` + encodeURIComponent("The host hasn't started the game yet."));
     }
 
-    // Fetch this gameweek's fixtures (date-clustered from ESPN's calendar)
-    let fixtures = [];
-    try { ({ fixtures } = await getCurrentGameweekFixtures(data.leagues)); }
-    catch (err) { console.warn('[lms picks] fixture fetch failed:', err.message); }
+    // Use the fixture list cached at round-start; only hit ESPN live if that
+    // fetch never happened (e.g. it failed) — this also re-populates the cache.
+    let fixtures = data.weekObj?.fixtures_cache || [];
+    if (fixtures.length === 0) {
+      try { fixtures = await refreshFixtureCache(gameId, data.currentWeek); }
+      catch (err) { console.warn('[lms picks] fixture fetch failed:', err.message); }
+    }
 
     // Filter out teams already used by this player
     const availableFixtures = fixtures.map(f => ({
@@ -217,6 +236,8 @@ async function restartRound(gameId) {
     'UPDATE games SET is_complete = FALSE, lms_current_week = 1 WHERE id = $1',
     [gameId]
   );
+  try { await refreshFixtureCache(gameId, 1); }
+  catch (err) { console.warn(`[lms] fixture cache refresh failed on restart for game ${gameId}:`, err.message); }
 }
 
 // Fetch ESPN results, lock the week, and resolve the game if it concluded (winner or
@@ -320,6 +341,8 @@ router.post('/advance-week', requireAuth, async (req, res) => {
     const { rows: game } = await pool.query('SELECT lms_current_week FROM games WHERE id=$1', [gameId]);
     const nextWeek = (game[0]?.lms_current_week || 1) + 1;
     await pool.query('UPDATE games SET lms_current_week=$1 WHERE id=$2', [nextWeek, gameId]);
+    try { await refreshFixtureCache(gameId, nextWeek); }
+    catch (err) { console.warn(`[lms] fixture cache refresh failed on advance-week for game ${gameId}:`, err.message); }
     res.redirect(`/game/${gameId}?success=` + encodeURIComponent(`Advanced to week ${nextWeek}.`));
   } catch (err) {
     console.error('[lms advance-week]', err);
@@ -345,4 +368,4 @@ router.post('/override-result', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = { router, getLmsData, isHost, processGameResults };
+module.exports = { router, getLmsData, isHost, processGameResults, refreshFixtureCache };
