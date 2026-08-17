@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const { fetchTournamentList, scrapeLeaderboard, computeRanks } = require('../services/scraper');
+const { LEAGUE_NAMES } = require('../services/football');
 
 const router = express.Router();
 
@@ -9,7 +10,7 @@ router.get('/', async (req, res) => {
     const userId = req.session.user?.id || null;
     const { rows: games } = await pool.query(`
       SELECT g.id, g.name, g.tournament_name, g.is_started, g.is_complete, g.tournament_complete, g.created_at,
-             g.game_type, g.host_user_id, g.is_public,
+             g.game_type, g.host_user_id, g.is_public, g.lms_leagues,
              COUNT(gp.id)::int AS participant_count,
              BOOL_OR(gp.user_id = $1) AS user_joined
       FROM games g
@@ -47,6 +48,7 @@ router.get('/', async (req, res) => {
     res.render('home', {
       games,
       winners,
+      LEAGUE_NAMES,
       error:   req.query.error   || null,
       success: req.query.success || null,
     });

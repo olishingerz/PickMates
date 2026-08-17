@@ -49,7 +49,10 @@
                     <%= g.game_type === 'last_man_standing' ? '🏆 Last Man Standing' : '⛳ Golf Draft' %>
                   </span>
                 </div>
-                <% if (g.tournament_name) { %>
+                <% if (g.game_type === 'last_man_standing') { %>
+                  <% const gameLeagues = (g.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean); %>
+                  <p class="muted game-card-tournament"><%= gameLeagues.map(l => LEAGUE_NAMES[l] || l).join(' + ') %></p>
+                <% } else if (g.tournament_name) { %>
                   <p class="muted game-card-tournament"><%= g.tournament_name %></p>
                 <% } else { %>
                   <p class="muted game-card-tournament">No tournament selected</p>
