@@ -208,8 +208,12 @@
 
     <!-- ── Host controls ─────────────────────────────────────────────── -->
     <% if (isHost) { %>
-      <h2 class="section-title mt-lg">Host Controls</h2>
-      <div class="card admin-card">
+      <details class="mt-lg">
+        <summary class="card admin-card" style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">
+          <h2 class="section-title" style="margin:0">Host Controls</h2>
+          <span class="muted" style="font-size:.82rem">tap to expand</span>
+        </summary>
+      <div class="card admin-card" style="margin-top:.5rem;border-top-left-radius:0;border-top-right-radius:0">
 
         <!-- Set deadline -->
         <div class="admin-section">
@@ -249,8 +253,9 @@
             <button type="submit" class="btn btn-sm btn-danger">Delete game</button>
           </form>
         </div>
-        <p class="admin-hint">Process results fetches live scores from ESPN and marks each pick as win/loss/draw. Then advance to the next week.</p>
+        <p class="admin-hint">Results are auto-processed once this gameweek's fixtures all finish — the button above is for processing manually sooner. Then advance to the next week.</p>
       </div>
+      </details>
     <% } %>
 
   </main>

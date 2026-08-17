@@ -65,6 +65,15 @@ async function getLmsData(gameId, userId) {
       }
     }
 
+    // Current week's deadline passed with no pick submitted — auto-eliminated,
+    // even before the host processes results for that week.
+    if (!eliminated && weekObj && !weekObj.results_locked && weekObj.deadline
+        && new Date() > new Date(weekObj.deadline)
+        && !picks.some(pk => pk.week_number === currentWeek)) {
+      eliminated     = true;
+      eliminatedWeek = currentWeek;
+    }
+
     const myCurrentPick = picks.find(pk => pk.week_number === currentWeek) || null;
     return { ...p, picks, eliminated, eliminatedWeek, myCurrentPick };
   });
@@ -199,56 +208,65 @@ async function resetToLobby(gameId) {
   );
 }
 
+// Fetch ESPN results, lock the week, and resolve the game if it concluded (winner or
+// rollover). Shared by the host's manual button and the auto-process cron.
+async function processGameResults(gameId) {
+  const { rows: game } = await pool.query('SELECT lms_current_week, prize_individual FROM games WHERE id=$1', [gameId]);
+  const week = game[0]?.lms_current_week || 1;
+  const { updated } = await processResults(pool, gameId, week);
+
+  // Lock results for this week
+  await pool.query(
+    `INSERT INTO lms_weeks (game_id, week_number, results_locked)
+     VALUES ($1,$2,TRUE)
+     ON CONFLICT (game_id, week_number) DO UPDATE SET results_locked=TRUE`,
+    [gameId, week]
+  );
+
+  // Check whether this result locks the game: exactly one survivor wins,
+  // zero survivors is a rollover (prize carries over, doubled).
+  const data  = await getLmsData(gameId, null);
+  const alive = data.standings.filter(s => !s.eliminated);
+
+  if (data.standings.length > 0 && alive.length === 1) {
+    const winner = alive[0];
+    await pool.query(
+      `INSERT INTO lms_winners (game_id, user_id, username, is_rollover, final_week, prize_amount)
+       VALUES ($1,$2,$3,FALSE,$4,$5)`,
+      [gameId, winner.user_id, winner.username, week, game[0]?.prize_individual || 0]
+    );
+    await resetToLobby(gameId);
+    return { week, updated, concluded: 'winner',
+      message: `🏆 ${winner.username} won! The game is back in the lobby — add players and start again when ready.` };
+  }
+
+  if (data.standings.length > 0 && alive.length === 0) {
+    const oldPrize = parseFloat(game[0]?.prize_individual) || 0;
+    const newPrize = oldPrize * 2;
+    await pool.query('UPDATE games SET prize_individual = $1 WHERE id = $2', [newPrize, gameId]);
+    await pool.query(
+      `INSERT INTO lms_winners (game_id, user_id, username, is_rollover, final_week, prize_amount)
+       VALUES ($1,NULL,NULL,TRUE,$2,$3)`,
+      [gameId, week, newPrize]
+    );
+    await resetToLobby(gameId);
+    return { week, updated, concluded: 'rollover',
+      message: `😱 Everyone was eliminated in week ${week} — rollover! Prize is now £${newPrize}. The game is back in the lobby — start again when ready.` };
+  }
+
+  return { week, updated, concluded: null,
+    message: `Results processed for week ${week} — ${updated} picks updated.` };
+}
+
 // POST /game/:gameId/lms/process-results — host: fetch ESPN results and mark wins/losses
 router.post('/process-results', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   if (!await isHost(req, gameId)) return res.redirect(`/game/${gameId}`);
 
   try {
-    const { rows: game } = await pool.query('SELECT lms_current_week, prize_individual FROM games WHERE id=$1', [gameId]);
-    const week = game[0]?.lms_current_week || 1;
-    const { updated } = await processResults(pool, gameId, week);
-
-    // Lock results for this week
-    await pool.query(
-      `INSERT INTO lms_weeks (game_id, week_number, results_locked)
-       VALUES ($1,$2,TRUE)
-       ON CONFLICT (game_id, week_number) DO UPDATE SET results_locked=TRUE`,
-      [gameId, week]
-    );
-
-    // Check whether this result locks the game: exactly one survivor wins,
-    // zero survivors is a rollover (prize carries over, doubled).
-    const data  = await getLmsData(gameId, null);
-    const alive = data.standings.filter(s => !s.eliminated);
-
-    if (data.standings.length > 0 && alive.length === 1) {
-      const winner = alive[0];
-      await pool.query(
-        `INSERT INTO lms_winners (game_id, user_id, username, is_rollover, final_week, prize_amount)
-         VALUES ($1,$2,$3,FALSE,$4,$5)`,
-        [gameId, winner.user_id, winner.username, week, game[0]?.prize_individual || 0]
-      );
-      await resetToLobby(gameId);
-      return res.redirect(`/game/${gameId}/draft?success=` +
-        encodeURIComponent(`🏆 ${winner.username} won! The game is back in the lobby — add players and start again when ready.`));
-    }
-
-    if (data.standings.length > 0 && alive.length === 0) {
-      const oldPrize = parseFloat(game[0]?.prize_individual) || 0;
-      const newPrize = oldPrize * 2;
-      await pool.query('UPDATE games SET prize_individual = $1 WHERE id = $2', [newPrize, gameId]);
-      await pool.query(
-        `INSERT INTO lms_winners (game_id, user_id, username, is_rollover, final_week, prize_amount)
-         VALUES ($1,NULL,NULL,TRUE,$2,$3)`,
-        [gameId, week, newPrize]
-      );
-      await resetToLobby(gameId);
-      return res.redirect(`/game/${gameId}/draft?success=` +
-        encodeURIComponent(`😱 Everyone was eliminated in week ${week} — rollover! Prize is now £${newPrize}. The game is back in the lobby — start again when ready.`));
-    }
-
-    res.redirect(`/game/${gameId}?success=` + encodeURIComponent(`Results processed for week ${week} — ${updated} picks updated.`));
+    const result = await processGameResults(gameId);
+    const base = result.concluded ? `/game/${gameId}/draft` : `/game/${gameId}`;
+    res.redirect(`${base}?success=` + encodeURIComponent(result.message));
   } catch (err) {
     console.error('[lms process-results]', err);
     res.redirect(`/game/${gameId}?error=` + encodeURIComponent('Failed to process results.'));
@@ -289,4 +307,4 @@ router.post('/override-result', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = { router, getLmsData, isHost };
+module.exports = { router, getLmsData, isHost, processGameResults };

@@ -12,6 +12,8 @@ const profileRoutes = require('./routes/profile');
 const adminRoutes   = require('./routes/admin');
 const { scrapeAllGames } = require('./services/scraper');
 const { sendLmsDeadlineEmails } = require('./services/email');
+const { getCurrentGameweekFixtures } = require('./services/football');
+const { processGameResults } = require('./routes/lms');
 
 const app = express();
 
@@ -120,6 +122,36 @@ async function start() {
       }
     } catch (err) {
       console.error('[cron] LMS reminder failed:', err.message);
+    }
+  });
+
+  // Every 15 minutes: auto-process LMS results once the gameweek's fixtures have
+  // all finished, so the host doesn't have to click "Process results" manually
+  cron.schedule('*/15 * * * *', async () => {
+    try {
+      const { rows: games } = await pool.query(`
+        SELECT g.id, g.lms_leagues, g.lms_current_week
+        FROM games g
+        LEFT JOIN lms_weeks w ON w.game_id = g.id AND w.week_number = g.lms_current_week
+        WHERE g.game_type = 'last_man_standing' AND g.is_started = TRUE
+          AND (w.results_locked IS NOT TRUE)
+      `);
+      for (const game of games) {
+        try {
+          const leagues = (game.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean);
+          const { fixtures } = await getCurrentGameweekFixtures(leagues);
+          const allFinished = fixtures.length > 0 && fixtures.every(f => f.completed);
+          if (!allFinished) continue;
+
+          console.log(`[cron] LMS game ${game.id}: gameweek finished, auto-processing week ${game.lms_current_week}…`);
+          const result = await processGameResults(game.id);
+          console.log(`[cron] LMS game ${game.id}: ${result.message}`);
+        } catch (err) {
+          console.error(`[cron] LMS auto-process failed for game ${game.id}:`, err.message);
+        }
+      }
+    } catch (err) {
+      console.error('[cron] LMS auto-process query failed:', err.message);
     }
   });
 
