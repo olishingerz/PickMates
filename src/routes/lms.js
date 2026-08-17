@@ -86,6 +86,9 @@ router.get('/picks', requireAuth, async (req, res) => {
     const data    = await getLmsData(gameId, req.session.user.id);
     const hostFlag = await isHost(req, gameId);
     if (!data.game) return res.redirect('/');
+    if (!data.game.is_started) {
+      return res.redirect(`/game/${gameId}?error=` + encodeURIComponent("The host hasn't started the game yet."));
+    }
 
     // Fetch this gameweek's fixtures (date-clustered from ESPN's calendar)
     let fixtures = [];
@@ -127,6 +130,11 @@ router.post('/picks', requireAuth, async (req, res) => {
   try {
     const data = await getLmsData(gameId, userId);
     if (!data.game) return res.redirect('/');
+
+    // Check the game has actually started
+    if (!data.game.is_started) {
+      return res.redirect(base + '?error=' + encodeURIComponent("The host hasn't started the game yet."));
+    }
 
     // Check not already picked this week
     if (data.myCurrentPick) {

@@ -242,10 +242,10 @@
 
     <!-- ── Admin controls ─────────────────────────────────────────────────── -->
     <% if (user && isHost) { %>
-      <details>
+      <details <%= state.game_type === 'last_man_standing' ? 'open' : '' %>>
         <summary class="card admin-card" style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">
           <h2 class="section-title" style="margin:0">Host Controls</h2>
-          <span class="muted" style="font-size:.82rem">tap to expand</span>
+          <% if (state.game_type !== 'last_man_standing') { %><span class="muted" style="font-size:.82rem">tap to expand</span><% } %>
         </summary>
       <div class="card admin-card" style="margin-top:.5rem;border-top-left-radius:0;border-top-right-radius:0">
 

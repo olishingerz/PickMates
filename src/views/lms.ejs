@@ -71,7 +71,7 @@
     <%
       const alreadyJoined  = user && standings.some(s => s.user_id === user.id);
       const myStanding     = standings.find(s => user && s.user_id === user.id);
-      const canPick        = alreadyJoined && myStanding && !myStanding.eliminated
+      const canPick        = game.is_started && alreadyJoined && myStanding && !myStanding.eliminated
                              && !myStanding.myCurrentPick
                              && !weekObj?.results_locked;
 
@@ -86,6 +86,10 @@
         <form action="/game/<%= game.id %>/join" method="POST" style="display:inline">
           <button type="submit" class="btn" style="background:var(--green);color:#fff">Join game</button>
         </form>
+      </div>
+    <% } else if (alreadyJoined && !game.is_started) { %>
+      <div class="card" style="background:#f8fafc;border:1px solid var(--border)">
+        <p style="margin:0">⏳ The host hasn't started the game yet — check back once it begins.</p>
       </div>
     <% } else if (canPick) { %>
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;background:#fffbeb;border:1px solid #f59e0b">

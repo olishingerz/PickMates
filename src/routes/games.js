@@ -103,13 +103,6 @@ router.get('/:gameId', async (req, res) => {
       const data     = await getLmsData(gameId, userId);
       const hostFlag = await lmsIsHost(req, gameId);
 
-      // Pre-start: participants/host land in the lobby instead of the (empty) game room.
-      // Non-participants stay here so they still see the "join game" prompt.
-      const isParticipant = data.standings.some(s => s.user_id === userId);
-      if (!game.is_started && (isParticipant || hostFlag)) {
-        return res.redirect(`/game/${gameId}/draft`);
-      }
-
       let suggestedDeadline = null;
       if (hostFlag && !data.weekObj?.deadline) {
         try { ({ suggestedDeadline } = await getCurrentGameweekFixtures(data.leagues)); }
