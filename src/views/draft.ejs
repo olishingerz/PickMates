@@ -254,6 +254,16 @@
           <!-- LMS: simplified lobby controls -->
           <% if (!state.is_started) { %>
             <div class="admin-section">
+              <p class="label-small">Entry fee (£ per player)</p>
+              <form action="/game/<%= gameId %>/draft/entry-fee" method="POST" style="display:flex;gap:.5rem;align-items:center;margin-top:.3rem">
+                <input type="number" name="entry_fee" min="0" value="<%= state.prize_individual || 0 %>"
+                       style="padding:.4rem .7rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.88rem;width:100px" />
+                <button type="submit" class="btn btn-sm">Save</button>
+              </form>
+              <p class="admin-hint">Shown to players on the leaderboard. Doubles automatically on a rollover (no winner).</p>
+            </div>
+            <div class="admin-divider"></div>
+            <div class="admin-section">
               <p class="label-small">Add a player manually</p>
               <form action="/game/<%= gameId %>/draft/add-user" method="POST" style="display:flex;gap:.5rem;align-items:center;margin-top:.3rem">
                 <input type="text" name="username" placeholder="Username" required

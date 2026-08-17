@@ -52,7 +52,7 @@ async function getDraftData(userId, gameId) {
       WHERE p.game_id = $1
       ORDER BY p.id ASC
     `, [gameId]),
-    pool.query('SELECT id, name, tournament_id, tournament_name, current_pick_index, is_started, is_complete, player_source, game_type, invite_code FROM games WHERE id = $1', [gameId]),
+    pool.query('SELECT id, name, tournament_id, tournament_name, current_pick_index, is_started, is_complete, player_source, game_type, invite_code, prize_individual FROM games WHERE id = $1', [gameId]),
     pool.query('SELECT player_name, world_rank FROM leaderboard WHERE game_id = $1 ORDER BY position ASC NULLS LAST, player_name ASC', [gameId]),
   ]);
 
@@ -412,6 +412,22 @@ router.post('/reset', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[draft reset]', err);
     res.redirect(base + '?error=' + encodeURIComponent('Reset failed.'));
+  }
+});
+
+// POST /game/:gameId/draft/entry-fee — host: set the LMS entry fee/prize per player
+router.post('/entry-fee', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  const base   = `/game/${gameId}/draft`;
+  if (!await isHost(req, gameId)) return res.redirect(base);
+
+  const fee = Math.max(0, parseInt(req.body.entry_fee) || 0);
+  try {
+    await pool.query('UPDATE games SET prize_individual = $1 WHERE id = $2', [fee, gameId]);
+    res.redirect(base + '?success=' + encodeURIComponent(`Entry fee set to £${fee} per player.`));
+  } catch (err) {
+    console.error('[entry-fee]', err);
+    res.redirect(base + '?error=' + encodeURIComponent('Failed to update entry fee.'));
   }
 });
 
