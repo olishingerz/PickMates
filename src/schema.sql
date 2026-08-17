@@ -230,6 +230,10 @@ DO $$ BEGIN
                  WHERE table_name='games' AND column_name='lms_current_week') THEN
     ALTER TABLE games ADD COLUMN lms_current_week INTEGER DEFAULT 1;
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='games' AND column_name='lms_continuous') THEN
+    ALTER TABLE games ADD COLUMN lms_continuous BOOLEAN DEFAULT FALSE;
+  END IF;
 END $$;
 
 -- LMS weeks

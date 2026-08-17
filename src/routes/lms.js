@@ -23,7 +23,7 @@ async function isHost(req, gameId) {
 async function getLmsData(gameId, userId) {
   const [gameRes, participantsRes, weeksRes, picksRes] = await Promise.all([
     pool.query(
-      'SELECT id, name, lms_leagues, lms_current_week, is_complete, is_started, tournament_complete, host_user_id, invite_code, prize_individual FROM games WHERE id = $1',
+      'SELECT id, name, lms_leagues, lms_current_week, is_complete, is_started, tournament_complete, host_user_id, invite_code, prize_individual, lms_continuous FROM games WHERE id = $1',
       [gameId]
     ),
     pool.query(`
@@ -208,11 +208,23 @@ async function resetToLobby(gameId) {
   );
 }
 
+// Wipe picks/weeks but keep the game live at week 1 — used when continuous mode
+// is on, so the host doesn't have to click Start Game again after every round
+async function restartRound(gameId) {
+  await pool.query('DELETE FROM lms_picks WHERE game_id = $1', [gameId]);
+  await pool.query('DELETE FROM lms_weeks WHERE game_id = $1', [gameId]);
+  await pool.query(
+    'UPDATE games SET is_complete = FALSE, lms_current_week = 1 WHERE id = $1',
+    [gameId]
+  );
+}
+
 // Fetch ESPN results, lock the week, and resolve the game if it concluded (winner or
 // rollover). Shared by the host's manual button and the auto-process cron.
 async function processGameResults(gameId) {
-  const { rows: game } = await pool.query('SELECT lms_current_week, prize_individual FROM games WHERE id=$1', [gameId]);
+  const { rows: game } = await pool.query('SELECT lms_current_week, prize_individual, lms_continuous FROM games WHERE id=$1', [gameId]);
   const week = game[0]?.lms_current_week || 1;
+  const continuous = game[0]?.lms_continuous === true;
   const { updated } = await processResults(pool, gameId, week);
 
   // Lock results for this week
@@ -235,8 +247,13 @@ async function processGameResults(gameId) {
        VALUES ($1,$2,$3,FALSE,$4,$5)`,
       [gameId, winner.user_id, winner.username, week, game[0]?.prize_individual || 0]
     );
+    if (continuous) {
+      await restartRound(gameId);
+      return { week, updated, concluded: 'winner', continuous: true,
+        message: `🏆 ${winner.username} won! A new round has started automatically — Week 1.` };
+    }
     await resetToLobby(gameId);
-    return { week, updated, concluded: 'winner',
+    return { week, updated, concluded: 'winner', continuous: false,
       message: `🏆 ${winner.username} won! The game is back in the lobby — add players and start again when ready.` };
   }
 
@@ -249,12 +266,17 @@ async function processGameResults(gameId) {
        VALUES ($1,NULL,NULL,TRUE,$2,$3)`,
       [gameId, week, newPrize]
     );
+    if (continuous) {
+      await restartRound(gameId);
+      return { week, updated, concluded: 'rollover', continuous: true,
+        message: `😱 Everyone was eliminated in week ${week} — rollover! Prize is now £${newPrize}. A new round has started automatically — Week 1.` };
+    }
     await resetToLobby(gameId);
-    return { week, updated, concluded: 'rollover',
+    return { week, updated, concluded: 'rollover', continuous: false,
       message: `😱 Everyone was eliminated in week ${week} — rollover! Prize is now £${newPrize}. The game is back in the lobby — start again when ready.` };
   }
 
-  return { week, updated, concluded: null,
+  return { week, updated, concluded: null, continuous,
     message: `Results processed for week ${week} — ${updated} picks updated.` };
 }
 
@@ -265,11 +287,27 @@ router.post('/process-results', requireAuth, async (req, res) => {
 
   try {
     const result = await processGameResults(gameId);
-    const base = result.concluded ? `/game/${gameId}/draft` : `/game/${gameId}`;
+    const base = (result.concluded && !result.continuous) ? `/game/${gameId}/draft` : `/game/${gameId}`;
     res.redirect(`${base}?success=` + encodeURIComponent(result.message));
   } catch (err) {
     console.error('[lms process-results]', err);
     res.redirect(`/game/${gameId}?error=` + encodeURIComponent('Failed to process results.'));
+  }
+});
+
+// POST /game/:gameId/lms/stop — host: turn off continuous auto-restart.
+// The round in progress still plays out normally; once it concludes the game
+// returns to the lobby instead of starting another round automatically.
+router.post('/stop', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  if (!await isHost(req, gameId)) return res.redirect(`/game/${gameId}`);
+
+  try {
+    await pool.query('UPDATE games SET lms_continuous = FALSE WHERE id = $1', [gameId]);
+    res.redirect(`/game/${gameId}?success=` + encodeURIComponent('Auto-restart turned off — the game will return to the lobby once this round ends.'));
+  } catch (err) {
+    console.error('[lms stop]', err);
+    res.redirect(`/game/${gameId}?error=` + encodeURIComponent('Failed to stop auto-restart.'));
   }
 });
 

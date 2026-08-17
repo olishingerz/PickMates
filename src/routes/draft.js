@@ -385,8 +385,11 @@ router.post('/start', requireAuth, async (req, res) => {
       return res.redirect(base + '?error=' + encodeURIComponent('Need at least 2 players to start the draft.'));
     }
 
+    const { rows: gameRows } = await pool.query('SELECT game_type FROM games WHERE id = $1', [gameId]);
+    const isLms = gameRows[0]?.game_type === 'last_man_standing';
+
     await pool.query(
-      'UPDATE games SET is_started = TRUE, started_at = NOW() WHERE id = $1',
+      `UPDATE games SET is_started = TRUE, started_at = NOW()${isLms ? ', lms_continuous = TRUE' : ''} WHERE id = $1`,
       [gameId]
     );
     res.redirect(base + '?success=' + encodeURIComponent(`Draft started with ${participants.length} players!`));

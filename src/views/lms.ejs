@@ -35,6 +35,9 @@
       <% if (game.prize_individual > 0) { %>
         <p class="muted" style="margin-top:.2rem;font-size:.85rem">Prize pot: <strong>£<%= game.prize_individual * total %></strong> <span class="muted" style="font-size:.78rem">(£<%= game.prize_individual %> × <%= total %> player<%= total !== 1 ? 's' : '' %>)</span></p>
       <% } %>
+      <% if (game.lms_continuous) { %>
+        <p class="muted" style="margin-top:.2rem;font-size:.78rem">🔁 Auto-restarts a new round when this one ends</p>
+      <% } %>
     <% if (game.is_started && !weekObj?.results_locked) { %>
       <p class="muted" style="margin-top:.2rem;font-size:.85rem">
         <% if (allPickedIn) { %>
@@ -234,6 +237,14 @@
             <form action="/game/<%= game.id %>/lms/advance-week" method="POST"
                   onsubmit="return confirm('Move to week <%= currentWeek + 1 %>?')">
               <button type="submit" class="btn btn-sm" style="width:100%">Advance to week <%= currentWeek + 1 %></button>
+            </form>
+          <% } %>
+
+          <!-- Stop auto-restart -->
+          <% if (game.lms_continuous) { %>
+            <form action="/game/<%= game.id %>/lms/stop" method="POST"
+                  onsubmit="return confirm('Turn off auto-restart? This round will still finish normally, but the game will return to the lobby afterward instead of starting a new round.')">
+              <button type="submit" class="btn btn-sm btn-danger" style="width:100%">⏹ Stop Game</button>
             </form>
           <% } %>
 
