@@ -2,8 +2,8 @@ const express = require('express');
 const { pool } = require('../db');
 const { SCORES_THAT_COUNT, MIN_CUT_MAKERS } = require('../constants');
 const draftRouter = require('./draft');
-const { router: lmsRouter, getLmsData, isHost: lmsIsHost } = require('./lms');
-const { LEAGUE_NAMES, getCurrentGameweekFixtures } = require('../services/football');
+const { router: lmsRouter, getLmsData, isHost: lmsIsHost, refreshFixtureCache } = require('./lms');
+const { LEAGUE_NAMES } = require('../services/football');
 
 const router = express.Router();
 
@@ -110,8 +110,14 @@ router.get('/:gameId', async (req, res) => {
           const kickoffs = cached.map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
           if (kickoffs.length) suggestedDeadline = new Date(Math.min(...kickoffs));
         } else {
-          try { ({ suggestedDeadline } = await getCurrentGameweekFixtures(data.leagues)); }
-          catch (err) { console.warn('[games] suggested deadline fetch failed:', err.message); }
+          // No cache yet for this week (e.g. round hasn't started) — fetch once
+          // and persist it, so the next page load reads the cache instead of
+          // hitting ESPN live again.
+          try {
+            const fixtures = await refreshFixtureCache(gameId, data.currentWeek);
+            const kickoffs = fixtures.map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
+            if (kickoffs.length) suggestedDeadline = new Date(Math.min(...kickoffs));
+          } catch (err) { console.warn('[games] suggested deadline fetch failed:', err.message); }
         }
       }
 
