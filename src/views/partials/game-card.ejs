@@ -1,0 +1,79 @@
+<%
+  let statusLabel = 'Pre-Draft';
+  let statusClass = 'status-upcoming';
+  if (g.tournament_complete)      { statusLabel = 'Complete';    statusClass = 'status-done'; }
+  else if (g.is_complete)         { statusLabel = 'In Progress'; statusClass = 'status-live'; }
+  else if (g.is_started)          { statusLabel = 'Draft';       statusClass = 'status-draft'; }
+%>
+<div class="card game-card">
+  <div class="game-card-header">
+    <div>
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+        <h2 class="game-card-name"><%= g.name %></h2>
+        <span class="game-type-badge <%= g.game_type === 'last_man_standing' ? 'game-type-lms' : 'game-type-golf' %>">
+          <%= g.game_type === 'last_man_standing' ? '🏆 Last Man Standing' : '⛳ Golf Draft' %>
+        </span>
+      </div>
+      <% if (g.game_type === 'last_man_standing') { %>
+        <% const gameLeagues = (g.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean); %>
+        <p class="muted game-card-tournament"><%= gameLeagues.map(l => LEAGUE_NAMES[l] || l).join(' + ') %></p>
+      <% } else if (g.tournament_name) { %>
+        <p class="muted game-card-tournament"><%= g.tournament_name %></p>
+      <% } else { %>
+        <p class="muted game-card-tournament">No tournament selected</p>
+      <% } %>
+    </div>
+    <span class="status-badge <%= statusClass %>"><%= statusLabel %></span>
+  </div>
+  <div class="game-card-meta" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+    <span class="muted"><%= g.participant_count %> player<%= g.participant_count !== 1 ? 's' : '' %></span>
+    <% if (user && g.user_joined && g.is_started && g.user_rank) { %>
+      <span style="font-size:.8rem;font-weight:700;color:var(--green-dark);background:var(--green-light);padding:.15rem .45rem;border-radius:20px">
+        #<%= g.user_rank %> of <%= g.participant_count %>
+      </span>
+    <% } %>
+    <% if (g.pickDeadline) { %>
+      <span class="countdown-timer" style="font-size:.8rem" data-deadline="<%= new Date(g.pickDeadline).toISOString() %>">…</span>
+    <% } %>
+  </div>
+  <div class="game-card-actions">
+    <a href="/game/<%= g.id %>" class="btn btn-sm">Leaderboard</a>
+    <% if (user) { %>
+      <% const isGameHost = user.isAdmin || g.host_user_id === user.id; %>
+      <% if (!g.is_started) { %>
+        <% if (g.game_type === 'last_man_standing') { %>
+          <% if (g.user_joined) { %>
+            <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Lobby</a>
+          <% } else { %>
+            <a href="/game/<%= g.id %>" class="btn btn-sm" style="background:var(--green);color:#fff">Join game</a>
+          <% } %>
+        <% } else { %>
+          <% if (g.user_joined || isGameHost) { %>
+            <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Draft</a>
+          <% } %>
+          <% if (!g.user_joined) { %>
+            <form action="/game/<%= g.id %>/join" method="POST" style="display:inline">
+              <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">Join game</button>
+            </form>
+          <% } %>
+        <% } %>
+
+      <% } else if (g.is_started && !g.is_complete) { %>
+        <% if (g.user_joined || isGameHost) { %>
+          <% if (g.game_type === 'last_man_standing') { %>
+            <a href="/game/<%= g.id %>/lms/picks" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Make pick</a>
+          <% } else { %>
+            <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Draft</a>
+          <% } %>
+        <% } %>
+      <% } %>
+      <% if (g.user_joined) { %>
+        <span class="muted" style="font-size:.82rem;align-self:center">✓ Joined</span>
+      <% } %>
+    <% } else { %>
+      <% if (!g.is_started) { %>
+        <a href="/auth/register" class="btn btn-sm" style="background:var(--green);color:#fff">Join game</a>
+      <% } %>
+    <% } %>
+  </div>
+</div>
