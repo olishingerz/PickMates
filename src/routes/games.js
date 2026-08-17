@@ -3,7 +3,7 @@ const { pool } = require('../db');
 const { SCORES_THAT_COUNT, MIN_CUT_MAKERS } = require('../constants');
 const draftRouter = require('./draft');
 const { router: lmsRouter, getLmsData, isHost: lmsIsHost } = require('./lms');
-const { LEAGUE_NAMES } = require('../services/football');
+const { LEAGUE_NAMES, getCurrentGameweekFixtures } = require('../services/football');
 
 const router = express.Router();
 
@@ -102,10 +102,18 @@ router.get('/:gameId', async (req, res) => {
       const userId   = req.session.user?.id || null;
       const data     = await getLmsData(gameId, userId);
       const hostFlag = await lmsIsHost(req, gameId);
+
+      let suggestedDeadline = null;
+      if (hostFlag && !data.weekObj?.deadline) {
+        try { ({ suggestedDeadline } = await getCurrentGameweekFixtures(data.leagues)); }
+        catch (err) { console.warn('[games] suggested deadline fetch failed:', err.message); }
+      }
+
       return res.render('lms', {
         ...data,
         isHost:     hostFlag,
         LEAGUE_NAMES,
+        suggestedDeadline,
         error:   req.query.error   || null,
         success: req.query.success || null,
       });

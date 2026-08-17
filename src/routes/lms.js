@@ -1,6 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
-const { fetchFixtures, processResults, LEAGUE_NAMES } = require('../services/football');
+const { fetchFixtures, getCurrentGameweekFixtures, processResults, LEAGUE_NAMES } = require('../services/football');
 
 const router = express.Router({ mergeParams: true });
 
@@ -87,9 +87,9 @@ router.get('/picks', requireAuth, async (req, res) => {
     const hostFlag = await isHost(req, gameId);
     if (!data.game) return res.redirect('/');
 
-    // Fetch live fixtures
+    // Fetch this gameweek's fixtures (date-clustered from ESPN's calendar)
     let fixtures = [];
-    try { fixtures = await fetchFixtures(data.leagues); }
+    try { ({ fixtures } = await getCurrentGameweekFixtures(data.leagues)); }
     catch (err) { console.warn('[lms picks] fixture fetch failed:', err.message); }
 
     // Filter out teams already used by this player

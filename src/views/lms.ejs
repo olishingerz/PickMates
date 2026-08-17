@@ -209,10 +209,13 @@
           <p class="label-small">Week <%= currentWeek %> pick deadline</p>
           <form action="/game/<%= game.id %>/lms/set-deadline" method="POST" style="display:flex;gap:.5rem;align-items:center;margin-top:.3rem;flex-wrap:wrap">
             <input type="datetime-local" name="deadline"
-                   value="<%= weekObj?.deadline ? new Date(weekObj.deadline).toISOString().slice(0,16) : '' %>"
+                   value="<%= weekObj?.deadline ? new Date(weekObj.deadline).toISOString().slice(0,16) : (suggestedDeadline ? new Date(suggestedDeadline).toISOString().slice(0,16) : '') %>"
                    style="padding:.4rem .6rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.88rem" />
             <button type="submit" class="btn btn-sm">Save deadline</button>
           </form>
+          <% if (!weekObj?.deadline && suggestedDeadline) { %>
+            <p class="muted" style="font-size:.78rem;margin-top:.3rem">Auto-suggested: 24h before this gameweek's first kickoff — change it above if needed.</p>
+          <% } %>
         </div>
 
         <div class="admin-divider"></div>

@@ -13,13 +13,18 @@ async function fetchJSON(url) {
   return res.json();
 }
 
-// Fetch this week's fixtures for the given league codes (e.g. ['eng.1', 'eng.2'])
-async function fetchFixtures(leagueCodes) {
+// Fetch fixtures for the given league codes (e.g. ['eng.1', 'eng.2']).
+// datesParam, if given, is an ESPN-format range like '20260821-20260824'; otherwise
+// ESPN defaults to whatever it considers "today".
+async function fetchFixtures(leagueCodes, datesParam) {
   const fixtures = [];
   for (const code of leagueCodes) {
     let data;
     try {
-      data = await fetchJSON(`${ESPN_SOCCER}/${code}/scoreboard`);
+      const url = datesParam
+        ? `${ESPN_SOCCER}/${code}/scoreboard?dates=${datesParam}`
+        : `${ESPN_SOCCER}/${code}/scoreboard`;
+      data = await fetchJSON(url);
     } catch (err) {
       console.warn(`[football] Could not fetch ${code}:`, err.message);
       continue;
@@ -59,6 +64,63 @@ async function fetchFixtures(leagueCodes) {
   return fixtures;
 }
 
+// ESPN's soccer API has no explicit "gameweek" number — it only exposes a flat
+// calendar of match dates per league. A round is inferred by clustering dates that
+// fall close together, treating a gap of 4+ days as the boundary to the next round.
+// Each league's calendar is clustered independently (their rounds aren't always
+// aligned — e.g. the Championship season starts a week before the Premier League),
+// then the "current" window is the union of each league's own next round.
+function clusterCurrentWindow(calendarDates) {
+  const sorted = [...new Set(calendarDates)].sort();
+  if (sorted.length === 0) return null;
+  const GAP_MS = 4 * 24 * 60 * 60 * 1000;
+  const clusters = [[sorted[0]]];
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = new Date(sorted[i - 1] + 'T00:00:00Z').getTime();
+    const cur  = new Date(sorted[i] + 'T00:00:00Z').getTime();
+    if (cur - prev >= GAP_MS) clusters.push([]);
+    clusters[clusters.length - 1].push(sorted[i]);
+  }
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const activeCluster = clusters.find(c => c[c.length - 1] >= todayStr) || clusters[clusters.length - 1];
+  return { start: activeCluster[0], end: activeCluster[activeCluster.length - 1] };
+}
+
+async function getGameweekWindow(leagueCodes) {
+  const perLeagueWindows = [];
+  for (const code of leagueCodes) {
+    try {
+      const data = await fetchJSON(`${ESPN_SOCCER}/${code}/scoreboard`);
+      const calendar = (data.leagues?.[0]?.calendar || []).map(d => d.slice(0, 10));
+      const window = clusterCurrentWindow(calendar);
+      if (window) perLeagueWindows.push(window);
+    } catch (err) {
+      console.warn(`[football] calendar fetch failed for ${code}:`, err.message);
+    }
+  }
+  if (perLeagueWindows.length === 0) return null;
+
+  return {
+    start: perLeagueWindows.map(w => w.start).sort()[0],
+    end:   perLeagueWindows.map(w => w.end).sort().at(-1),
+  };
+}
+
+// Fixtures for the current gameweek (by date clustering) plus a suggested pick
+// deadline of 24h before the earliest kickoff in that window.
+async function getCurrentGameweekFixtures(leagueCodes) {
+  const window = await getGameweekWindow(leagueCodes);
+  if (!window) return { fixtures: [], suggestedDeadline: null };
+
+  const datesParam = `${window.start.replace(/-/g, '')}-${window.end.replace(/-/g, '')}`;
+  const fixtures = await fetchFixtures(leagueCodes, datesParam);
+
+  const kickoffs = fixtures.map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
+  const suggestedDeadline = kickoffs.length ? new Date(Math.min(...kickoffs) - 24 * 60 * 60 * 1000) : null;
+
+  return { fixtures, suggestedDeadline };
+}
+
 // Process results for a game week — updates lms_picks result column
 async function processResults(pool, gameId, weekNumber) {
   const { rows: gameRows } = await pool.query('SELECT lms_leagues FROM games WHERE id = $1', [gameId]);
@@ -94,4 +156,4 @@ async function processResults(pool, gameId, weekNumber) {
   return { updated, teamResults };
 }
 
-module.exports = { fetchFixtures, processResults, LEAGUE_NAMES };
+module.exports = { fetchFixtures, getCurrentGameweekFixtures, processResults, LEAGUE_NAMES };
