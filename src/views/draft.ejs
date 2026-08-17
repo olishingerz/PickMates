@@ -13,7 +13,7 @@
 <body>
   <header>
     <div class="header-inner">
-      <a href="/" class="logo"><span class="logo-flag">⛳</span> PickMates <span class="logo-sub"><%= state.name %></span></a>
+      <a href="/" class="logo"><span class="logo-flag"><%= state.game_type === 'last_man_standing' ? '⚽' : '⛳' %></span> PickMates <span class="logo-sub"><%= state.name %></span></a>
       <nav><%- include('partials/nav') %></nav>
     </div>
   </header>
