@@ -23,7 +23,7 @@ async function isHost(req, gameId) {
 async function getLmsData(gameId, userId) {
   const [gameRes, participantsRes, weeksRes, picksRes] = await Promise.all([
     pool.query(
-      'SELECT id, name, lms_leagues, lms_current_week, is_complete, is_started, tournament_complete, host_user_id, invite_code FROM games WHERE id = $1',
+      'SELECT id, name, lms_leagues, lms_current_week, is_complete, is_started, tournament_complete, host_user_id, invite_code, prize_individual FROM games WHERE id = $1',
       [gameId]
     ),
     pool.query(`
@@ -181,13 +181,23 @@ router.post('/set-deadline', requireAuth, async (req, res) => {
   }
 });
 
+// Wipe picks/weeks and send the game back to the lobby for a new round
+async function resetToLobby(gameId) {
+  await pool.query('DELETE FROM lms_picks WHERE game_id = $1', [gameId]);
+  await pool.query('DELETE FROM lms_weeks WHERE game_id = $1', [gameId]);
+  await pool.query(
+    'UPDATE games SET is_started = FALSE, is_complete = FALSE, lms_current_week = 1 WHERE id = $1',
+    [gameId]
+  );
+}
+
 // POST /game/:gameId/lms/process-results — host: fetch ESPN results and mark wins/losses
 router.post('/process-results', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   if (!await isHost(req, gameId)) return res.redirect(`/game/${gameId}`);
 
   try {
-    const { rows: game } = await pool.query('SELECT lms_current_week FROM games WHERE id=$1', [gameId]);
+    const { rows: game } = await pool.query('SELECT lms_current_week, prize_individual FROM games WHERE id=$1', [gameId]);
     const week = game[0]?.lms_current_week || 1;
     const { updated } = await processResults(pool, gameId, week);
 
@@ -198,6 +208,37 @@ router.post('/process-results', requireAuth, async (req, res) => {
        ON CONFLICT (game_id, week_number) DO UPDATE SET results_locked=TRUE`,
       [gameId, week]
     );
+
+    // Check whether this result locks the game: exactly one survivor wins,
+    // zero survivors is a rollover (prize carries over, doubled).
+    const data  = await getLmsData(gameId, null);
+    const alive = data.standings.filter(s => !s.eliminated);
+
+    if (data.standings.length > 0 && alive.length === 1) {
+      const winner = alive[0];
+      await pool.query(
+        `INSERT INTO lms_winners (game_id, user_id, username, is_rollover, final_week, prize_amount)
+         VALUES ($1,$2,$3,FALSE,$4,$5)`,
+        [gameId, winner.user_id, winner.username, week, game[0]?.prize_individual || 0]
+      );
+      await resetToLobby(gameId);
+      return res.redirect(`/game/${gameId}/draft?success=` +
+        encodeURIComponent(`🏆 ${winner.username} won! The game is back in the lobby — add players and start again when ready.`));
+    }
+
+    if (data.standings.length > 0 && alive.length === 0) {
+      const oldPrize = parseFloat(game[0]?.prize_individual) || 0;
+      const newPrize = oldPrize * 2;
+      await pool.query('UPDATE games SET prize_individual = $1 WHERE id = $2', [newPrize, gameId]);
+      await pool.query(
+        `INSERT INTO lms_winners (game_id, user_id, username, is_rollover, final_week, prize_amount)
+         VALUES ($1,NULL,NULL,TRUE,$2,$3)`,
+        [gameId, week, newPrize]
+      );
+      await resetToLobby(gameId);
+      return res.redirect(`/game/${gameId}/draft?success=` +
+        encodeURIComponent(`😱 Everyone was eliminated in week ${week} — rollover! Prize is now £${newPrize}. The game is back in the lobby — start again when ready.`));
+    }
 
     res.redirect(`/game/${gameId}?success=` + encodeURIComponent(`Results processed for week ${week} — ${updated} picks updated.`));
   } catch (err) {

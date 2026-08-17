@@ -255,6 +255,19 @@ CREATE TABLE IF NOT EXISTS lms_picks (
   UNIQUE(game_id, user_id, week_number)
 );
 
+-- LMS win history — persists across resets, since a single LMS game can be replayed
+-- (won, then reopened as a lobby) many times
+CREATE TABLE IF NOT EXISTS lms_winners (
+  id           SERIAL PRIMARY KEY,
+  game_id      INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  user_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  username     VARCHAR(50),
+  is_rollover  BOOLEAN DEFAULT FALSE,
+  final_week   INTEGER,
+  prize_amount NUMERIC,
+  created_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Add team_name to game_participants if missing
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns

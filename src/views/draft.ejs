@@ -27,9 +27,13 @@
         <% } else if (!state.is_started) { %>
           <% if (user && isHost) { %>
             <strong style="color:var(--green-dark)">Waiting to start.</strong>
-            Randomise the order then click Start Draft when everyone has registered.
+            <% if (state.game_type === 'last_man_standing') { %>
+              Add players then click Start Game when everyone's in.
+            <% } else { %>
+              Randomise the order then click Start Draft when everyone has registered.
+            <% } %>
           <% } else { %>
-            Waiting for the admin to start the draft. (<%= participants.length %> player<%= participants.length !== 1 ? 's' : '' %> registered)
+            Waiting for the admin to start the <%= state.game_type === 'last_man_standing' ? 'game' : 'draft' %>. (<%= participants.length %> player<%= participants.length !== 1 ? 's' : '' %> registered)
           <% } %>
         <% } else if (isMyTurn) { %>
           <strong style="color:var(--green-dark)">It's your pick!</strong>
@@ -88,7 +92,20 @@
     <!-- ── Registered players ──────────────────────────────────────────────── -->
     <div class="card">
       <h2 class="section-title"><%= participants.length %> Player<%= participants.length !== 1 ? 's' : '' %> Registered</h2>
-      <% if (user && isHost && !state.is_started && participants.length > 0) { %>
+      <% if (user && isHost && !state.is_started && participants.length > 0 && state.game_type === 'last_man_standing') { %>
+        <div class="registered-list">
+          <% participants.forEach((p, i) => { %>
+            <div class="reg-player" style="border-left: 4px solid <%= colours[i % colours.length] %>;display:flex;align-items:center;gap:.5rem">
+              <span class="reg-name"><%= p.username %></span>
+              <form action="/game/<%= gameId %>/draft/remove-user" method="POST" style="margin-left:auto">
+                <input type="hidden" name="user_id" value="<%= p.id %>" />
+                <button type="submit" class="btn btn-sm btn-danger" style="padding:.15rem .45rem;font-size:.8rem"
+                        onclick="return confirm('Remove <%= p.username.replace(/'/g, "\\'") %> from this game?')">✕</button>
+              </form>
+            </div>
+          <% }) %>
+        </div>
+      <% } else if (user && isHost && !state.is_started && participants.length > 0) { %>
         <p class="admin-hint" style="margin-bottom:.6rem">Drag to set the pick order, then save — or use Randomise below.</p>
         <form action="/game/<%= gameId %>/draft/set-order" method="POST" id="order-form">
           <input type="hidden" name="ordered_ids" id="ordered-ids-input" value="<%= participants.map(p=>p.id).join(',') %>" />
@@ -184,6 +201,26 @@
         </div>
       <% } %>
     </div>
+
+    <!-- ── Past winners (LMS only) ──────────────────────────────────────── -->
+    <% if (state.game_type === 'last_man_standing' && typeof lmsWinners !== 'undefined' && lmsWinners.length > 0) { %>
+      <div class="card">
+        <h2 class="section-title">Past Winners</h2>
+        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.4rem">
+          <% lmsWinners.forEach(w => { %>
+            <li style="font-size:.9rem">
+              <% if (w.is_rollover) { %>
+                🔄 <strong>Rollover</strong> — everyone was eliminated in week <%= w.final_week %>, no winner
+                <span class="muted" style="font-size:.8rem"> · <%= new Date(w.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) %></span>
+              <% } else { %>
+                🏆 <strong><%= w.username %></strong> won in week <%= w.final_week %>
+                <span class="muted" style="font-size:.8rem"> · <%= new Date(w.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) %></span>
+              <% } %>
+            </li>
+          <% }) %>
+        </ul>
+      </div>
+    <% } %>
 
     <!-- ── Invite link ───────────────────────────────────────────────────── -->
     <% if (inviteCode && !state.is_started) { %>

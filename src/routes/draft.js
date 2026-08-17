@@ -132,15 +132,30 @@ router.get('/', requireAuth, async (req, res) => {
       isHost(req, gameId),
     ]);
 
+    // LMS lobby disappears once the game has started — the live game room takes over
+    if (data.state.game_type === 'last_man_standing' && data.state.is_started) {
+      return res.redirect(`/game/${gameId}`);
+    }
+
     // Only participants (or host/admin) may view the draft room
     const isParticipant = data.participants.some(p => p.id === req.session.user.id);
     if (!isParticipant && !hostFlag) {
       return res.redirect(`/game/${gameId}`);
     }
 
+    let lmsWinners = [];
+    if (data.state.game_type === 'last_man_standing') {
+      const { rows } = await pool.query(
+        'SELECT * FROM lms_winners WHERE game_id = $1 ORDER BY created_at DESC',
+        [gameId]
+      );
+      lmsWinners = rows;
+    }
+
     res.render('draft', {
       ...data,
       isHost:  hostFlag,
+      lmsWinners,
       error:   req.query.error   || null,
       success: req.query.success || null,
     });
@@ -267,7 +282,11 @@ router.post('/set-order', requireAuth, async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    const { rows: stateRows } = await client.query('SELECT is_started FROM games WHERE id = $1', [gameId]);
+    const { rows: stateRows } = await client.query('SELECT is_started, game_type FROM games WHERE id = $1', [gameId]);
+    if (stateRows[0]?.game_type === 'last_man_standing') {
+      await client.query('ROLLBACK');
+      return res.redirect(base + '?error=' + encodeURIComponent('Pick order does not apply to Last Man Standing games.'));
+    }
     if (stateRows[0]?.is_started) {
       await client.query('ROLLBACK');
       return res.redirect(base + '?error=' + encodeURIComponent('Cannot change order after the draft has started.'));
@@ -306,7 +325,11 @@ router.post('/randomise', requireAuth, async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    const { rows: stateRows } = await client.query('SELECT is_started FROM games WHERE id = $1', [gameId]);
+    const { rows: stateRows } = await client.query('SELECT is_started, game_type FROM games WHERE id = $1', [gameId]);
+    if (stateRows[0]?.game_type === 'last_man_standing') {
+      await client.query('ROLLBACK');
+      return res.redirect(base + '?error=' + encodeURIComponent('Pick order does not apply to Last Man Standing games.'));
+    }
     if (stateRows[0]?.is_started) {
       await client.query('ROLLBACK');
       return res.redirect(base + '?error=' + encodeURIComponent('Cannot randomise after the draft has started.'));

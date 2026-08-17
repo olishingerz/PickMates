@@ -91,9 +91,13 @@ router.post('/games/create', async (req, res) => {
   const gameType = ['golf_draft', 'last_man_standing'].includes(req.body.game_type)
     ? req.body.game_type : 'golf_draft';
 
-  // Golf prizes
-  const prizeTeam       = Math.max(0, parseInt(req.body.prize_team)      || 0);
-  const prizeIndividual = Math.max(0, parseInt(req.body.prize_individual) || 0);
+  // Prizes — golf uses separate team/individual pots; LMS has a single entry fee/prize
+  const prizeTeam       = gameType === 'last_man_standing'
+    ? 0
+    : Math.max(0, parseInt(req.body.prize_team) || 0);
+  const prizeIndividual = gameType === 'last_man_standing'
+    ? Math.max(0, parseInt(req.body.lms_entry_fee) || 0)
+    : Math.max(0, parseInt(req.body.prize_individual) || 0);
 
   // LMS
   const VALID_LEAGUES = ['eng.1', 'eng.2'];

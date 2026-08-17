@@ -32,6 +32,9 @@
         const total = standings.length;
       %>
       <p class="muted" style="margin-top:.3rem"><strong><%= alive %></strong> of <strong><%= total %></strong> still alive — Week <strong><%= currentWeek %></strong></p>
+      <% if (game.prize_individual > 0) { %>
+        <p class="muted" style="margin-top:.2rem;font-size:.85rem">Prize: <strong>£<%= game.prize_individual %></strong> per player</p>
+      <% } %>
     <% if (game.is_started && !weekObj?.results_locked) { %>
       <p class="muted" style="margin-top:.2rem;font-size:.85rem">
         <% if (allPickedIn) { %>
@@ -214,7 +217,7 @@
             <button type="submit" class="btn btn-sm">Save deadline</button>
           </form>
           <% if (!weekObj?.deadline && suggestedDeadline) { %>
-            <p class="muted" style="font-size:.78rem;margin-top:.3rem">Auto-suggested: 24h before this gameweek's first kickoff — change it above if needed.</p>
+            <p class="muted" style="font-size:.78rem;margin-top:.3rem">Auto-suggested: this gameweek's first kickoff — change it above if needed.</p>
           <% } %>
         </div>
 
