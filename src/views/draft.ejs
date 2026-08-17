@@ -73,7 +73,8 @@
           <form action="/game/<%= gameId %>/draft/team-name" method="POST"
                 style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap"
                 onsubmit="return confirm('Set your team name to \'' + this.team_name.value.trim() + '\'? You won\'t be able to change it again.')">
-            <input type="text" name="team_name" placeholder="e.g. The Eagles" maxlength="25" required
+            <input type="text" name="team_name" placeholder="Team name" maxlength="25" required
+                   autocomplete="off"
                    class="team-name-input"
                    style="padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;min-width:160px" />
             <button type="submit" class="btn btn-sm">Save</button>

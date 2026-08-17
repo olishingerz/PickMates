@@ -86,24 +86,23 @@ function clusterCurrentWindow(calendarDates) {
   return { start: activeCluster[0], end: activeCluster[activeCluster.length - 1] };
 }
 
+// Premier League is treated as the anchor league when it's selected — its calendar
+// alone defines the round boundaries and deadline, since a combined PL+Championship
+// pool shouldn't have its week 1 deadline dragged earlier by the Championship's
+// earlier season start (players would be locked out before PL fixtures even begin).
+// Other leagues just widen which teams are pickable inside that same window.
 async function getGameweekWindow(leagueCodes) {
-  const perLeagueWindows = [];
-  for (const code of leagueCodes) {
-    try {
-      const data = await fetchJSON(`${ESPN_SOCCER}/${code}/scoreboard`);
-      const calendar = (data.leagues?.[0]?.calendar || []).map(d => d.slice(0, 10));
-      const window = clusterCurrentWindow(calendar);
-      if (window) perLeagueWindows.push(window);
-    } catch (err) {
-      console.warn(`[football] calendar fetch failed for ${code}:`, err.message);
-    }
-  }
-  if (perLeagueWindows.length === 0) return null;
+  const anchorCode = leagueCodes.includes('eng.1') ? 'eng.1' : leagueCodes[0];
+  if (!anchorCode) return null;
 
-  return {
-    start: perLeagueWindows.map(w => w.start).sort()[0],
-    end:   perLeagueWindows.map(w => w.end).sort().at(-1),
-  };
+  try {
+    const data = await fetchJSON(`${ESPN_SOCCER}/${anchorCode}/scoreboard`);
+    const calendar = (data.leagues?.[0]?.calendar || []).map(d => d.slice(0, 10));
+    return clusterCurrentWindow(calendar);
+  } catch (err) {
+    console.warn(`[football] calendar fetch failed for ${anchorCode}:`, err.message);
+    return null;
+  }
 }
 
 // Fixtures for the current gameweek (by date clustering) plus a suggested pick

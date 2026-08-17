@@ -121,7 +121,6 @@
         <table class="leaderboard-table">
           <thead>
             <tr>
-              <th>#</th>
               <th>Player</th>
               <th>Status</th>
               <% for (let w = 1; w <= currentWeek; w++) { %>
@@ -136,10 +135,9 @@
                 .sort((a,b) => b.eliminatedWeek - a.eliminatedWeek);
               const sorted_standings = [...alive_standings, ...elim_standings];
             %>
-            <% sorted_standings.forEach((s, i) => { %>
+            <% sorted_standings.forEach(s => { %>
               <% const isMe = user && s.user_id === user.id; %>
               <tr class="<%= isMe ? 'my-row' : '' %> <%= s.eliminated ? 'lms-eliminated' : '' %>">
-                <td class="rank"><%= i + 1 %></td>
                 <td><strong><%= s.username %></strong></td>
                 <td>
                   <% if (!s.eliminated) { %>
