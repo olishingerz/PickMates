@@ -141,7 +141,14 @@
             <% sorted_standings.forEach(s => { %>
               <% const isMe = user && s.user_id === user.id; %>
               <tr class="<%= isMe ? 'my-row' : '' %> <%= s.eliminated ? 'lms-eliminated' : '' %>">
-                <td><strong><%= s.username %></strong></td>
+                <td>
+                  <% if (s.team_name) { %>
+                    <strong><%= s.team_name.length > 22 ? s.team_name.slice(0, 22) + '…' : s.team_name %></strong>
+                    <br /><span class="muted" style="font-size:.75rem"><%= s.username %></span>
+                  <% } else { %>
+                    <strong><%= s.username %></strong>
+                  <% } %>
+                </td>
                 <td>
                   <% if (!s.eliminated) { %>
                     <span class="status-badge status-live">Alive</span>

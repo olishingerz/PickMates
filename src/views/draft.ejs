@@ -94,17 +94,38 @@
     <div class="card">
       <h2 class="section-title"><%= participants.length %> Player<%= participants.length !== 1 ? 's' : '' %> Registered</h2>
       <% if (user && isHost && !state.is_started && participants.length > 0 && state.game_type === 'last_man_standing') { %>
-        <div class="registered-list">
-          <% participants.forEach((p, i) => { %>
-            <div class="reg-player" style="border-left: 4px solid <%= colours[i % colours.length] %>;display:flex;align-items:center;gap:.5rem">
-              <span class="reg-name"><%= p.username %></span>
-              <form action="/game/<%= gameId %>/draft/remove-user" method="POST" style="margin-left:auto">
-                <input type="hidden" name="user_id" value="<%= p.id %>" />
-                <button type="submit" class="btn btn-sm btn-danger" style="padding:.15rem .45rem;font-size:.8rem"
-                        onclick="return confirm('Remove <%= p.username.replace(/'/g, "\\'") %> from this game?')">✕</button>
-              </form>
-            </div>
-          <% }) %>
+        <div class="leaderboard-table-wrap">
+          <table class="leaderboard-table">
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Paid</th>
+                <th>Remove</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% participants.forEach(p => { %>
+                <tr>
+                  <td><%= p.username %></td>
+                  <td>
+                    <form action="/game/<%= gameId %>/draft/toggle-paid" method="POST" style="display:inline">
+                      <input type="hidden" name="user_id" value="<%= p.id %>" />
+                      <button type="submit" class="btn btn-sm" style="padding:.2rem .55rem;font-size:.78rem;<%= p.has_paid ? 'background:var(--green);color:#fff' : 'background:var(--card-border);color:var(--text)' %>">
+                        <%= p.has_paid ? '✓ Paid' : 'Not paid' %>
+                      </button>
+                    </form>
+                  </td>
+                  <td>
+                    <form action="/game/<%= gameId %>/draft/remove-user" method="POST" style="display:inline">
+                      <input type="hidden" name="user_id" value="<%= p.id %>" />
+                      <button type="submit" class="btn btn-sm btn-danger" style="padding:.15rem .45rem;font-size:.8rem"
+                              onclick="return confirm('Remove <%= p.username.replace(/'/g, "\\'") %> from this game?')">✕</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
         </div>
       <% } else if (user && isHost && !state.is_started && participants.length > 0) { %>
         <p class="admin-hint" style="margin-bottom:.6rem">Drag to set the pick order, then save — or use Randomise below.</p>

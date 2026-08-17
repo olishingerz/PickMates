@@ -37,7 +37,7 @@ async function isHost(req, gameId) {
 async function getDraftData(userId, gameId) {
   const [participantsRes, picksRes, stateRes, lbRes] = await Promise.all([
     pool.query(`
-      SELECT u.id, u.username, gp.draft_position, gp.team_name
+      SELECT u.id, u.username, gp.draft_position, gp.team_name, gp.has_paid
       FROM game_participants gp
       JOIN users u ON u.id = gp.user_id
       WHERE gp.game_id = $1
@@ -537,6 +537,30 @@ router.post('/remove-user', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[remove-user]', err);
     res.redirect(base + '?error=' + encodeURIComponent('Failed to remove player.'));
+  }
+});
+
+// POST /game/:gameId/draft/toggle-paid — host: mark a player as paid/not paid
+router.post('/toggle-paid', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  const base   = `/game/${gameId}/draft`;
+  if (!await isHost(req, gameId)) return res.redirect(base);
+
+  const userId = parseInt(req.body.user_id);
+  if (!userId) return res.redirect(base + '?error=' + encodeURIComponent('Invalid user.'));
+
+  try {
+    const { rows } = await pool.query(
+      `UPDATE game_participants SET has_paid = NOT has_paid
+       WHERE game_id = $1 AND user_id = $2
+       RETURNING has_paid`,
+      [gameId, userId]
+    );
+    if (!rows[0]) return res.redirect(base + '?error=' + encodeURIComponent('Player not found.'));
+    res.redirect(base);
+  } catch (err) {
+    console.error('[toggle-paid]', err);
+    res.redirect(base + '?error=' + encodeURIComponent('Failed to update paid status.'));
   }
 });
 
