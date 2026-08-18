@@ -54,6 +54,9 @@
         const total = standings.length;
       %>
       <p class="muted" style="margin-top:.3rem"><strong><%= alive %></strong> of <strong><%= total %></strong> still alive — Week <strong><%= currentWeek %></strong></p>
+      <% if (game.host_username) { %>
+        <p class="muted" style="margin-top:.2rem;font-size:.85rem">👤 Hosted by <strong><%= game.host_username %></strong></p>
+      <% } %>
       <% if (game.prize_individual > 0) { %>
         <p class="muted" style="margin-top:.2rem;font-size:.85rem">Prize pot: <strong>£<%= game.prize_individual * total %></strong> <span class="muted" style="font-size:.78rem">(£<%= game.prize_individual %> × <%= total %> player<%= total !== 1 ? 's' : '' %>)</span></p>
       <% } %>

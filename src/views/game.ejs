@@ -45,6 +45,9 @@
       <% } else { %>
         <span class="status-badge <%= gameStatusClass %>" style="margin-top:.4rem;display:inline-block"><%= gameStatusLabel %></span>
       <% } %>
+      <% if (game.host_username) { %>
+        <p class="muted" style="margin-top:.2rem;font-size:.85rem">👤 Hosted by <strong><%= game.host_username %></strong></p>
+      <% } %>
       <%
         // ── Round status bar ──
         const rs = game.round_status;

@@ -102,7 +102,14 @@ router.get('/:gameId', async (req, res) => {
   if (!gameId) return res.redirect('/');
 
   try {
-    const { rows: gameRows } = await pool.query('SELECT id, name, tournament_id, tournament_name, tournament_start_date, tournament_end_date, is_started, is_complete, tournament_complete, game_type, host_user_id, prize_team, prize_individual, invite_code, round_status FROM games WHERE id = $1', [gameId]);
+    const { rows: gameRows } = await pool.query(`
+      SELECT g.id, g.name, g.tournament_id, g.tournament_name, g.tournament_start_date, g.tournament_end_date,
+             g.is_started, g.is_complete, g.tournament_complete, g.game_type, g.host_user_id, g.prize_team,
+             g.prize_individual, g.invite_code, g.round_status, hu.username AS host_username
+      FROM games g
+      LEFT JOIN users hu ON hu.id = g.host_user_id
+      WHERE g.id = $1
+    `, [gameId]);
     const game = gameRows[0];
     if (!game) return res.redirect('/?error=' + encodeURIComponent('Game not found.'));
 

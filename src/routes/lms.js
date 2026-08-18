@@ -49,10 +49,13 @@ async function refreshFixtureCache(gameId, week) {
 
 async function getLmsData(gameId, userId) {
   const [gameRes, participantsRes, weeksRes, picksRes] = await Promise.all([
-    pool.query(
-      'SELECT id, name, lms_leagues, lms_current_week, is_complete, is_started, tournament_complete, host_user_id, invite_code, prize_individual, lms_continuous FROM games WHERE id = $1',
-      [gameId]
-    ),
+    pool.query(`
+      SELECT g.id, g.name, g.lms_leagues, g.lms_current_week, g.is_complete, g.is_started, g.tournament_complete,
+             g.host_user_id, g.invite_code, g.prize_individual, g.lms_continuous, hu.username AS host_username
+      FROM games g
+      LEFT JOIN users hu ON hu.id = g.host_user_id
+      WHERE g.id = $1
+    `, [gameId]),
     pool.query(`
       SELECT u.id AS user_id, u.username, gp.draft_position, gp.team_name, gp.is_co_host
       FROM game_participants gp

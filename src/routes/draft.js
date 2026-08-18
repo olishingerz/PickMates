@@ -65,7 +65,13 @@ async function getDraftData(userId, gameId) {
       WHERE p.game_id = $1
       ORDER BY p.id ASC
     `, [gameId]),
-    pool.query('SELECT id, name, tournament_id, tournament_name, current_pick_index, is_started, is_complete, player_source, game_type, invite_code, prize_individual, host_user_id FROM games WHERE id = $1', [gameId]),
+    pool.query(`
+      SELECT g.id, g.name, g.tournament_id, g.tournament_name, g.current_pick_index, g.is_started, g.is_complete,
+             g.player_source, g.game_type, g.invite_code, g.prize_individual, g.host_user_id, hu.username AS host_username
+      FROM games g
+      LEFT JOIN users hu ON hu.id = g.host_user_id
+      WHERE g.id = $1
+    `, [gameId]),
     pool.query('SELECT player_name, world_rank FROM leaderboard WHERE game_id = $1 ORDER BY position ASC NULLS LAST, player_name ASC', [gameId]),
   ]);
 

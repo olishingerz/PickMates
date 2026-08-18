@@ -41,6 +41,9 @@
           Waiting for <strong><%= currentTurnUser.username %></strong> to pick… (auto-refreshes every 30s)
         <% } %>
       </p>
+      <% if (state.host_username) { %>
+        <p class="last-updated" style="margin-top:.2rem">👤 Hosted by <strong><%= state.host_username %></strong></p>
+      <% } %>
     </div>
 
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
