@@ -46,9 +46,6 @@ function stablefordPoints(strokes, par, strokeIndex, handicap) {
 // counting format), not every player's — keeps bigger teams from being penalised.
 const TEAM_COUNTING_SCORES = 3;
 
-// Closest-to-the-pin is only contested on this hole, not every par 3
-const CLOSEST_TO_PIN_HOLE = 17;
-
 function sumField(holeScores, field) {
   const vals = holeScores.map(hs => hs[field]).filter(v => v !== null && v !== undefined);
   return vals.length > 0 ? vals.reduce((s, v) => s + v, 0) : null;
@@ -71,7 +68,7 @@ async function getScorecardData(gameId, userId) {
       WHERE gp.game_id = $1
       ORDER BY u.username ASC
     `, [gameId]),
-    pool.query('SELECT hole_number, par, stroke_index FROM scorecard_holes WHERE game_id = $1 ORDER BY hole_number ASC', [gameId]),
+    pool.query('SELECT hole_number, par, stroke_index, is_ctp FROM scorecard_holes WHERE game_id = $1 ORDER BY hole_number ASC', [gameId]),
     pool.query('SELECT participant_id, hole_number, strokes FROM scorecard_scores WHERE game_id = $1', [gameId]),
     pool.query('SELECT hole_number, participant_id FROM scorecard_closest_to_pin WHERE game_id = $1', [gameId]),
   ]);
@@ -149,8 +146,9 @@ async function getScorecardData(gameId, userId) {
   const standings = [...teams].sort((a, b) => b.totalPoints - a.totalPoints);
 
   const ctpByHole = new Map(ctpRes.rows.map(r => [r.hole_number, r.participant_id]));
-  const closestToPin = holes
-    .filter(h => h.hole_number === CLOSEST_TO_PIN_HOLE)
+  const parThreeHoles = holes.filter(h => h.par === 3);
+  const closestToPin = parThreeHoles
+    .filter(h => h.is_ctp)
     .map(h => ({
       hole_number: h.hole_number,
       holder: participantById.get(ctpByHole.get(h.hole_number)) || null,
@@ -164,7 +162,7 @@ async function getScorecardData(gameId, userId) {
     return bp - ap;
   });
 
-  return { game, teams, standings, holes, unassignedParticipants, allParticipants, individualStandings, closestToPin, userId };
+  return { game, teams, standings, holes, parThreeHoles, unassignedParticipants, allParticipants, individualStandings, closestToPin, userId };
 }
 
 // Called from draft.js when game_type === 'golf_scorecard'
@@ -542,8 +540,12 @@ router.post('/closest-to-pin', requireAuth, async (req, res) => {
       }
     }
 
-    if (holeNumber !== CLOSEST_TO_PIN_HOLE) {
-      return res.redirect(base + '?error=' + encodeURIComponent(`Closest to the pin is only tracked on hole ${CLOSEST_TO_PIN_HOLE}.`));
+    const { rows: holeRows } = await pool.query(
+      'SELECT par, is_ctp FROM scorecard_holes WHERE game_id = $1 AND hole_number = $2',
+      [gameId, holeNumber]
+    );
+    if (!holeRows[0] || holeRows[0].par !== 3 || !holeRows[0].is_ctp) {
+      return res.redirect(base + '?error=' + encodeURIComponent('Closest to the pin isn\'t enabled for that hole.'));
     }
 
     const { rows: participantRows } = await pool.query(
@@ -564,6 +566,32 @@ router.post('/closest-to-pin', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[scorecard closest-to-pin]', err);
     res.redirect(base + '?error=' + encodeURIComponent('Failed to save closest to the pin.'));
+  }
+});
+
+// POST /game/:gameId/scorecard/ctp-holes — host/co-host: choose which par-3 holes
+// have a closest-to-the-pin competition. Works both pre-start (lobby) and once the
+// game is live (scorecard host controls) — unlike teams/handicaps/captains, this
+// isn't locked in at start.
+router.post('/ctp-holes', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  const base = req.body.return_to === 'draft' ? `/game/${gameId}/draft` : `/game/${gameId}`;
+  if (!await canManage(req, gameId)) return res.redirect(base);
+
+  const rawHoles = Array.isArray(req.body.ctp_holes)
+    ? req.body.ctp_holes
+    : req.body.ctp_holes ? [req.body.ctp_holes] : [];
+  const enabledHoles = rawHoles.map(h => parseInt(h)).filter(n => !isNaN(n));
+
+  try {
+    await pool.query(
+      'UPDATE scorecard_holes SET is_ctp = (hole_number = ANY($1)) WHERE game_id = $2 AND par = 3',
+      [enabledHoles, gameId]
+    );
+    res.redirect(base + '?success=' + encodeURIComponent('Closest-to-the-pin holes updated.'));
+  } catch (err) {
+    console.error('[scorecard ctp-holes]', err);
+    res.redirect(base + '?error=' + encodeURIComponent('Failed to update closest-to-the-pin holes.'));
   }
 });
 

@@ -220,6 +220,13 @@
                         <% }) %>
                         <td><%= team.frontPoints !== null ? team.frontPoints : '—' %> pts</td>
                       </tr>
+                      <tr style="font-size:.72rem;color:var(--text-muted);background:var(--bg)">
+                        <td colspan="3">Back 9 →</td>
+                        <% team.players.forEach(p => { %>
+                          <td><%= p.username %><% if (p.is_captain) { %> ⭐<% } %></td>
+                        <% }) %>
+                        <td></td>
+                      </tr>
                     <% } %>
                     <% if (h.hole_number === 18) { %>
                       <tr style="font-weight:700;background:var(--green-light)">
@@ -260,7 +267,24 @@
     <% if (canManage) { %>
       <details style="display:inline-block;margin-top:1rem;position:relative">
         <summary class="btn btn-sm btn-ghost" style="cursor:pointer;list-style:none;color:var(--text-muted)">⚙ Host controls</summary>
-        <div style="position:absolute;top:calc(100% + .3rem);left:0;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.6rem;display:flex;flex-direction:column;gap:.5rem;min-width:200px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.08)">
+        <div style="position:absolute;top:calc(100% + .3rem);left:0;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.6rem;display:flex;flex-direction:column;gap:.5rem;min-width:220px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.08)">
+          <% if (parThreeHoles.length > 0) { %>
+            <div>
+              <p class="label-small" style="margin-bottom:.3rem">Closest to the Pin holes</p>
+              <form action="/game/<%= game.id %>/scorecard/ctp-holes" method="POST">
+                <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.4rem">
+                  <% parThreeHoles.forEach(h => { %>
+                    <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;cursor:pointer">
+                      <input type="checkbox" name="ctp_holes" value="<%= h.hole_number %>" <%= h.is_ctp ? 'checked' : '' %> />
+                      #<%= h.hole_number %>
+                    </label>
+                  <% }) %>
+                </div>
+                <button type="submit" class="btn btn-sm" style="width:100%">Save</button>
+              </form>
+            </div>
+            <div class="admin-divider"></div>
+          <% } %>
           <% if (!game.tournament_complete && isHost) { %>
             <form action="/game/<%= game.id %>/complete" method="POST"
                   onsubmit="return confirm('Mark this game complete? This locks in the winning team.')">

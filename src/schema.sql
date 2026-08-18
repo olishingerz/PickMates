@@ -448,6 +448,15 @@ CREATE TABLE IF NOT EXISTS scorecard_holes (
   UNIQUE(game_id, hole_number)
 );
 
+-- Add is_ctp to scorecard_holes if missing — whether this hole is one of the
+-- host-selected closest-to-the-pin holes (only meaningful for par 3s)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='scorecard_holes' AND column_name='is_ctp') THEN
+    ALTER TABLE scorecard_holes ADD COLUMN is_ctp BOOLEAN DEFAULT TRUE;
+  END IF;
+END $$;
+
 -- Golf Scorecard: named teams
 CREATE TABLE IF NOT EXISTS scorecard_teams (
   id          SERIAL PRIMARY KEY,
