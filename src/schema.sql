@@ -414,6 +414,67 @@ CREATE TABLE IF NOT EXISTS session (
 
 CREATE INDEX IF NOT EXISTS session_expire_idx ON session(expire);
 
+-- Golf Scorecard columns on games
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='games' AND column_name='scorecard_course_name') THEN
+    ALTER TABLE games ADD COLUMN scorecard_course_name VARCHAR(200);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='games' AND column_name='scorecard_course_par') THEN
+    ALTER TABLE games ADD COLUMN scorecard_course_par INTEGER;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='games' AND column_name='scorecard_entry_fee') THEN
+    ALTER TABLE games ADD COLUMN scorecard_entry_fee INTEGER DEFAULT 0;
+  END IF;
+END $$;
+
+-- Golf Scorecard: 18 holes per game (par + stroke index)
+CREATE TABLE IF NOT EXISTS scorecard_holes (
+  id            SERIAL PRIMARY KEY,
+  game_id       INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  hole_number   INTEGER NOT NULL,
+  par           INTEGER NOT NULL,
+  stroke_index  INTEGER NOT NULL,
+  UNIQUE(game_id, hole_number)
+);
+
+-- Golf Scorecard: named teams
+CREATE TABLE IF NOT EXISTS scorecard_teams (
+  id          SERIAL PRIMARY KEY,
+  game_id     INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  name        VARCHAR(100) NOT NULL,
+  created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Golf Scorecard columns on game_participants (team, handicap, captain)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='game_participants' AND column_name='scorecard_team_id') THEN
+    ALTER TABLE game_participants ADD COLUMN scorecard_team_id INTEGER REFERENCES scorecard_teams(id) ON DELETE SET NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='game_participants' AND column_name='handicap') THEN
+    ALTER TABLE game_participants ADD COLUMN handicap NUMERIC(4,1);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='game_participants' AND column_name='is_captain') THEN
+    ALTER TABLE game_participants ADD COLUMN is_captain BOOLEAN DEFAULT FALSE;
+  END IF;
+END $$;
+
+-- Golf Scorecard: per-player, per-hole strokes
+CREATE TABLE IF NOT EXISTS scorecard_scores (
+  id              SERIAL PRIMARY KEY,
+  game_id         INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  participant_id  INTEGER NOT NULL REFERENCES game_participants(id) ON DELETE CASCADE,
+  hole_number     INTEGER NOT NULL,
+  strokes         INTEGER NOT NULL,
+  updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(participant_id, hole_number)
+);
+
 -- ── One-time data fixes ───────────────────────────────────────────────────────
 -- Fix ESPN name mismatches for Masters 2026 (Samuel Stevens / Nicolas Echavarria)
 UPDATE picks SET player_name = 'Sam Stevens'

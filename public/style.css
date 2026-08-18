@@ -808,8 +808,9 @@ a.nav-user:hover { color: var(--green); }
 .game-card-meta { font-size: .82rem; }
 .game-card-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .3rem; }
 .game-type-badge { font-size: .72rem; font-weight: 600; padding: .15rem .45rem; border-radius: 20px; white-space: nowrap; }
-.game-type-golf  { background: #e8f5f0; color: #006747; }
-.game-type-lms   { background: #fef3c7; color: #92400e; }
+.game-type-golf       { background: #e8f5f0; color: #006747; }
+.game-type-lms        { background: #fef3c7; color: #92400e; }
+.game-type-scorecard  { background: #e0f2fe; color: #075985; }
 
 /* ── Last Man Standing ──────────────────────────────────────────── */
 .lms-eliminated td { opacity: .55; }

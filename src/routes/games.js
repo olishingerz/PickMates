@@ -3,6 +3,7 @@ const { pool } = require('../db');
 const { SCORES_THAT_COUNT, MIN_CUT_MAKERS } = require('../constants');
 const draftRouter = require('./draft');
 const { router: lmsRouter, getLmsData, isHost: lmsIsHost, canManage: lmsCanManage } = require('./lms');
+const { router: scorecardRouter, getScorecardData, isHost: scorecardIsHost, canManage: scorecardCanManage } = require('./scorecard');
 const { LEAGUE_NAMES } = require('../services/football');
 
 const router = express.Router();
@@ -80,12 +81,20 @@ async function saveWinner(gameId) {
     const alive = data.standings.filter(s => !s.eliminated);
     const winner = alive.length === 1 ? alive[0].username : null;
     await pool.query('UPDATE games SET winner_username=$1 WHERE id=$2', [winner, gameId]);
+  } else if (gameType === 'golf_scorecard') {
+    // Golf Scorecard winner: team with the most Stableford points
+    const data = await getScorecardData(gameId, null);
+    const winner = data.standings.length > 0 && data.standings[0].totalPoints > 0
+      ? data.standings[0].name
+      : null;
+    await pool.query('UPDATE games SET winner_username=$1 WHERE id=$2', [winner, gameId]);
   }
 }
 
 // Mount sub-routers — mergeParams gives them access to :gameId
 router.use('/:gameId/draft', draftRouter);
 router.use('/:gameId/lms',   lmsRouter);
+router.use('/:gameId/scorecard', scorecardRouter);
 
 // GET /game/:gameId — per-game leaderboard
 router.get('/:gameId', async (req, res) => {
@@ -123,6 +132,25 @@ router.get('/:gameId', async (req, res) => {
         canManage:  manageFlag,
         LEAGUE_NAMES,
         suggestedDeadline,
+        error:   req.query.error   || null,
+        success: req.query.success || null,
+      });
+    }
+
+    // Branch to Golf Scorecard game room
+    if (game.game_type === 'golf_scorecard') {
+      const userId    = req.session.user?.id || null;
+      const data      = await getScorecardData(gameId, userId);
+      const hostFlag  = await scorecardIsHost(req, gameId);
+      const manageFlag = await scorecardCanManage(req, gameId);
+      const myParticipant = [...data.teams.flatMap(t => t.players), ...data.unassignedParticipants]
+        .find(p => p.user_id === userId) || null;
+
+      return res.render('scorecard', {
+        ...data,
+        isHost:     hostFlag,
+        canManage:  manageFlag,
+        myParticipant,
         error:   req.query.error   || null,
         success: req.query.success || null,
       });

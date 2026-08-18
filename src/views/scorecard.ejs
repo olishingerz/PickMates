@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= game.name %> – PickMates</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo"><span class="logo-flag">⛳</span> PickMates <span class="logo-sub"><%= game.name %></span></a>
+      <nav><%- include('partials/nav') %></nav>
+    </div>
+  </header>
+
+  <main>
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+    <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+
+    <div class="page-header">
+      <h1><%= game.name %></h1>
+      <p class="muted" style="margin-top:.2rem">
+        <span class="game-type-badge game-type-scorecard">⛳ Golf Scorecard</span>
+        <% if (game.scorecard_course_name) { %>
+          <span style="margin-left:.4rem"><%= game.scorecard_course_name %><% if (game.scorecard_course_par) { %> · Par <%= game.scorecard_course_par %><% } %></span>
+        <% } %>
+      </p>
+      <% const totalPlayers = teams.reduce((s, t) => s + t.players.length, 0) + unassignedParticipants.length; %>
+      <% if (game.scorecard_entry_fee > 0) { %>
+        <p class="muted" style="margin-top:.2rem;font-size:.85rem">Prize pot: <strong>£<%= game.scorecard_entry_fee * totalPlayers %></strong> <span class="muted" style="font-size:.78rem">(£<%= game.scorecard_entry_fee %> × <%= totalPlayers %> player<%= totalPlayers !== 1 ? 's' : '' %>)</span></p>
+      <% } %>
+      <% if (game.tournament_complete && game.winner_username) { %>
+        <p class="muted" style="margin-top:.3rem">🏆 Winning team: <strong><%= game.winner_username %></strong></p>
+      <% } %>
+    </div>
+
+    <% if (!game.is_started) { %>
+      <div class="card" style="background:#f8fafc;border:1px solid var(--border)">
+        <p style="margin:0">⏳ This game hasn't started yet. <a href="/game/<%= game.id %>/draft">Go to the lobby →</a></p>
+      </div>
+    <% } else { %>
+
+      <!-- ── Standings ──────────────────────────────────────────────────── -->
+      <h2 class="section-title mt-lg">Standings</h2>
+      <div class="card">
+        <% if (standings.length === 0) { %>
+          <p class="muted">No teams yet.</p>
+        <% } else { %>
+          <div class="leaderboard-table-wrap">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Team</th>
+                  <th>Points</th>
+                  <th>Thru</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% standings.forEach((t, i) => { %>
+                  <tr>
+                    <td>#<%= i + 1 %></td>
+                    <td><strong><%= t.name %></strong> <span class="muted" style="font-size:.78rem">(<%= t.players.length %> player<%= t.players.length !== 1 ? 's' : '' %>)</span></td>
+                    <td><strong><%= t.totalPoints %></strong> pts</td>
+                    <td><%= t.thru %>/18</td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      </div>
+
+      <!-- ── Per-team scorecards ────────────────────────────────────────── -->
+      <% teams.forEach(team => { %>
+        <%
+          const editable = !game.tournament_complete && (canManage || (myParticipant && myParticipant.is_captain && myParticipant.scorecard_team_id === team.id));
+        %>
+        <h2 class="section-title mt-lg"><%= team.name %> <span class="muted" style="font-size:.85rem;font-weight:400">— <%= team.totalPoints %> pts</span></h2>
+        <div class="card">
+          <% if (team.players.length === 0) { %>
+            <p class="muted">No players on this team.</p>
+          <% } else { %>
+            <% if (editable) { %>
+              <form action="/game/<%= game.id %>/scorecard/scores" method="POST">
+                <input type="hidden" name="team_id" value="<%= team.id %>" />
+            <% } %>
+            <div class="leaderboard-table-wrap">
+              <table class="leaderboard-table">
+                <thead>
+                  <tr>
+                    <th>Hole</th>
+                    <th>Par</th>
+                    <th>SI</th>
+                    <% team.players.forEach(p => { %>
+                      <th><%= p.username %><% if (p.is_captain) { %> ⭐<% } %></th>
+                    <% }) %>
+                    <th>Team pts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% holes.forEach((h, hIdx) => { %>
+                    <tr>
+                      <td><%= h.hole_number %></td>
+                      <td><%= h.par %></td>
+                      <td><%= h.stroke_index %></td>
+                      <% team.players.forEach(p => {
+                        const hs = p.holeScores.find(x => x.hole_number === h.hole_number);
+                      %>
+                        <td>
+                          <% if (editable) { %>
+                            <input type="number" name="strokes_<%= p.participant_id %>_<%= h.hole_number %>" min="1" max="15"
+                                   value="<%= hs && hs.strokes !== null ? hs.strokes : '' %>"
+                                   style="width:55px;padding:.25rem .35rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem" />
+                          <% } else { %>
+                            <%= hs && hs.strokes !== null ? hs.strokes : '—' %>
+                          <% } %>
+                          <% if (hs && hs.points !== null) { %><span class="muted" style="font-size:.72rem"> (<%= hs.points %>pt)</span><% } %>
+                        </td>
+                      <% }) %>
+                      <td><%= team.holeTotals[hIdx] !== null ? team.holeTotals[hIdx] : '—' %></td>
+                    </tr>
+                  <% }) %>
+                  <tr style="font-weight:700">
+                    <td colspan="<%= 3 + team.players.length %>">Total</td>
+                    <td><%= team.totalPoints %> pts</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <% if (editable) { %>
+                <button type="submit" class="btn btn-sm" style="margin-top:.6rem;background:var(--green);color:#fff">Save Scores</button>
+              </form>
+            <% } %>
+          <% } %>
+        </div>
+      <% }) %>
+    <% } %>
+
+    <!-- ── Host controls ─────────────────────────────────────────────────── -->
+    <% if (canManage) { %>
+      <details style="display:inline-block;margin-top:1rem;position:relative">
+        <summary class="btn btn-sm btn-ghost" style="cursor:pointer;list-style:none;color:var(--text-muted)">⚙ Host controls</summary>
+        <div style="position:absolute;top:calc(100% + .3rem);left:0;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.6rem;display:flex;flex-direction:column;gap:.5rem;min-width:200px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.08)">
+          <% if (!game.tournament_complete && isHost) { %>
+            <form action="/game/<%= game.id %>/complete" method="POST"
+                  onsubmit="return confirm('Mark this game complete? This locks in the winning team.')">
+              <button type="submit" class="btn btn-sm" style="width:100%;background:var(--green);color:#fff">Mark complete</button>
+            </form>
+          <% } %>
+          <% if (isHost) { %>
+            <form action="/game/<%= game.id %>/delete" method="POST"
+                  onsubmit="return confirm('Delete this game and all scores? Cannot be undone.')">
+              <button type="submit" class="btn btn-sm btn-danger" style="width:100%">Delete game</button>
+            </form>
+          <% } %>
+        </div>
+      </details>
+    <% } %>
+  </main>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

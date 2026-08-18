@@ -12,7 +12,7 @@ router.get('/', async (req, res) => {
     const userId = req.session.user?.id || null;
     const { rows: games } = await pool.query(`
       SELECT g.id, g.name, g.tournament_name, g.is_started, g.is_complete, g.tournament_complete, g.created_at,
-             g.game_type, g.host_user_id, g.is_public, g.lms_leagues,
+             g.game_type, g.host_user_id, g.is_public, g.lms_leagues, g.scorecard_course_name,
              COUNT(gp.id)::int AS participant_count,
              BOOL_OR(gp.user_id = $1) AS user_joined
       FROM games g
@@ -24,7 +24,7 @@ router.get('/', async (req, res) => {
     // Current standing (not the stale last_rank snapshot used for arrows on the game page)
     if (userId) {
       await Promise.all(games
-        .filter(g => g.user_joined && g.is_started && g.game_type !== 'last_man_standing')
+        .filter(g => g.user_joined && g.is_started && g.game_type !== 'last_man_standing' && g.game_type !== 'golf_scorecard')
         .map(async g => {
           try {
             const ranks = await computeRanks(g.id);
@@ -107,15 +107,16 @@ router.post('/games/create', async (req, res) => {
   }
 
   const name     = req.body.name?.trim();
-  const gameType = ['golf_draft', 'last_man_standing'].includes(req.body.game_type)
+  const gameType = ['golf_draft', 'last_man_standing', 'golf_scorecard'].includes(req.body.game_type)
     ? req.body.game_type : 'golf_draft';
 
   // Prizes — golf uses separate team/individual pots; LMS has a single entry fee/prize
-  const prizeTeam       = gameType === 'last_man_standing'
+  const prizeTeam       = gameType === 'last_man_standing' || gameType === 'golf_scorecard'
     ? 0
     : Math.max(0, parseInt(req.body.prize_team) || 0);
   const prizeIndividual = gameType === 'last_man_standing'
     ? Math.max(0, parseInt(req.body.lms_entry_fee) || 0)
+    : gameType === 'golf_scorecard' ? 0
     : Math.max(0, parseInt(req.body.prize_individual) || 0);
 
   // LMS
@@ -129,12 +130,59 @@ router.post('/games/create', async (req, res) => {
     return res.redirect('/games/create?error=' + encodeURIComponent('Game name must be between 2 and 200 characters.'));
   }
 
+  // Golf Scorecard — validate course, 18 holes, entry fee, and team names
+  let courseName = null, coursePar = null, scorecardEntryFee = 0, holes = [], teamNames = [];
+  if (gameType === 'golf_scorecard') {
+    courseName = req.body.course_name?.trim();
+    coursePar  = parseInt(req.body.course_par);
+    scorecardEntryFee = Math.max(0, parseInt(req.body.scorecard_entry_fee) || 0);
+
+    if (!courseName || courseName.length < 2 || courseName.length > 200) {
+      return res.redirect('/games/create?error=' + encodeURIComponent('Course name must be between 2 and 200 characters.'));
+    }
+    if (isNaN(coursePar) || coursePar < 60 || coursePar > 80) {
+      return res.redirect('/games/create?error=' + encodeURIComponent('Course par must be between 60 and 80.'));
+    }
+
+    const strokeIndices = new Set();
+    for (let h = 1; h <= 18; h++) {
+      const par = parseInt(req.body[`hole_par_${h}`]);
+      const si  = parseInt(req.body[`hole_si_${h}`]);
+      if (isNaN(par) || par < 3 || par > 6) {
+        return res.redirect('/games/create?error=' + encodeURIComponent(`Hole ${h}: par must be between 3 and 6.`));
+      }
+      if (isNaN(si) || si < 1 || si > 18) {
+        return res.redirect('/games/create?error=' + encodeURIComponent(`Hole ${h}: stroke index must be between 1 and 18.`));
+      }
+      strokeIndices.add(si);
+      holes.push({ hole_number: h, par, stroke_index: si });
+    }
+    if (strokeIndices.size !== 18) {
+      return res.redirect('/games/create?error=' + encodeURIComponent('Stroke Index must be a unique number 1–18 across the round.'));
+    }
+
+    const numTeams = Math.min(10, Math.max(2, parseInt(req.body.num_teams) || 2));
+    for (let i = 1; i <= numTeams; i++) {
+      const teamName = req.body[`team_name_${i}`]?.trim();
+      if (!teamName || teamName.length < 1 || teamName.length > 50) {
+        return res.redirect('/games/create?error=' + encodeURIComponent(`Team ${i} needs a name (max 50 characters).`));
+      }
+      teamNames.push(teamName);
+    }
+    if (new Set(teamNames.map(t => t.toLowerCase())).size !== teamNames.length) {
+      return res.redirect('/games/create?error=' + encodeURIComponent('Team names must be unique.'));
+    }
+  }
+
   const inviteCode = Math.random().toString(36).slice(2, 8).toUpperCase();
 
   try {
     const { rows } = await pool.query(
-      'INSERT INTO games (name, game_type, host_user_id, invite_code, prize_team, prize_individual, lms_leagues) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
-      [name, gameType, user.id, inviteCode, prizeTeam, prizeIndividual, lmsLeagues]
+      `INSERT INTO games (name, game_type, host_user_id, invite_code, prize_team, prize_individual, lms_leagues,
+                           scorecard_course_name, scorecard_course_par, scorecard_entry_fee)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+      [name, gameType, user.id, inviteCode, prizeTeam, prizeIndividual, lmsLeagues,
+       courseName, coursePar, scorecardEntryFee]
     );
     const gameId = rows[0].id;
 
@@ -148,6 +196,19 @@ router.post('/games/create', async (req, res) => {
       );
       try { await scrapeLeaderboard(gameId); }
       catch (e) { console.warn('[create] initial scrape failed:', e.message); }
+    }
+
+    // Golf Scorecard: save holes and teams
+    if (gameType === 'golf_scorecard') {
+      for (const h of holes) {
+        await pool.query(
+          'INSERT INTO scorecard_holes (game_id, hole_number, par, stroke_index) VALUES ($1,$2,$3,$4)',
+          [gameId, h.hole_number, h.par, h.stroke_index]
+        );
+      }
+      for (const teamName of teamNames) {
+        await pool.query('INSERT INTO scorecard_teams (game_id, name) VALUES ($1,$2)', [gameId, teamName]);
+      }
     }
 
     res.redirect(`/game/${gameId}/draft`);

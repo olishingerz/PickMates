@@ -43,12 +43,12 @@
                             : g.is_started         ? 'In Progress'
                             : 'Waiting';
                const statusColour = g.tournament_complete ? 'var(--green)' : g.is_started ? '#f59e0b' : 'var(--muted)';
-               const typLabel = g.game_type === 'last_man_standing' ? 'LMS' : 'Golf';
+               const typLabel = g.game_type === 'last_man_standing' ? 'LMS' : g.game_type === 'golf_scorecard' ? 'Scorecard' : 'Golf';
           %>
             <tr>
               <td class="muted" style="font-size:.82rem"><%= g.id %></td>
               <td><a href="/game/<%= g.id %>" style="font-weight:600"><%= g.name %></a>
-                <% if (g.game_type !== 'last_man_standing') { %>
+                <% if (g.game_type === 'golf_draft') { %>
                   <a href="/admin/espn-debug/<%= g.id %>" target="_blank" style="font-size:.72rem;margin-left:.4rem">ESPN debug</a>
                 <% } %>
                 <% if (g.tournament_name) { %><br/><span class="muted" style="font-size:.78rem"><%= g.tournament_name %></span><% } %>

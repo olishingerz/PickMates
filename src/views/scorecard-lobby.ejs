@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lobby – <%= game.name %></title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo"><span class="logo-flag">⛳</span> PickMates <span class="logo-sub"><%= game.name %></span></a>
+      <nav><%- include('partials/nav') %></nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-header">
+      <h1>Golf Scorecard Lobby</h1>
+      <p class="last-updated">
+        <% if (game.scorecard_course_name) { %>
+          <strong><%= game.scorecard_course_name %></strong><% if (game.scorecard_course_par) { %> · Par <%= game.scorecard_course_par %><% } %>
+        <% } %>
+        <% if (game.scorecard_entry_fee > 0) { %>
+          <span class="muted"> · Entry fee £<%= game.scorecard_entry_fee %> per player</span>
+        <% } %>
+      </p>
+      <p class="last-updated" style="margin-top:.2rem">
+        <% if (user && canManage) { %>
+          <strong style="color:var(--green-dark)">Waiting to start.</strong> Get everyone into a team, set handicaps and captains, then start the game.
+        <% } else { %>
+          Waiting for the host to start the game.
+        <% } %>
+      </p>
+    </div>
+
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+    <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+
+    <!-- ── Teams ────────────────────────────────────────────────────────── -->
+    <% teams.forEach(team => { %>
+      <% const onThisTeam = user && team.players.some(p => p.user_id === user.id); %>
+      <div class="card" style="margin-bottom:1rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem">
+          <h2 class="section-title" style="margin:0"><%= team.name %></h2>
+          <% if (user && !onThisTeam) { %>
+            <form action="/game/<%= game.id %>/scorecard/join-team" method="POST" style="display:inline">
+              <input type="hidden" name="team_id" value="<%= team.id %>" />
+              <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">Join this team</button>
+            </form>
+          <% } else if (onThisTeam) { %>
+            <span class="status-badge status-live">✓ You're on this team</span>
+          <% } %>
+        </div>
+
+        <% if (team.players.length === 0) { %>
+          <p class="muted" style="margin-top:.6rem">No players yet.</p>
+        <% } else { %>
+          <div class="leaderboard-table-wrap" style="margin-top:.6rem">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Player</th>
+                  <th>Handicap</th>
+                  <th>Captain</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% team.players.forEach(p => { %>
+                  <tr>
+                    <td><%= p.username %><% if (user && p.user_id === user.id) { %> <span class="muted" style="font-size:.78rem">(you)</span><% } %></td>
+                    <td>
+                      <% if (canManage) { %>
+                        <form action="/game/<%= game.id %>/scorecard/handicap" method="POST" style="display:flex;gap:.3rem;align-items:center">
+                          <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
+                          <input type="number" name="handicap" min="0" max="54" step="0.1"
+                                 value="<%= p.handicap !== null ? p.handicap : '' %>" placeholder="—"
+                                 style="padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;width:70px" />
+                          <button type="submit" class="btn btn-sm" style="padding:.2rem .5rem;font-size:.78rem">Save</button>
+                        </form>
+                      <% } else { %>
+                        <%= p.handicap !== null ? p.handicap : '—' %>
+                      <% } %>
+                    </td>
+                    <td>
+                      <% if (canManage) { %>
+                        <form action="/game/<%= game.id %>/scorecard/captain" method="POST" style="display:inline">
+                          <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
+                          <input type="hidden" name="make" value="<%= p.is_captain ? '0' : '1' %>" />
+                          <button type="submit" class="btn btn-sm" style="padding:.2rem .55rem;font-size:.78rem;<%= p.is_captain ? 'background:var(--green);color:#fff' : 'background:var(--card-border);color:var(--text)' %>">
+                            <%= p.is_captain ? '⭐ Captain' : 'Make captain' %>
+                          </button>
+                        </form>
+                      <% } else { %>
+                        <% if (p.is_captain) { %><span class="status-badge status-live">⭐ Captain</span><% } else { %>—<% } %>
+                      <% } %>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      </div>
+    <% }) %>
+
+    <!-- ── Unassigned players (shouldn't normally happen — joining always picks a team) ── -->
+    <% if (unassignedParticipants.length > 0) { %>
+      <div class="card" style="margin-bottom:1rem;background:#fffbeb;border:1px solid #f59e0b">
+        <h2 class="section-title">Not yet on a team</h2>
+        <ul style="margin:0;padding-left:1.2rem">
+          <% unassignedParticipants.forEach(p => { %>
+            <li style="font-size:.9rem"><%= p.username %></li>
+          <% }) %>
+        </ul>
+      </div>
+    <% } %>
+
+    <!-- ── Invite link ──────────────────────────────────────────────────── -->
+    <% if (game.invite_code) { %>
+      <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap;padding:1rem 1.5rem">
+        <div>
+          <p class="label-small" style="margin-bottom:.25rem">Invite link</p>
+          <span id="invite-url" style="font-size:.85rem;color:var(--green-dark);word-break:break-all"></span>
+          <script>
+            document.getElementById('invite-url').textContent = location.origin + '/join/<%= game.invite_code %>';
+          </script>
+        </div>
+        <button class="btn btn-sm" onclick="
+          navigator.clipboard.writeText(location.origin + '/join/<%= game.invite_code %>');
+          this.textContent = '✓ Copied!';
+          setTimeout(() => this.textContent = 'Copy link', 2000);
+        ">Copy link</button>
+      </div>
+    <% } %>
+
+    <!-- ── Start game ───────────────────────────────────────────────────── -->
+    <% if (canManage) { %>
+      <div class="card admin-card">
+        <h2 class="section-title">Host Controls</h2>
+        <p class="admin-hint">Everyone needs to be on a team before you can start. Once started, teams, handicaps and captains are locked in.</p>
+        <form action="/game/<%= game.id %>/scorecard/start" method="POST" style="margin-top:.6rem"
+              onsubmit="return confirm('Start the game? Teams, handicaps and captains will be locked in.')">
+          <button type="submit" class="btn" style="background:var(--green);color:#fff">▶ Start Game</button>
+        </form>
+      </div>
+    <% } %>
+  </main>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

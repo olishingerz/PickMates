@@ -5,6 +5,7 @@ const { PICKS_PER_PLAYER } = require('../constants');
 const { fetchTournamentList, scrapeLeaderboard } = require('../services/scraper');
 const { sendDraftTurnEmail } = require('../services/email');
 const { refreshFixtureCache } = require('./lms');
+const { renderLobby: renderScorecardLobby } = require('./scorecard');
 
 // mergeParams so we can read :gameId set by the parent router in games.js
 const router = express.Router({ mergeParams: true });
@@ -139,6 +140,15 @@ async function getDraftData(userId, gameId) {
 router.get('/', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   try {
+    const { rows: gtRows } = await pool.query('SELECT game_type FROM games WHERE id = $1', [gameId]);
+    if (!gtRows[0]) return res.redirect('/');
+
+    // Golf Scorecard has its own dedicated lobby view (teams/handicaps/captains
+    // don't fit the golf-draft/LMS board this template renders)
+    if (gtRows[0].game_type === 'golf_scorecard') {
+      return renderScorecardLobby(req, res, gameId);
+    }
+
     const [data, hostFlag, manageFlag] = await Promise.all([
       getDraftData(req.session.user.id, gameId),
       isHost(req, gameId),

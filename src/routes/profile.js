@@ -20,7 +20,7 @@ function requireAuth(req, res, next) {
 
 router.get('/', requireAuth, async (req, res) => {
   const id = req.session.user.id;
-  const [profileRes, golfRes, lmsRes, pickHistoryRes] = await Promise.all([
+  const [profileRes, golfRes, lmsRes, scorecardRes, pickHistoryRes] = await Promise.all([
     pool.query('SELECT username, avatar, email FROM users WHERE id = $1', [id]),
     pool.query(`
       SELECT
@@ -47,6 +47,17 @@ router.get('/', requireAuth, async (req, res) => {
       WHERE u.id = $1
     `, [id]),
     pool.query(`
+      SELECT
+        COUNT(DISTINCT gp.game_id) FILTER (WHERE g.game_type = 'golf_scorecard')::int      AS scorecard_played,
+        COUNT(*)                   FILTER (WHERE st.name = g.winner_username
+                                              AND g.tournament_complete = TRUE)::int         AS scorecard_wins
+      FROM users u
+      LEFT JOIN game_participants gp ON gp.user_id = u.id
+      LEFT JOIN games g ON g.id = gp.game_id AND g.game_type = 'golf_scorecard'
+      LEFT JOIN scorecard_teams st ON st.id = gp.scorecard_team_id
+      WHERE u.id = $1
+    `, [id]),
+    pool.query(`
       SELECT g.id AS game_id, g.name AS game_name, g.tournament_name, g.tournament_complete,
              p.player_name, p.pick_slot,
              l.score_to_par, l.made_cut, l.position AS lb_position
@@ -62,8 +73,9 @@ router.get('/', requireAuth, async (req, res) => {
 
   res.render('profile', {
     profileUser: profileRes.rows[0],
-    golfStats:   golfRes.rows[0],
-    lmsStats:    lmsRes.rows[0],
+    golfStats:      golfRes.rows[0],
+    lmsStats:       lmsRes.rows[0],
+    scorecardStats: scorecardRes.rows[0],
     pickHistory: pickHistoryRes.rows,
     error:   req.query.error   || null,
     success: req.query.success || null,

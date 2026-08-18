@@ -10,13 +10,15 @@
     <div>
       <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
         <h2 class="game-card-name"><%= g.name %></h2>
-        <span class="game-type-badge <%= g.game_type === 'last_man_standing' ? 'game-type-lms' : 'game-type-golf' %>">
-          <%= g.game_type === 'last_man_standing' ? '🏆 Last Man Standing' : '⛳ Golf Draft' %>
+        <span class="game-type-badge <%= g.game_type === 'last_man_standing' ? 'game-type-lms' : g.game_type === 'golf_scorecard' ? 'game-type-scorecard' : 'game-type-golf' %>">
+          <%= g.game_type === 'last_man_standing' ? '🏆 Last Man Standing' : g.game_type === 'golf_scorecard' ? '⛳ Golf Scorecard' : '⛳ Golf Draft' %>
         </span>
       </div>
       <% if (g.game_type === 'last_man_standing') { %>
         <% const gameLeagues = (g.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean); %>
         <p class="muted game-card-tournament"><%= gameLeagues.map(l => LEAGUE_NAMES[l] || l).join(' + ') %></p>
+      <% } else if (g.game_type === 'golf_scorecard') { %>
+        <p class="muted game-card-tournament"><%= g.scorecard_course_name || 'No course set' %></p>
       <% } else if (g.tournament_name) { %>
         <p class="muted game-card-tournament"><%= g.tournament_name %></p>
       <% } else { %>
@@ -47,6 +49,8 @@
           <% } else { %>
             <a href="/game/<%= g.id %>" class="btn btn-sm" style="background:var(--green);color:#fff">Join game</a>
           <% } %>
+        <% } else if (g.game_type === 'golf_scorecard') { %>
+          <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:<%= g.user_joined ? '#f59e0b' : 'var(--green)' %>;color:<%= g.user_joined ? '#1a1a1a' : '#fff' %>"><%= g.user_joined ? 'Lobby' : 'Join game' %></a>
         <% } else { %>
           <% if (g.user_joined || isGameHost) { %>
             <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Draft</a>
@@ -62,6 +66,8 @@
         <% if (g.user_joined || isGameHost) { %>
           <% if (g.game_type === 'last_man_standing') { %>
             <a href="/game/<%= g.id %>/lms/picks" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Make pick</a>
+          <% } else if (g.game_type === 'golf_scorecard') { %>
+            <a href="/game/<%= g.id %>" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Scorecard</a>
           <% } else { %>
             <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Draft</a>
           <% } %>

@@ -68,8 +68,8 @@
         <% recentWins.forEach(w => { %>
           <a href="/game/<%= w.id %>" class="winner-card">
             <div class="winner-card-tournament">
-              <span class="game-type-badge <%= w.game_type === 'last_man_standing' ? 'game-type-lms' : 'game-type-golf' %>" style="margin-bottom:.4rem;display:inline-block">
-                <%= w.game_type === 'last_man_standing' ? '🏆 Last Man Standing' : '⛳ Golf Draft' %>
+              <span class="game-type-badge <%= w.game_type === 'last_man_standing' ? 'game-type-lms' : w.game_type === 'golf_scorecard' ? 'game-type-scorecard' : 'game-type-golf' %>" style="margin-bottom:.4rem;display:inline-block">
+                <%= w.game_type === 'last_man_standing' ? '🏆 Last Man Standing' : w.game_type === 'golf_scorecard' ? '⛳ Golf Scorecard' : '⛳ Golf Draft' %>
               </span>
               <div class="winner-card-name"><%= w.name %></div>
               <% if (w.tournament_name) { %><div class="muted" style="font-size:.8rem"><%= w.tournament_name %></div><% } %>
@@ -82,7 +82,7 @@
                 <div class="winner-entry">
                   <span class="winner-trophy">🥇</span>
                   <span class="winner-name"><%= w.winner_username %></span>
-                  <span class="winner-label"><%= w.game_type === 'last_man_standing' ? '· Last Man Standing' : '· Team pot' %></span>
+                  <span class="winner-label"><%= w.game_type === 'last_man_standing' ? '· Last Man Standing' : w.game_type === 'golf_scorecard' ? '· Winning team' : '· Team pot' %></span>
                 </div>
               <% } %>
               <% if (w.winner_individual_username && w.game_type === 'golf_draft') { %>

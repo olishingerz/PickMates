@@ -26,7 +26,7 @@
     <!-- ── Stats ──────────────────────────────────────────────────────────── -->
     <div class="card" style="margin-bottom:1.2rem">
       <h2 class="section-title">Your stats</h2>
-      <div class="stats-cols" style="display:grid;grid-template-columns:1fr 1fr;gap:1.2rem">
+      <div class="stats-cols" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.2rem">
         <div>
           <p class="label-small" style="margin-bottom:.6rem">⛳ Golf Draft</p>
           <div style="display:flex;flex-direction:column;gap:.4rem">
@@ -41,6 +41,13 @@
             <div class="stat-row"><span class="muted">Games played</span><strong><%= lmsStats.lms_played || 0 %></strong></div>
             <div class="stat-row"><span class="muted">Wins</span><strong><%= lmsStats.lms_wins || 0 %></strong></div>
             <div class="stat-row"><span class="muted">Furthest week</span><strong><%= lmsStats.furthest_week || '—' %></strong></div>
+          </div>
+        </div>
+        <div>
+          <p class="label-small" style="margin-bottom:.6rem">⛳ Golf Scorecard</p>
+          <div style="display:flex;flex-direction:column;gap:.4rem">
+            <div class="stat-row"><span class="muted">Games played</span><strong><%= scorecardStats.scorecard_played || 0 %></strong></div>
+            <div class="stat-row"><span class="muted">Team wins</span><strong><%= scorecardStats.scorecard_wins || 0 %></strong></div>
           </div>
         </div>
       </div>

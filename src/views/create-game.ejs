@@ -39,6 +39,7 @@
                     style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;background:#fff;display:block;margin-top:.3rem">
               <option value="golf_draft">⛳ Golf Draft</option>
               <option value="last_man_standing">🏆 Last Man Standing</option>
+              <option value="golf_scorecard">⛳ Golf Scorecard</option>
             </select>
           </div>
         </div>
@@ -120,6 +121,66 @@
         </div>
       </div>
 
+      <!-- ── Golf Scorecard options ─────────────────────────────────── -->
+      <div id="scorecard-section" class="card" style="margin-bottom:1rem;display:none">
+        <h2 class="section-title">Golf Scorecard Settings</h2>
+
+        <div style="display:flex;gap:.8rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1rem">
+          <div>
+            <label class="form-label">Course name</label>
+            <input type="text" name="course_name" maxlength="200" placeholder="e.g. St Andrews"
+                   style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;min-width:220px;display:block;margin-top:.3rem" />
+          </div>
+          <div>
+            <label class="form-label">Course par</label>
+            <input type="number" name="course_par" min="60" max="80" value="72"
+                   style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;width:110px;display:block;margin-top:.3rem" />
+          </div>
+          <div>
+            <label class="form-label">Entry fee (£ per player)</label>
+            <input type="number" name="scorecard_entry_fee" min="0" value="0"
+                   style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;width:130px;display:block;margin-top:.3rem" />
+          </div>
+        </div>
+
+        <h3 style="font-size:.9rem;font-weight:700;margin-bottom:.6rem">Holes</h3>
+        <div style="overflow-x:auto;margin-bottom:1rem">
+          <table style="border-collapse:collapse;font-size:.85rem">
+            <thead>
+              <tr>
+                <th style="text-align:left;padding:.3rem .6rem">Hole</th>
+                <th style="text-align:left;padding:.3rem .6rem">Par</th>
+                <th style="text-align:left;padding:.3rem .6rem">Stroke Index</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% for (let h = 1; h <= 18; h++) { %>
+                <tr>
+                  <td style="padding:.2rem .6rem;font-weight:600"><%= h %></td>
+                  <td style="padding:.2rem .6rem">
+                    <input type="number" name="hole_par_<%= h %>" min="3" max="6" value="4" required
+                           style="padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;width:70px" />
+                  </td>
+                  <td style="padding:.2rem .6rem">
+                    <input type="number" name="hole_si_<%= h %>" min="1" max="18" value="<%= h %>" required
+                           style="padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;width:70px" />
+                  </td>
+                </tr>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+        <p class="admin-hint" style="margin-bottom:1rem">Stroke Index should be a unique number 1–18 across the round (1 = hardest hole).</p>
+
+        <h3 style="font-size:.9rem;font-weight:700;margin-bottom:.6rem">Teams</h3>
+        <div style="margin-bottom:.6rem">
+          <label class="form-label">Number of teams</label>
+          <input type="number" name="num_teams" id="num-teams" min="2" max="10" value="2"
+                 style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;width:110px;display:block;margin-top:.3rem" />
+        </div>
+        <div id="team-names"></div>
+      </div>
+
       <button type="submit" class="btn" style="font-size:1rem;padding:.6rem 1.5rem">Create game →</button>
     </form>
   </main>
@@ -128,17 +189,47 @@
 
   <script>
     // Game type toggle
-    const gameType    = document.getElementById('game-type');
-    const golfSection = document.getElementById('golf-section');
-    const lmsSection  = document.getElementById('lms-section');
+    const gameType        = document.getElementById('game-type');
+    const golfSection      = document.getElementById('golf-section');
+    const lmsSection        = document.getElementById('lms-section');
+    const scorecardSection = document.getElementById('scorecard-section');
 
     function updateType() {
-      const isGolf = gameType.value === 'golf_draft';
-      golfSection.style.display = isGolf ? '' : 'none';
-      lmsSection.style.display  = isGolf ? 'none' : '';
+      golfSection.style.display      = gameType.value === 'golf_draft'      ? '' : 'none';
+      lmsSection.style.display       = gameType.value === 'last_man_standing' ? '' : 'none';
+      scorecardSection.style.display = gameType.value === 'golf_scorecard'  ? '' : 'none';
     }
     gameType.addEventListener('change', updateType);
     updateType();
+
+    // Golf Scorecard: team name fields, regenerated as the team count changes
+    const numTeamsInput = document.getElementById('num-teams');
+    const teamNamesDiv  = document.getElementById('team-names');
+
+    function updateTeamNames() {
+      const count = Math.min(10, Math.max(2, parseInt(numTeamsInput.value) || 2));
+      const existing = Array.from(teamNamesDiv.querySelectorAll('input')).map(i => i.value);
+      teamNamesDiv.innerHTML = '';
+      for (let i = 1; i <= count; i++) {
+        const wrap = document.createElement('div');
+        wrap.style.marginBottom = '.5rem';
+        const label = document.createElement('label');
+        label.className = 'form-label';
+        label.textContent = `Team ${i} name`;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.name = `team_name_${i}`;
+        input.maxLength = 50;
+        input.required = true;
+        input.value = existing[i - 1] || `Team ${i}`;
+        input.style = 'padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;min-width:220px;display:block;margin-top:.3rem';
+        wrap.appendChild(label);
+        wrap.appendChild(input);
+        teamNamesDiv.appendChild(wrap);
+      }
+    }
+    numTeamsInput.addEventListener('input', updateTeamNames);
+    updateTeamNames();
 
     // Entry fee total
     const prizeTeam  = document.getElementById('prize-team');
