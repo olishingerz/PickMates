@@ -483,6 +483,17 @@ CREATE TABLE IF NOT EXISTS scorecard_scores (
   UNIQUE(participant_id, hole_number)
 );
 
+-- Golf Scorecard: closest-to-the-pin on par-3 holes — one holder per hole,
+-- game-wide (not per-team); nominating someone new replaces the previous holder.
+CREATE TABLE IF NOT EXISTS scorecard_closest_to_pin (
+  id              SERIAL PRIMARY KEY,
+  game_id         INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  hole_number     INTEGER NOT NULL,
+  participant_id  INTEGER NOT NULL REFERENCES game_participants(id) ON DELETE CASCADE,
+  created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(game_id, hole_number)
+);
+
 -- ── One-time data fixes ───────────────────────────────────────────────────────
 -- Fix ESPN name mismatches for Masters 2026 (Samuel Stevens / Nicolas Echavarria)
 UPDATE picks SET player_name = 'Sam Stevens'

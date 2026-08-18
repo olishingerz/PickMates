@@ -73,7 +73,59 @@
         <% } %>
       </div>
 
+      <!-- ── Closest to the pin (par 3s) ───────────────────────────────── -->
+      <% if (closestToPin.length > 0) { %>
+        <%
+          const ctpEditable = !game.tournament_complete && (canManage || (myParticipant && myParticipant.is_captain));
+        %>
+        <h2 class="section-title mt-lg">⭐ Closest to the Pin</h2>
+        <div class="card">
+          <div class="leaderboard-table-wrap">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Hole</th>
+                  <th>Current holder</th>
+                  <% if (ctpEditable) { %><th>Set / change</th><% } %>
+                </tr>
+              </thead>
+              <tbody>
+                <% closestToPin.forEach(c => { %>
+                  <tr>
+                    <td>#<%= c.hole_number %></td>
+                    <td>
+                      <% if (c.holder) { %>
+                        ⭐ <strong><%= c.holder.username %></strong>
+                        <% if (c.holder.team_name) { %><span class="muted" style="font-size:.78rem"> (<%= c.holder.team_name %>)</span><% } %>
+                      <% } else { %>
+                        <span class="muted">Not set</span>
+                      <% } %>
+                    </td>
+                    <% if (ctpEditable) { %>
+                      <td>
+                        <form action="/game/<%= game.id %>/scorecard/closest-to-pin" method="POST" style="display:flex;gap:.4rem;align-items:center">
+                          <input type="hidden" name="hole_number" value="<%= c.hole_number %>" />
+                          <select name="participant_id" style="padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem">
+                            <% allParticipants.forEach(p => { %>
+                              <option value="<%= p.participant_id %>" <%= c.holder && c.holder.participant_id === p.participant_id ? 'selected' : '' %>>
+                                <%= p.username %><% if (p.team_name) { %> (<%= p.team_name %>)<% } %>
+                              </option>
+                            <% }) %>
+                          </select>
+                          <button type="submit" class="btn btn-sm" style="padding:.2rem .55rem;font-size:.78rem">Save</button>
+                        </form>
+                      </td>
+                    <% } %>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      <% } %>
+
       <!-- ── Per-team scorecards ────────────────────────────────────────── -->
+      <% const ctpHolderByHole = new Map(closestToPin.map(c => [c.hole_number, c.holder ? c.holder.participant_id : null])); %>
       <% teams.forEach(team => { %>
         <%
           const editable = !game.tournament_complete && (canManage || (myParticipant && myParticipant.is_captain && myParticipant.scorecard_team_id === team.id));
@@ -118,6 +170,7 @@
                             <%= hs && hs.strokes !== null ? hs.strokes : '—' %>
                           <% } %>
                           <% if (hs && hs.points !== null) { %><span class="muted" style="font-size:.72rem"> (<%= hs.points %>pt)</span><% } %>
+                          <% if (ctpHolderByHole.get(h.hole_number) === p.participant_id) { %><span title="Closest to the pin">⭐</span><% } %>
                         </td>
                       <% }) %>
                       <td><%= team.holeTotals[hIdx] !== null ? team.holeTotals[hIdx] : '—' %></td>

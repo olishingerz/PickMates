@@ -143,8 +143,7 @@ router.get('/:gameId', async (req, res) => {
       const data      = await getScorecardData(gameId, userId);
       const hostFlag  = await scorecardIsHost(req, gameId);
       const manageFlag = await scorecardCanManage(req, gameId);
-      const myParticipant = [...data.teams.flatMap(t => t.players), ...data.unassignedParticipants]
-        .find(p => p.user_id === userId) || null;
+      const myParticipant = data.allParticipants.find(p => p.user_id === userId) || null;
 
       return res.render('scorecard', {
         ...data,
