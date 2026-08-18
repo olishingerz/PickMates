@@ -96,7 +96,29 @@ router.get('/games/create', async (req, res) => {
   } catch (e) {
     console.warn('[create page] tournament fetch failed:', e.message);
   }
-  res.render('create-game', { tournaments, error: req.query.error || null });
+
+  let savedCourses = [];
+  try {
+    const [coursesRes, holesRes] = await Promise.all([
+      pool.query('SELECT id, name, par FROM saved_courses WHERE user_id = $1 ORDER BY name ASC', [user.id]),
+      pool.query(
+        `SELECT sch.course_id, sch.hole_number, sch.par, sch.stroke_index
+         FROM saved_course_holes sch
+         JOIN saved_courses sc ON sc.id = sch.course_id
+         WHERE sc.user_id = $1
+         ORDER BY sch.hole_number ASC`,
+        [user.id]
+      ),
+    ]);
+    savedCourses = coursesRes.rows.map(c => ({
+      ...c,
+      holes: holesRes.rows.filter(h => h.course_id === c.id).map(h => ({ hole_number: h.hole_number, par: h.par, stroke_index: h.stroke_index })),
+    }));
+  } catch (e) {
+    console.warn('[create page] saved courses fetch failed:', e.message);
+  }
+
+  res.render('create-game', { tournaments, savedCourses, error: req.query.error || null, success: req.query.success || null });
 });
 
 // POST /games/create
@@ -210,12 +232,45 @@ router.post('/games/create', async (req, res) => {
       for (const teamName of teamNames) {
         await pool.query('INSERT INTO scorecard_teams (game_id, name) VALUES ($1,$2)', [gameId, teamName]);
       }
+
+      // Optionally save this course to the host's library for next time
+      if (req.body.save_course === '1') {
+        try {
+          const { rows: savedRows } = await pool.query(
+            'INSERT INTO saved_courses (user_id, name, par) VALUES ($1,$2,$3) RETURNING id',
+            [user.id, courseName, coursePar]
+          );
+          const savedCourseId = savedRows[0].id;
+          for (const h of holes) {
+            await pool.query(
+              'INSERT INTO saved_course_holes (course_id, hole_number, par, stroke_index) VALUES ($1,$2,$3,$4)',
+              [savedCourseId, h.hole_number, h.par, h.stroke_index]
+            );
+          }
+        } catch (e) {
+          console.warn('[create] saving course to library failed:', e.message);
+        }
+      }
     }
 
     res.redirect(`/game/${gameId}/draft`);
   } catch (err) {
     console.error('[create game]', err);
     res.redirect('/games/create?error=' + encodeURIComponent('Could not create game.'));
+  }
+});
+
+// POST /games/create/delete-course — remove a saved course from your library
+router.post('/games/create/delete-course', async (req, res) => {
+  const user = req.session.user;
+  if (!user) return res.redirect('/auth/login');
+  const courseId = parseInt(req.body.course_id);
+  try {
+    await pool.query('DELETE FROM saved_courses WHERE id = $1 AND user_id = $2', [courseId, user.id]);
+    res.redirect('/games/create?success=' + encodeURIComponent('Course removed from your library.'));
+  } catch (err) {
+    console.error('[delete-course]', err);
+    res.redirect('/games/create?error=' + encodeURIComponent('Could not remove course.'));
   }
 });
 

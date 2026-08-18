@@ -21,6 +21,7 @@
     </div>
 
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+    <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
 
     <form action="/games/create" method="POST" id="create-form">
 
@@ -125,15 +126,40 @@
       <div id="scorecard-section" class="card" style="margin-bottom:1rem;display:none">
         <h2 class="section-title">Golf Scorecard Settings</h2>
 
+        <% if (savedCourses.length > 0) { %>
+          <div style="margin-bottom:1rem">
+            <label class="form-label">Course</label>
+            <select id="saved-course-select"
+                    style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;background:#fff;display:block;margin-top:.3rem;min-width:220px">
+              <option value="">— New course —</option>
+              <% savedCourses.forEach(c => { %>
+                <option value="<%= c.id %>"><%= c.name %> (Par <%= c.par %>)</option>
+              <% }) %>
+            </select>
+            <div style="margin-top:.5rem;display:flex;flex-direction:column;gap:.25rem">
+              <% savedCourses.forEach(c => { %>
+                <div style="display:flex;align-items:center;gap:.4rem;font-size:.78rem" class="muted">
+                  <span><%= c.name %></span>
+                  <form action="/games/create/delete-course" method="POST" style="display:inline"
+                        onsubmit="return confirm('Remove \'<%= c.name.replace(/'/g, "\\'") %>\' from your saved courses?')">
+                    <input type="hidden" name="course_id" value="<%= c.id %>" />
+                    <button type="submit" class="btn btn-sm btn-danger" style="padding:.05rem .35rem;font-size:.72rem">✕</button>
+                  </form>
+                </div>
+              <% }) %>
+            </div>
+          </div>
+        <% } %>
+
         <div style="display:flex;gap:.8rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1rem">
           <div>
             <label class="form-label">Course name</label>
-            <input type="text" name="course_name" maxlength="200" placeholder="e.g. St Andrews"
+            <input type="text" name="course_name" id="course-name" maxlength="200" placeholder="e.g. St Andrews"
                    style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;min-width:220px;display:block;margin-top:.3rem" />
           </div>
           <div>
             <label class="form-label">Course par</label>
-            <input type="number" name="course_par" min="60" max="80" value="72"
+            <input type="number" name="course_par" id="course-par" min="60" max="80" value="72"
                    style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;width:110px;display:block;margin-top:.3rem" />
           </div>
           <div>
@@ -158,11 +184,11 @@
                 <tr>
                   <td style="padding:.2rem .6rem;font-weight:600"><%= h %></td>
                   <td style="padding:.2rem .6rem">
-                    <input type="number" name="hole_par_<%= h %>" min="3" max="6" value="4" required
+                    <input type="number" name="hole_par_<%= h %>" id="hole-par-<%= h %>" min="3" max="6" value="4" required
                            style="padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;width:70px" />
                   </td>
                   <td style="padding:.2rem .6rem">
-                    <input type="number" name="hole_si_<%= h %>" min="1" max="18" value="<%= h %>" required
+                    <input type="number" name="hole_si_<%= h %>" id="hole-si-<%= h %>" min="1" max="18" value="<%= h %>" required
                            style="padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;width:70px" />
                   </td>
                 </tr>
@@ -171,6 +197,11 @@
           </table>
         </div>
         <p class="admin-hint" style="margin-bottom:1rem">Stroke Index should be a unique number 1–18 across the round (1 = hardest hole).</p>
+
+        <label style="display:flex;align-items:center;gap:.4rem;font-size:.9rem;cursor:pointer;margin-bottom:1.2rem">
+          <input type="checkbox" name="save_course" id="save-course" value="1" checked />
+          💾 Save this course to my library for next time
+        </label>
 
         <h3 style="font-size:.9rem;font-weight:700;margin-bottom:.6rem">Teams</h3>
         <div style="margin-bottom:.6rem">
@@ -201,6 +232,27 @@
     }
     gameType.addEventListener('change', updateType);
     updateType();
+
+    // Golf Scorecard: prefill course fields from a saved course
+    const SAVED_COURSES = <%- JSON.stringify(savedCourses) %>;
+    const savedCourseSelect = document.getElementById('saved-course-select');
+    const saveCourseCheckbox = document.getElementById('save-course');
+    if (savedCourseSelect) {
+      savedCourseSelect.addEventListener('change', () => {
+        const course = SAVED_COURSES.find(c => String(c.id) === savedCourseSelect.value);
+        if (!course) return;
+        document.getElementById('course-name').value = course.name;
+        document.getElementById('course-par').value = course.par;
+        course.holes.forEach(h => {
+          const parInput = document.getElementById('hole-par-' + h.hole_number);
+          const siInput  = document.getElementById('hole-si-' + h.hole_number);
+          if (parInput) parInput.value = h.par;
+          if (siInput)  siInput.value = h.stroke_index;
+        });
+        // Already saved — don't save a duplicate copy by default
+        if (saveCourseCheckbox) saveCourseCheckbox.checked = false;
+      });
+    }
 
     // Golf Scorecard: team name fields, regenerated as the team count changes
     const numTeamsInput = document.getElementById('num-teams');

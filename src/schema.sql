@@ -494,6 +494,24 @@ CREATE TABLE IF NOT EXISTS scorecard_closest_to_pin (
   UNIQUE(game_id, hole_number)
 );
 
+-- Golf Scorecard: saved course library, per user — lets a host reuse a course's
+-- par/hole setup next time instead of re-entering all 18 holes.
+CREATE TABLE IF NOT EXISTS saved_courses (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name        VARCHAR(200) NOT NULL,
+  par         INTEGER NOT NULL,
+  created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS saved_course_holes (
+  id            SERIAL PRIMARY KEY,
+  course_id     INTEGER NOT NULL REFERENCES saved_courses(id) ON DELETE CASCADE,
+  hole_number   INTEGER NOT NULL,
+  par           INTEGER NOT NULL,
+  stroke_index  INTEGER NOT NULL,
+  UNIQUE(course_id, hole_number)
+);
+
 -- ── One-time data fixes ───────────────────────────────────────────────────────
 -- Fix ESPN name mismatches for Masters 2026 (Samuel Stevens / Nicolas Echavarria)
 UPDATE picks SET player_name = 'Sam Stevens'
