@@ -27,6 +27,9 @@
           <span style="margin-left:.4rem"><%= game.scorecard_course_name %><% if (game.scorecard_course_par) { %> · Par <%= game.scorecard_course_par %><% } %></span>
         <% } %>
       </p>
+      <% if (game.host_username) { %>
+        <p class="muted" style="margin-top:.2rem;font-size:.85rem">👤 Hosted by <strong><%= game.host_username %></strong></p>
+      <% } %>
       <% const totalPlayers = teams.reduce((s, t) => s + t.players.length, 0) + unassignedParticipants.length; %>
       <% if (game.scorecard_entry_fee > 0) { %>
         <p class="muted" style="margin-top:.2rem;font-size:.85rem">Prize pot: <strong>£<%= game.scorecard_entry_fee * totalPlayers %></strong> <span class="muted" style="font-size:.78rem">(£<%= game.scorecard_entry_fee %> × <%= totalPlayers %> player<%= totalPlayers !== 1 ? 's' : '' %>)</span></p>

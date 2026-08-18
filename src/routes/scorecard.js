@@ -54,9 +54,12 @@ function sumField(holeScores, field) {
 async function getScorecardData(gameId, userId) {
   const [gameRes, teamsRes, participantsRes, holesRes, scoresRes, ctpRes] = await Promise.all([
     pool.query(
-      `SELECT id, name, game_type, is_started, tournament_complete, started_at, host_user_id, invite_code,
-              scorecard_course_name, scorecard_course_par, scorecard_entry_fee, winner_username
-       FROM games WHERE id = $1`,
+      `SELECT g.id, g.name, g.game_type, g.is_started, g.tournament_complete, g.started_at, g.host_user_id, g.invite_code,
+              g.scorecard_course_name, g.scorecard_course_par, g.scorecard_entry_fee, g.winner_username,
+              hu.username AS host_username
+       FROM games g
+       LEFT JOIN users hu ON hu.id = g.host_user_id
+       WHERE g.id = $1`,
       [gameId]
     ),
     pool.query('SELECT id, name FROM scorecard_teams WHERE game_id = $1 ORDER BY id ASC', [gameId]),

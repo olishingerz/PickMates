@@ -26,6 +26,9 @@
           <span class="muted"> · Entry fee £<%= game.scorecard_entry_fee %> per player</span>
         <% } %>
       </p>
+      <% if (game.host_username) { %>
+        <p class="last-updated" style="margin-top:.2rem">👤 Hosted by <strong><%= game.host_username %></strong></p>
+      <% } %>
       <p class="last-updated" style="margin-top:.2rem">
         <% if (user && canManage) { %>
           <strong style="color:var(--green-dark)">Waiting to start.</strong> Get everyone into a team, set handicaps and captains, then start the game.
