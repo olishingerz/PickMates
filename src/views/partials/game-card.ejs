@@ -39,7 +39,7 @@
     <% } %>
   </div>
   <div class="game-card-actions">
-    <a href="/game/<%= g.id %>" class="btn btn-sm">Leaderboard</a>
+    <a href="/game/<%= g.id %>" class="btn btn-sm"><%= g.game_type === 'golf_scorecard' ? 'Scorecard' : 'Leaderboard' %></a>
     <% if (user) { %>
       <% const isGameHost = user.isAdmin || g.host_user_id === user.id; %>
       <% if (!g.is_started) { %>
@@ -63,11 +63,9 @@
         <% } %>
 
       <% } else if (g.is_started && !g.is_complete) { %>
-        <% if (g.user_joined || isGameHost) { %>
+        <% if ((g.user_joined || isGameHost) && g.game_type !== 'golf_scorecard') { %>
           <% if (g.game_type === 'last_man_standing') { %>
             <a href="/game/<%= g.id %>/lms/picks" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Make pick</a>
-          <% } else if (g.game_type === 'golf_scorecard') { %>
-            <a href="/game/<%= g.id %>" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Scorecard</a>
           <% } else { %>
             <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Draft</a>
           <% } %>
