@@ -23,6 +23,23 @@
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
     <% if (success) { %><div class="alert alert-success" style="font-family:monospace"><%= success %></div><% } %>
 
+    <!-- ── Site settings ──────────────────────────────────────────────────── -->
+    <div class="card" style="margin-bottom:2rem">
+      <h2 class="section-title">Who can create games?</h2>
+      <form action="/admin/settings/game-creation" method="POST">
+        <div style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:.8rem">
+          <% ROLE_OPTIONS.forEach(opt => { %>
+            <label style="display:flex;align-items:center;gap:.5rem;font-size:.9rem;cursor:pointer">
+              <input type="checkbox" name="roles" value="<%= opt.value %>"
+                     <%= gameCreationRoles.includes(opt.value) ? 'checked' : '' %> />
+              <%= opt.label %>
+            </label>
+          <% }) %>
+        </div>
+        <button type="submit" class="btn btn-sm">Save</button>
+      </form>
+    </div>
+
     <!-- ── Games ──────────────────────────────────────────────────────────── -->
     <h2 class="section-title">Games <span class="muted" style="font-size:.85rem;font-weight:400">(<%= games.length %>)</span></h2>
     <div class="leaderboard-table-wrap" style="margin-bottom:2rem">

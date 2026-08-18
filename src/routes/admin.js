@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt  = require('bcrypt');
 const { pool } = require('../db');
+const { ROLE_OPTIONS, getGameCreationRoles, setGameCreationRoles } = require('../services/settings');
 
 const ESPN_SCOREBOARD = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
 async function fetchJSON(url) {
@@ -19,7 +20,7 @@ function requireAdmin(req, res, next) {
 // ── GET /admin ────────────────────────────────────────────────────────────────
 router.get('/', requireAdmin, async (req, res) => {
   try {
-    const [usersRes, gamesRes] = await Promise.all([
+    const [usersRes, gamesRes, gameCreationRoles] = await Promise.all([
       pool.query(`
         SELECT u.id, u.username, u.email,
                u.is_admin, u.is_paid, u.is_banned, u.created_at, u.last_seen,
@@ -38,16 +39,36 @@ router.get('/', requireAdmin, async (req, res) => {
         GROUP BY g.id
         ORDER BY g.created_at DESC
       `),
+      getGameCreationRoles(),
     ]);
     res.render('admin', {
       users:  usersRes.rows,
       games:  gamesRes.rows,
+      gameCreationRoles,
+      ROLE_OPTIONS,
       success: req.query.success || null,
       error:   req.query.error   || null,
     });
   } catch (err) {
     console.error('[admin]', err);
     res.redirect('/');
+  }
+});
+
+// ── POST /admin/settings/game-creation ──────────────────────────────────────────
+router.post('/settings/game-creation', requireAdmin, async (req, res) => {
+  const rawRoles = Array.isArray(req.body.roles) ? req.body.roles : req.body.roles ? [req.body.roles] : [];
+  if (rawRoles.length === 0) {
+    return res.redirect('/admin?error=' + encodeURIComponent('Select at least one option for who can create games.'));
+  }
+  try {
+    const saved = await setGameCreationRoles(rawRoles);
+    res.redirect('/admin?success=' + encodeURIComponent(
+      `Game creation is now allowed for: ${saved.join(', ')}.`
+    ));
+  } catch (err) {
+    console.error('[admin settings/game-creation]', err);
+    res.redirect('/admin?error=' + encodeURIComponent('Could not save setting.'));
   }
 });
 

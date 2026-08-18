@@ -404,6 +404,14 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- ── Site settings (singleton row) ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS site_settings (
+  id                     INTEGER PRIMARY KEY DEFAULT 1,
+  game_creation_roles    TEXT DEFAULT 'admin,paid',
+  CONSTRAINT site_settings_single_row CHECK (id = 1)
+);
+INSERT INTO site_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
 -- ── Sessions ──────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS session (
   sid     VARCHAR NOT NULL COLLATE "default",

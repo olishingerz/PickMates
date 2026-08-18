@@ -14,6 +14,7 @@ const { scrapeAllGames } = require('./services/scraper');
 const { sendLmsDeadlineEmails } = require('./services/email');
 const { getCurrentGameweekFixtures, processResults } = require('./services/football');
 const { processGameResults } = require('./routes/lms');
+const { getGameCreationRoles, canCreateGames } = require('./services/settings');
 
 const app = express();
 
@@ -35,6 +36,11 @@ app.use(session({
 app.use(async (req, res, next) => {
   res.locals.user = req.session.user || null;
   res.locals.impersonating = req.session.adminUserId ? true : false;
+  try {
+    res.locals.canCreateGames = canCreateGames(req.session.user || null, await getGameCreationRoles());
+  } catch (_) {
+    res.locals.canCreateGames = req.session.user?.isAdmin || false;
+  }
   if (req.session.user) {
     // Sync avatar + paid status on first request of the session
     if (req.session.user.avatar === undefined) {

@@ -4,6 +4,7 @@ const { fetchTournamentList, scrapeLeaderboard, computeRanks } = require('../ser
 const { LEAGUE_NAMES } = require('../services/football');
 const { PICKS_PER_PLAYER, SCORES_THAT_COUNT, MIN_CUT_MAKERS } = require('../constants');
 const { getLmsData } = require('./lms');
+const { getGameCreationRoles, canCreateGames } = require('../services/settings');
 
 const router = express.Router();
 
@@ -79,8 +80,8 @@ router.get('/', async (req, res) => {
 router.get('/games/create', async (req, res) => {
   const user = req.session.user;
   if (!user) return res.redirect('/auth/login');
-  if (!user.isAdmin && !user.isPaid) {
-    return res.redirect('/?error=' + encodeURIComponent('You need a paid membership to create games.'));
+  if (!canCreateGames(user, await getGameCreationRoles())) {
+    return res.redirect('/?error=' + encodeURIComponent('You don\'t have permission to create games.'));
   }
   let tournaments = [];
   try {
@@ -102,8 +103,8 @@ router.get('/games/create', async (req, res) => {
 router.post('/games/create', async (req, res) => {
   const user = req.session.user;
   if (!user) return res.redirect('/auth/login');
-  if (!user.isAdmin && !user.isPaid) {
-    return res.redirect('/?error=' + encodeURIComponent('You need a paid membership to create games.'));
+  if (!canCreateGames(user, await getGameCreationRoles())) {
+    return res.redirect('/?error=' + encodeURIComponent('You don\'t have permission to create games.'));
   }
 
   const name     = req.body.name?.trim();
