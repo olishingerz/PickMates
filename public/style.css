@@ -1010,9 +1010,11 @@ a.nav-user:hover { color: var(--green); }
   .leaderboard-table { font-size: .82rem; }
   .leaderboard-table td { padding: .7rem .5rem; }
   .leaderboard-table th { padding: .6rem .5rem; }
-  /* Hide "Best player" column (5th) — visible above */
-  .leaderboard-table th:nth-child(5),
-  .leaderboard-table td:nth-child(5) { display: none; }
+  /* Hide "Best player" column (5th) on the Golf Draft team standings table only —
+     scoped narrowly so it doesn't eat a column from other leaderboard-table uses
+     (e.g. LMS's weekly picks, or Golf Scorecard's per-player scoring grid) */
+  .team-standings-table th:nth-child(5),
+  .team-standings-table td:nth-child(5) { display: none; }
 
   /* Squads: single column */
   .squads-grid { grid-template-columns: 1fr; }

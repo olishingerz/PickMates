@@ -44,6 +44,7 @@
 
       <!-- ── Standings ──────────────────────────────────────────────────── -->
       <h2 class="section-title mt-lg">Standings</h2>
+      <p class="admin-hint" style="margin-bottom:.6rem">Only each team's best 3 Stableford scores count on every hole.</p>
       <div class="card">
         <% if (standings.length === 0) { %>
           <p class="muted">No teams yet.</p>
@@ -73,7 +74,40 @@
         <% } %>
       </div>
 
-      <!-- ── Closest to the pin (par 3s) ───────────────────────────────── -->
+      <!-- ── Individual scoreboard ─────────────────────────────────────── -->
+      <h2 class="section-title mt-lg">🏌️ Individual Scoreboard</h2>
+      <div class="card">
+        <% if (individualStandings.length === 0) { %>
+          <p class="muted">No players yet.</p>
+        <% } else { %>
+          <div class="leaderboard-table-wrap">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>Team</th>
+                  <th>Thru</th>
+                  <th>Points</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% individualStandings.forEach((p, i) => { %>
+                  <tr class="<%= myParticipant && p.participant_id === myParticipant.participant_id ? 'my-row' : '' %>">
+                    <td>#<%= i + 1 %></td>
+                    <td><%= p.username %><% if (p.is_captain) { %> ⭐<% } %></td>
+                    <td><%= p.team_name || '—' %></td>
+                    <td><%= p.thru %>/18</td>
+                    <td><strong><%= p.total18.points !== null ? p.total18.points : 0 %></strong> pts</td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      </div>
+
+      <!-- ── Closest to the pin ────────────────────────────────────────── -->
       <% if (closestToPin.length > 0) { %>
         <%
           const ctpEditable = !game.tournament_complete && (canManage || (myParticipant && myParticipant.is_captain));
@@ -175,11 +209,41 @@
                       <% }) %>
                       <td><%= team.holeTotals[hIdx] !== null ? team.holeTotals[hIdx] : '—' %></td>
                     </tr>
+                    <% if (h.hole_number === 9) { %>
+                      <tr style="font-weight:700;background:var(--green-light)">
+                        <td colspan="3">OUT</td>
+                        <% team.players.forEach(p => { %>
+                          <td>
+                            <%= p.front9.strokes !== null ? p.front9.strokes : '—' %>
+                            <% if (p.front9.points !== null) { %><span class="muted" style="font-size:.72rem"> (<%= p.front9.points %>pt)</span><% } %>
+                          </td>
+                        <% }) %>
+                        <td><%= team.frontPoints !== null ? team.frontPoints : '—' %> pts</td>
+                      </tr>
+                    <% } %>
+                    <% if (h.hole_number === 18) { %>
+                      <tr style="font-weight:700;background:var(--green-light)">
+                        <td colspan="3">IN</td>
+                        <% team.players.forEach(p => { %>
+                          <td>
+                            <%= p.back9.strokes !== null ? p.back9.strokes : '—' %>
+                            <% if (p.back9.points !== null) { %><span class="muted" style="font-size:.72rem"> (<%= p.back9.points %>pt)</span><% } %>
+                          </td>
+                        <% }) %>
+                        <td><%= team.backPoints !== null ? team.backPoints : '—' %> pts</td>
+                      </tr>
+                      <tr style="font-weight:700">
+                        <td colspan="3">TOTAL</td>
+                        <% team.players.forEach(p => { %>
+                          <td>
+                            <%= p.total18.strokes !== null ? p.total18.strokes : '—' %>
+                            <% if (p.total18.points !== null) { %><span class="muted" style="font-size:.72rem"> (<%= p.total18.points %>pt)</span><% } %>
+                          </td>
+                        <% }) %>
+                        <td><%= team.totalPoints %> pts</td>
+                      </tr>
+                    <% } %>
                   <% }) %>
-                  <tr style="font-weight:700">
-                    <td colspan="<%= 3 + team.players.length %>">Total</td>
-                    <td><%= team.totalPoints %> pts</td>
-                  </tr>
                 </tbody>
               </table>
             </div>

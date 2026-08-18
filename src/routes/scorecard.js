@@ -42,6 +42,18 @@ function stablefordPoints(strokes, par, strokeIndex, handicap) {
   return Math.max(0, 2 - (net - par));
 }
 
+// Only the team's best N Stableford scores count on each hole (a "best-ball"-style
+// counting format), not every player's — keeps bigger teams from being penalised.
+const TEAM_COUNTING_SCORES = 3;
+
+// Closest-to-the-pin is only contested on this hole, not every par 3
+const CLOSEST_TO_PIN_HOLE = 17;
+
+function sumField(holeScores, field) {
+  const vals = holeScores.map(hs => hs[field]).filter(v => v !== null && v !== undefined);
+  return vals.length > 0 ? vals.reduce((s, v) => s + v, 0) : null;
+}
+
 async function getScorecardData(gameId, userId) {
   const [gameRes, teamsRes, participantsRes, holesRes, scoresRes, ctpRes] = await Promise.all([
     pool.query(
@@ -90,7 +102,17 @@ async function getScorecardData(gameId, userId) {
         points: stablefordPoints(strokes, h.par, h.stroke_index, p.handicap),
       };
     });
-    const player = { ...p, team_name: teamNameById.get(p.scorecard_team_id) || null, holeScores };
+    const frontNine = holeScores.filter(hs => hs.hole_number <= 9);
+    const backNine  = holeScores.filter(hs => hs.hole_number > 9);
+    const player = {
+      ...p,
+      team_name: teamNameById.get(p.scorecard_team_id) || null,
+      holeScores,
+      front9:  { strokes: sumField(frontNine, 'strokes'), points: sumField(frontNine, 'points') },
+      back9:   { strokes: sumField(backNine,  'strokes'), points: sumField(backNine,  'points') },
+      total18: { strokes: sumField(holeScores, 'strokes'), points: sumField(holeScores, 'points') },
+      thru: holeScores.filter(hs => hs.strokes !== null).length,
+    };
     participantById.set(p.participant_id, player);
 
     if (p.scorecard_team_id) {
@@ -107,22 +129,28 @@ async function getScorecardData(gameId, userId) {
       const pts = players
         .map(p => p.holeScores.find(hs => hs.hole_number === h.hole_number)?.points)
         .filter(v => v !== null && v !== undefined);
-      return pts.length > 0 ? pts.reduce((s, v) => s + v, 0) : null;
+      if (pts.length === 0) return null;
+      const counting = [...pts].sort((a, b) => b - a).slice(0, TEAM_COUNTING_SCORES);
+      return counting.reduce((s, v) => s + v, 0);
     });
     const totalPoints = holeTotals.some(v => v !== null)
       ? holeTotals.reduce((s, v) => s + (v || 0), 0)
       : 0;
+    const frontTotals = holeTotals.slice(0, 9);
+    const backTotals  = holeTotals.slice(9, 18);
+    const frontPoints = frontTotals.some(v => v !== null) ? frontTotals.reduce((s, v) => s + (v || 0), 0) : null;
+    const backPoints  = backTotals.some(v => v !== null)  ? backTotals.reduce((s, v) => s + (v || 0), 0)  : null;
     const thru = holes.filter(h =>
       players.length > 0 && players.every(p => p.holeScores.find(hs => hs.hole_number === h.hole_number)?.strokes != null)
     ).length;
-    return { ...t, players, holeTotals, totalPoints, thru };
+    return { ...t, players, holeTotals, totalPoints, frontPoints, backPoints, thru };
   });
 
   const standings = [...teams].sort((a, b) => b.totalPoints - a.totalPoints);
 
   const ctpByHole = new Map(ctpRes.rows.map(r => [r.hole_number, r.participant_id]));
   const closestToPin = holes
-    .filter(h => h.par === 3)
+    .filter(h => h.hole_number === CLOSEST_TO_PIN_HOLE)
     .map(h => ({
       hole_number: h.hole_number,
       holder: participantById.get(ctpByHole.get(h.hole_number)) || null,
@@ -130,7 +158,13 @@ async function getScorecardData(gameId, userId) {
 
   const allParticipants = participants.map(p => participantById.get(p.participant_id));
 
-  return { game, teams, standings, holes, unassignedParticipants, allParticipants, closestToPin, userId };
+  const individualStandings = [...allParticipants].sort((a, b) => {
+    const bp = b.total18.points ?? -1;
+    const ap = a.total18.points ?? -1;
+    return bp - ap;
+  });
+
+  return { game, teams, standings, holes, unassignedParticipants, allParticipants, individualStandings, closestToPin, userId };
 }
 
 // Called from draft.js when game_type === 'golf_scorecard'
@@ -295,6 +329,41 @@ router.post('/add-player', requireAuth, async (req, res) => {
   }
 });
 
+// POST /game/:gameId/scorecard/remove-player — host/co-host: remove a player from the game
+router.post('/remove-player', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  const base   = `/game/${gameId}/draft`;
+  if (!await canManage(req, gameId)) return res.redirect(base);
+
+  const participantId = parseInt(req.body.participant_id);
+  if (!participantId) return res.redirect(base + '?error=' + encodeURIComponent('Invalid player.'));
+
+  try {
+    const { rows: gameRows } = await pool.query('SELECT is_started, host_user_id FROM games WHERE id = $1', [gameId]);
+    if (!gameRows[0]) return res.redirect('/');
+    if (gameRows[0].is_started) {
+      return res.redirect(base + '?error=' + encodeURIComponent('The game has already started — teams are locked in.'));
+    }
+
+    const { rows: participantRows } = await pool.query(
+      'SELECT user_id FROM game_participants WHERE id = $1 AND game_id = $2',
+      [participantId, gameId]
+    );
+    if (!participantRows[0]) {
+      return res.redirect(base + '?error=' + encodeURIComponent('Player not found.'));
+    }
+    if (participantRows[0].user_id === gameRows[0].host_user_id) {
+      return res.redirect(base + '?error=' + encodeURIComponent('Cannot remove the host from the game.'));
+    }
+
+    await pool.query('DELETE FROM game_participants WHERE id = $1 AND game_id = $2', [participantId, gameId]);
+    res.redirect(base + '?success=' + encodeURIComponent('Player removed.'));
+  } catch (err) {
+    console.error('[scorecard remove-player]', err);
+    res.redirect(base + '?error=' + encodeURIComponent('Failed to remove player.'));
+  }
+});
+
 // POST /game/:gameId/scorecard/handicap — host/co-host: set a participant's handicap
 router.post('/handicap', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
@@ -445,7 +514,7 @@ router.post('/scores', requireAuth, async (req, res) => {
 });
 
 // POST /game/:gameId/scorecard/closest-to-pin — captain (any team) or host/co-host:
-// nominate a player as closest-to-the-pin on a par-3 hole, replacing any previous holder
+// nominate a player as closest-to-the-pin on the designated hole, replacing any previous holder
 router.post('/closest-to-pin', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base = `/game/${gameId}`;
@@ -473,12 +542,8 @@ router.post('/closest-to-pin', requireAuth, async (req, res) => {
       }
     }
 
-    const { rows: holeRows } = await pool.query(
-      'SELECT par FROM scorecard_holes WHERE game_id = $1 AND hole_number = $2',
-      [gameId, holeNumber]
-    );
-    if (!holeRows[0] || holeRows[0].par !== 3) {
-      return res.redirect(base + '?error=' + encodeURIComponent('Closest to the pin only applies to par-3 holes.'));
+    if (holeNumber !== CLOSEST_TO_PIN_HOLE) {
+      return res.redirect(base + '?error=' + encodeURIComponent(`Closest to the pin is only tracked on hole ${CLOSEST_TO_PIN_HOLE}.`));
     }
 
     const { rows: participantRows } = await pool.query(

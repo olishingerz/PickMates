@@ -64,6 +64,7 @@
                   <th>Player</th>
                   <th>Handicap</th>
                   <th>Captain</th>
+                  <% if (canManage) { %><th></th><% } %>
                 </tr>
               </thead>
               <tbody>
@@ -96,6 +97,15 @@
                         <% if (p.is_captain) { %><span class="status-badge status-live">⭐ Captain</span><% } else { %>—<% } %>
                       <% } %>
                     </td>
+                    <% if (canManage) { %>
+                      <td>
+                        <form action="/game/<%= game.id %>/scorecard/remove-player" method="POST" style="display:inline">
+                          <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
+                          <button type="submit" class="btn btn-sm btn-danger" style="padding:.15rem .45rem;font-size:.8rem"
+                                  onclick="return confirm('Remove <%= p.username.replace(/'/g, "\\'") %> from this game?')">✕</button>
+                        </form>
+                      </td>
+                    <% } %>
                   </tr>
                 <% }) %>
               </tbody>
@@ -129,9 +139,18 @@
     <% if (unassignedParticipants.length > 0) { %>
       <div class="card" style="margin-bottom:1rem;background:#fffbeb;border:1px solid #f59e0b">
         <h2 class="section-title">Not yet on a team</h2>
-        <ul style="margin:0;padding-left:1.2rem">
+        <ul style="margin:0;padding-left:1.2rem;list-style:none">
           <% unassignedParticipants.forEach(p => { %>
-            <li style="font-size:.9rem"><%= p.username %></li>
+            <li style="font-size:.9rem;display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem">
+              <%= p.username %>
+              <% if (canManage) { %>
+                <form action="/game/<%= game.id %>/scorecard/remove-player" method="POST" style="display:inline">
+                  <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
+                  <button type="submit" class="btn btn-sm btn-danger" style="padding:.1rem .4rem;font-size:.75rem"
+                          onclick="return confirm('Remove <%= p.username.replace(/'/g, "\\'") %> from this game?')">✕</button>
+                </form>
+              <% } %>
+            </li>
           <% }) %>
         </ul>
       </div>
