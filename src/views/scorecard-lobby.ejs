@@ -102,8 +102,28 @@
             </table>
           </div>
         <% } %>
+
+        <% if (canManage) { %>
+          <form action="/game/<%= game.id %>/scorecard/add-player" method="POST"
+                style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-top:.7rem;padding-top:.7rem;border-top:1px solid var(--border)">
+            <input type="hidden" name="team_id" value="<%= team.id %>" />
+            <input type="text" name="username" list="all-usernames" placeholder="Add player by username…" maxlength="50" required
+                   autocomplete="off"
+                   style="padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;min-width:200px" />
+            <button type="submit" class="btn btn-sm">+ Add</button>
+          </form>
+        <% } %>
       </div>
     <% }) %>
+
+    <% if (canManage) { %>
+      <datalist id="all-usernames">
+        <% suggestedUsernames.forEach(u => { %><option value="<%= u %>"></option><% }) %>
+      </datalist>
+      <p class="admin-hint" style="margin-top:-.5rem;margin-bottom:1rem">
+        Adding a player creates a lightweight account for them if they don't have one — they don't need to log in unless they want to.
+      </p>
+    <% } %>
 
     <!-- ── Unassigned players (shouldn't normally happen — joining always picks a team) ── -->
     <% if (unassignedParticipants.length > 0) { %>

@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcrypt');
 const { pool } = require('../db');
 
 const router = express.Router({ mergeParams: true });
@@ -146,6 +147,19 @@ async function renderLobby(req, res, gameId) {
       return res.redirect(`/game/${gameId}`);
     }
 
+    // Suggestions for the host's "add player" search box — existing usernames
+    // not already in this game (they may or may not have logged in themselves)
+    let suggestedUsernames = [];
+    if (manageFlag) {
+      const { rows } = await pool.query(
+        `SELECT username FROM users
+         WHERE id NOT IN (SELECT user_id FROM game_participants WHERE game_id = $1)
+         ORDER BY username ASC`,
+        [gameId]
+      );
+      suggestedUsernames = rows.map(r => r.username);
+    }
+
     // Unlike golf_draft/LMS, viewing this lobby is itself how a new player joins
     // (picking a team creates their game_participants row) — any logged-in user
     // may view it, not just existing participants.
@@ -153,6 +167,7 @@ async function renderLobby(req, res, gameId) {
       ...data,
       isHost: hostFlag,
       canManage: manageFlag,
+      suggestedUsernames,
       error:   req.query.error   || null,
       success: req.query.success || null,
     });
@@ -197,6 +212,86 @@ router.post('/join-team', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[scorecard join-team]', err);
     res.redirect(base + '?error=' + encodeURIComponent('Failed to join team.'));
+  }
+});
+
+// POST /game/:gameId/scorecard/add-player — host/co-host: add a player to a team by
+// username, without requiring them to join themselves. Creates a lightweight account
+// with a temp password if that username doesn't exist yet — captains do the scoring,
+// so most added players never need to log in at all.
+router.post('/add-player', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  const base   = `/game/${gameId}/draft`;
+  if (!await canManage(req, gameId)) return res.redirect(base);
+
+  const username = req.body.username?.trim();
+  const teamId   = parseInt(req.body.team_id);
+  if (!username || username.length < 2 || username.length > 50) {
+    return res.redirect(base + '?error=' + encodeURIComponent('Username must be between 2 and 50 characters.'));
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: stateRows } = await client.query('SELECT is_started FROM games WHERE id = $1', [gameId]);
+    if (stateRows[0]?.is_started) {
+      await client.query('ROLLBACK');
+      return res.redirect(base + '?error=' + encodeURIComponent('The game has already started — teams are locked in.'));
+    }
+
+    const { rows: teamRows } = await client.query('SELECT id FROM scorecard_teams WHERE id = $1 AND game_id = $2', [teamId, gameId]);
+    if (!teamRows[0]) {
+      await client.query('ROLLBACK');
+      return res.redirect(base + '?error=' + encodeURIComponent('Invalid team.'));
+    }
+
+    // Create the account if it doesn't already exist
+    let userId;
+    let tempPassword = null;
+    const { rows: existingUser } = await client.query('SELECT id FROM users WHERE username = $1', [username]);
+    if (existingUser.length > 0) {
+      userId = existingUser[0].id;
+    } else {
+      const suffix = Math.random().toString(36).slice(2, 6);
+      tempPassword = `golf-${suffix}`;
+      const passwordHash = await bcrypt.hash(tempPassword, 10);
+      const { rows } = await client.query(
+        'INSERT INTO users (username, password_hash, must_change_password) VALUES ($1, $2, TRUE) RETURNING id',
+        [username, passwordHash]
+      );
+      userId = rows[0].id;
+    }
+
+    // Check not already in this game
+    const { rows: alreadyIn } = await client.query(
+      'SELECT id FROM game_participants WHERE game_id = $1 AND user_id = $2',
+      [gameId, userId]
+    );
+    if (alreadyIn.length > 0) {
+      await client.query('ROLLBACK');
+      return res.redirect(base + '?error=' + encodeURIComponent(`${username} is already in this game.`));
+    }
+
+    await client.query(
+      'INSERT INTO game_participants (game_id, user_id, scorecard_team_id) VALUES ($1, $2, $3)',
+      [gameId, userId, teamId]
+    );
+    await client.query('COMMIT');
+
+    const msg = tempPassword
+      ? `${username} added to the team. Temp password (only needed if they want to log in themselves): ${tempPassword}`
+      : `${username} added to the team.`;
+    res.redirect(base + '?success=' + encodeURIComponent(msg));
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err.code === '23505') {
+      return res.redirect(base + '?error=' + encodeURIComponent(`"${username}" is already taken.`));
+    }
+    console.error('[scorecard add-player]', err);
+    res.redirect(base + '?error=' + encodeURIComponent('Failed to add player.'));
+  } finally {
+    client.release();
   }
 });
 
