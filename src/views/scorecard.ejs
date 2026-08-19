@@ -189,7 +189,7 @@
                     <th>Par</th>
                     <th>SI</th>
                     <% team.players.forEach(p => { %>
-                      <th title="<%= p.username %>"><%= p.username.length > 5 ? p.username.slice(0, 5) + '…' : p.username %><% if (p.is_captain) { %> ⭐<% } %></th>
+                      <th title="<%= p.username %>" style="font-weight:500;text-transform:none"><%= p.username.length > 10 ? p.username.slice(0, 10) + '…' : p.username %><% if (p.is_captain) { %> ⭐<% } %></th>
                     <% }) %>
                     <th>Team pts</th>
                   </tr>
@@ -231,7 +231,7 @@
                       <tr style="font-size:.72rem;color:var(--text-muted);background:var(--bg)">
                         <td colspan="3">Back 9 →</td>
                         <% team.players.forEach(p => { %>
-                          <td title="<%= p.username %>"><%= p.username.length > 5 ? p.username.slice(0, 5) + '…' : p.username %><% if (p.is_captain) { %> ⭐<% } %></td>
+                          <td title="<%= p.username %>"><%= p.username.length > 10 ? p.username.slice(0, 10) + '…' : p.username %><% if (p.is_captain) { %> ⭐<% } %></td>
                         <% }) %>
                         <td></td>
                       </tr>
