@@ -43,6 +43,7 @@ router.get('/', async (req, res) => {
           try {
             const data = await getLmsData(g.id, userId);
             const mine = data.standings.find(s => s.user_id === userId);
+            g.userHasPicked = !!mine?.myCurrentPick;
             if (mine && !mine.eliminated && !mine.myCurrentPick && data.weekObj?.deadline) {
               g.pickDeadline = data.weekObj.deadline;
             }
