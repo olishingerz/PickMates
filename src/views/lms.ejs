@@ -31,16 +31,6 @@
       const pickedCount      = aliveStandings.filter(s => s.myCurrentPick || s.picks.some(p => p.week_number === currentWeek)).length;
       const allPickedIn      = aliveStandings.length > 0 && pickedCount >= aliveStandings.length;
     %>
-    <% if (canPick && weekObj?.deadline) { %>
-      <div class="deadline-banner">
-        <span>⏳ You haven't picked yet this week — pick before the deadline or you're <strong>OUT!</strong></span>
-        <span style="display:flex;align-items:center;gap:.6rem">
-          <span class="countdown-timer" data-deadline="<%= new Date(weekObj.deadline).toISOString() %>">…</span>
-          <a href="/game/<%= game.id %>/lms/picks">Pick now →</a>
-        </span>
-      </div>
-    <% } %>
-
     <div class="page-header">
       <h1><%= game.name %></h1>
       <p class="muted" style="margin-top:.2rem">
@@ -108,13 +98,19 @@
         <p style="margin:0">⏳ The host hasn't started the game yet — check back once it begins.</p>
       </div>
     <% } else if (canPick) { %>
+      <% if (weekObj?.deadline) { %>
+        <div class="deadline-banner">
+          <span>⏳ You haven't picked yet this week — pick before the deadline or you're <strong>OUT!</strong></span>
+          <span class="countdown-timer" data-deadline="<%= new Date(weekObj.deadline).toISOString() %>">…</span>
+        </div>
+      <% } %>
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;background:#fffbeb;border:1px solid #f59e0b">
         <div>
           <strong>Week <%= currentWeek %> — make your pick!</strong>
           <% if (weekObj?.deadline) { %>
-            <span class="muted" style="font-size:.85rem;margin-left:.5rem">Deadline: <span class="countdown-timer" data-deadline="<%= new Date(weekObj.deadline).toISOString() %>">…</span></span>
+            <span class="muted" style="font-size:.85rem;margin-left:.5rem">Deadline: <%= new Date(weekObj.deadline).toLocaleString('en-GB', { timeZone:'Europe/London', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %></span>
           <% } else if (canManage) { %>
-            <span class="muted" style="font-size:.85rem;margin-left:.5rem">No deadline set yet — add one in Host Controls below so players see a countdown.</span>
+            <span class="muted" style="font-size:.85rem;margin-left:.5rem">No deadline set yet — add one in Host Controls below.</span>
           <% } else { %>
             <span class="muted" style="font-size:.85rem;margin-left:.5rem">No deadline set yet.</span>
           <% } %>
