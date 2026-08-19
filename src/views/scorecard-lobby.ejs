@@ -30,7 +30,9 @@
         <p class="last-updated" style="margin-top:.2rem">👤 Hosted by <strong><%= game.host_username %></strong></p>
       <% } %>
       <p class="last-updated" style="margin-top:.2rem">
-        <% if (user && canManage) { %>
+        <% if (game.is_started) { %>
+          <strong style="color:var(--green-dark)">Game in progress.</strong> Teams, handicaps and captains are locked in.
+        <% } else if (user && canManage) { %>
           <strong style="color:var(--green-dark)">Waiting to start.</strong> Get everyone into a team, set handicaps and captains, then start the game.
         <% } else { %>
           Waiting for the host to start the game.
@@ -47,7 +49,7 @@
       <div class="card" style="margin-bottom:1rem">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem">
           <h2 class="section-title" style="margin:0"><%= team.name %></h2>
-          <% if (user && !onThisTeam) { %>
+          <% if (!game.is_started && user && !onThisTeam) { %>
             <form action="/game/<%= game.id %>/scorecard/join-team" method="POST" style="display:inline">
               <input type="hidden" name="team_id" value="<%= team.id %>" />
               <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">Join this team</button>
@@ -67,7 +69,7 @@
                   <th>Player</th>
                   <th>Handicap</th>
                   <th>Captain</th>
-                  <% if (canManage) { %><th></th><% } %>
+                  <% if (canManage && !game.is_started) { %><th></th><% } %>
                 </tr>
               </thead>
               <tbody>
@@ -75,7 +77,7 @@
                   <tr>
                     <td><%= p.username %><% if (user && p.user_id === user.id) { %> <span class="muted" style="font-size:.78rem">(you)</span><% } %></td>
                     <td>
-                      <% if (canManage) { %>
+                      <% if (canManage && !game.is_started) { %>
                         <form action="/game/<%= game.id %>/scorecard/handicap" method="POST" style="display:flex;gap:.3rem;align-items:center">
                           <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
                           <input type="number" name="handicap" min="0" max="54" step="0.1"
@@ -88,7 +90,7 @@
                       <% } %>
                     </td>
                     <td>
-                      <% if (canManage) { %>
+                      <% if (canManage && !game.is_started) { %>
                         <form action="/game/<%= game.id %>/scorecard/captain" method="POST" style="display:inline">
                           <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
                           <input type="hidden" name="make" value="<%= p.is_captain ? '0' : '1' %>" />
@@ -100,7 +102,7 @@
                         <% if (p.is_captain) { %><span class="status-badge status-live">⭐ Captain</span><% } else { %>—<% } %>
                       <% } %>
                     </td>
-                    <% if (canManage) { %>
+                    <% if (canManage && !game.is_started) { %>
                       <td>
                         <form action="/game/<%= game.id %>/scorecard/remove-player" method="POST" style="display:inline">
                           <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
@@ -116,7 +118,7 @@
           </div>
         <% } %>
 
-        <% if (canManage) { %>
+        <% if (canManage && !game.is_started) { %>
           <form action="/game/<%= game.id %>/scorecard/add-player" method="POST"
                 style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-top:.7rem;padding-top:.7rem;border-top:1px solid var(--border)">
             <input type="hidden" name="team_id" value="<%= team.id %>" />
@@ -129,7 +131,7 @@
       </div>
     <% }) %>
 
-    <% if (canManage) { %>
+    <% if (canManage && !game.is_started) { %>
       <datalist id="all-usernames">
         <% suggestedUsernames.forEach(u => { %><option value="<%= u %>"></option><% }) %>
       </datalist>
@@ -146,7 +148,7 @@
           <% unassignedParticipants.forEach(p => { %>
             <li style="font-size:.9rem;display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem">
               <%= p.username %>
-              <% if (canManage) { %>
+              <% if (canManage && !game.is_started) { %>
                 <form action="/game/<%= game.id %>/scorecard/remove-player" method="POST" style="display:inline">
                   <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
                   <button type="submit" class="btn btn-sm btn-danger" style="padding:.1rem .4rem;font-size:.75rem"
@@ -160,7 +162,7 @@
     <% } %>
 
     <!-- ── Invite link ──────────────────────────────────────────────────── -->
-    <% if (game.invite_code) { %>
+    <% if (!game.is_started && game.invite_code) { %>
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap;padding:1rem 1.5rem">
         <div>
           <p class="label-small" style="margin-bottom:.25rem">Invite link</p>
@@ -198,7 +200,7 @@
     <% } %>
 
     <!-- ── Start game ───────────────────────────────────────────────────── -->
-    <% if (canManage) { %>
+    <% if (canManage && !game.is_started) { %>
       <div class="card admin-card">
         <h2 class="section-title">Host Controls</h2>
         <p class="admin-hint">Everyone needs to be on a team before you can start. Once started, teams, handicaps and captains are locked in.</p>
@@ -207,6 +209,10 @@
           <button type="submit" class="btn" style="background:var(--green);color:#fff">▶ Start Game</button>
         </form>
       </div>
+    <% } %>
+
+    <% if (game.is_started) { %>
+      <a href="/game/<%= game.id %>" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">← Back to Scorecard</a>
     <% } %>
   </main>
 

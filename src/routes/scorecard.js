@@ -178,14 +178,20 @@ async function renderLobby(req, res, gameId) {
     ]);
     if (!data.game) return res.redirect('/');
 
+    // Pre-start, this lobby is itself how a new player joins (picking a team
+    // creates their game_participants row) — any logged-in user may view it.
+    // Once started it's a read-only view of teams/handicaps/captains, so it's
+    // restricted to participants/host/co-host, same as the golf_draft/LMS lobby.
     if (data.game.is_started) {
-      return res.redirect(`/game/${gameId}`);
+      const isParticipant = data.allParticipants.some(p => p.user_id === req.session.user.id);
+      if (!isParticipant && !manageFlag) {
+        return res.redirect(`/game/${gameId}`);
+      }
     }
 
-    // Suggestions for the host's "add player" search box — existing usernames
-    // not already in this game (they may or may not have logged in themselves)
+    // Suggestions for the host's "add player" search box — only relevant pre-start
     let suggestedUsernames = [];
-    if (manageFlag) {
+    if (manageFlag && !data.game.is_started) {
       const { rows } = await pool.query(
         `SELECT username FROM users
          WHERE id NOT IN (SELECT user_id FROM game_participants WHERE game_id = $1)
@@ -195,9 +201,6 @@ async function renderLobby(req, res, gameId) {
       suggestedUsernames = rows.map(r => r.username);
     }
 
-    // Unlike golf_draft/LMS, viewing this lobby is itself how a new player joins
-    // (picking a team creates their game_participants row) — any logged-in user
-    // may view it, not just existing participants.
     res.render('scorecard-lobby', {
       ...data,
       isHost: hostFlag,

@@ -37,6 +37,11 @@
       <% if (game.tournament_complete && game.winner_username) { %>
         <p class="muted" style="margin-top:.3rem">🏆 Winning team: <strong><%= game.winner_username %></strong></p>
       <% } %>
+      <% if (user && (myParticipant || canManage)) { %>
+        <p style="margin-top:.6rem">
+          <a href="/game/<%= game.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Lobby</a>
+        </p>
+      <% } %>
     </div>
 
     <% if (!game.is_started) { %>
@@ -115,7 +120,7 @@
         <%
           const ctpEditable = !game.tournament_complete && (canManage || (myParticipant && myParticipant.is_captain));
         %>
-        <h2 class="section-title mt-lg">⭐ Closest to the Pin</h2>
+        <h2 class="section-title mt-lg">🎯 Closest to the Pin</h2>
         <div class="card">
           <div class="leaderboard-table-wrap">
             <table class="leaderboard-table">
@@ -132,7 +137,7 @@
                     <td>#<%= c.hole_number %></td>
                     <td>
                       <% if (c.holder) { %>
-                        ⭐ <strong><%= c.holder.username %></strong>
+                        🎯 <strong><%= c.holder.username %></strong>
                         <% if (c.holder.team_name) { %><span class="muted" style="font-size:.78rem"> (<%= c.holder.team_name %>)</span><% } %>
                       <% } else { %>
                         <span class="muted">Not set</span>
@@ -207,7 +212,7 @@
                             <%= hs && hs.strokes !== null ? hs.strokes : '—' %>
                           <% } %>
                           <% if (hs && hs.points !== null) { %><span class="muted" style="font-size:.72rem"> (<%= hs.points %>pt)</span><% } %>
-                          <% if (ctpHolderByHole.get(h.hole_number) === p.participant_id) { %><span title="Closest to the pin">⭐</span><% } %>
+                          <% if (ctpHolderByHole.get(h.hole_number) === p.participant_id) { %><span title="Closest to the pin">🎯</span><% } %>
                         </td>
                       <% }) %>
                       <td><%= team.holeTotals[hIdx] !== null ? team.holeTotals[hIdx] : '—' %></td>
