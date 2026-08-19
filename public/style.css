@@ -812,6 +812,14 @@ a.nav-user:hover { color: var(--green); }
 .game-type-lms        { background: #fef3c7; color: #92400e; }
 .game-type-scorecard  { background: #e0f2fe; color: #075985; }
 
+/* ── Golf Scorecard: hole score colours (gross vs par) ────────────── */
+.score-eagle  { color: #b8860b; font-weight: 700; }
+.score-birdie { color: #dc2626; font-weight: 700; }
+.score-par    { color: #2563eb; }
+.score-bogey  { color: #16a34a; }
+.score-double { color: #6b7280; }
+.score-other  { color: #111827; }
+
 /* ── Last Man Standing ──────────────────────────────────────────── */
 .lms-eliminated td { opacity: .55; }
 .lms-pick-cell { white-space: nowrap; font-size: .82rem; }

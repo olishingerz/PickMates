@@ -65,7 +65,20 @@
 
       <!-- ── Standings ──────────────────────────────────────────────────── -->
       <h2 class="section-title mt-lg">Standings</h2>
-      <p class="admin-hint" style="margin-bottom:.6rem">Only each team's best 3 Stableford scores count on every hole.</p>
+      <p class="admin-hint" style="margin-bottom:.2rem">Only each team's best 3 Stableford scores count on every hole.</p>
+      <p class="admin-hint" style="margin-bottom:.6rem">
+        <span class="score-eagle">● Eagle</span>
+        <span style="margin:0 .3rem">·</span>
+        <span class="score-birdie">● Birdie</span>
+        <span style="margin:0 .3rem">·</span>
+        <span class="score-par">● Par</span>
+        <span style="margin:0 .3rem">·</span>
+        <span class="score-bogey">● Bogey</span>
+        <span style="margin:0 .3rem">·</span>
+        <span class="score-double">● Double bogey</span>
+        <span style="margin:0 .3rem">·</span>
+        <span class="score-other">● Worse</span>
+      </p>
       <div class="card">
         <% if (standings.length === 0) { %>
           <p class="muted">No teams yet.</p>
@@ -215,14 +228,16 @@
                       <td><%= h.stroke_index %></td>
                       <% team.players.forEach(p => {
                         const hs = p.holeScores.find(x => x.hole_number === h.hole_number);
+                        const scoreClass = hs && hs.scoreClass ? hs.scoreClass : '';
                       %>
                         <td>
                           <% if (editable) { %>
                             <input type="number" name="strokes_<%= p.participant_id %>_<%= h.hole_number %>" min="1" max="15"
                                    value="<%= hs && hs.strokes !== null ? hs.strokes : '' %>"
+                                   class="<%= scoreClass %>"
                                    style="width:55px;padding:.25rem .35rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem" />
                           <% } else { %>
-                            <%= hs && hs.strokes !== null ? hs.strokes : '—' %>
+                            <span class="<%= scoreClass %>"><%= hs && hs.strokes !== null ? hs.strokes : '—' %></span>
                           <% } %>
                           <% if (hs && hs.points !== null) { %><span class="muted" style="font-size:.72rem"> (<%= hs.points %>pt)</span><% } %>
                           <% if (ctpHolderByHole.get(h.hole_number) === p.participant_id) { %><span title="Closest to the pin">🎯</span><% } %>

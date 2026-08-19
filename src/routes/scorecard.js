@@ -42,6 +42,19 @@ function stablefordPoints(strokes, par, strokeIndex, handicap) {
   return Math.max(0, 2 - (net - par));
 }
 
+// Gross score vs par, for colour-coding each hole cell — deliberately not
+// handicap-adjusted, so it matches traditional eagle/birdie/par/bogey terms.
+function scoreColorClass(strokes, par) {
+  if (strokes === null || strokes === undefined) return null;
+  const diff = strokes - par;
+  if (diff <= -2) return 'score-eagle';
+  if (diff === -1) return 'score-birdie';
+  if (diff === 0)  return 'score-par';
+  if (diff === 1)  return 'score-bogey';
+  if (diff === 2)  return 'score-double';
+  return 'score-other';
+}
+
 // Only the team's best N Stableford scores count on each hole (a "best-ball"-style
 // counting format), not every player's — keeps bigger teams from being penalised.
 const TEAM_COUNTING_SCORES = 3;
@@ -100,6 +113,7 @@ async function getScorecardData(gameId, userId) {
         stroke_index: h.stroke_index,
         strokes,
         points: stablefordPoints(strokes, h.par, h.stroke_index, p.handicap),
+        scoreClass: scoreColorClass(strokes, h.par),
       };
     });
     const frontNine = holeScores.filter(hs => hs.hole_number <= 9);
