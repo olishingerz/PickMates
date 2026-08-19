@@ -161,12 +161,6 @@ router.get('/', requireAuth, async (req, res) => {
       canManage(req, gameId),
     ]);
 
-    // LMS lobby disappears for regular players once the game has started — the live
-    // game room takes over. Host/co-host can still reach it (e.g. to track payments).
-    if (data.state.game_type === 'last_man_standing' && data.state.is_started && !manageFlag) {
-      return res.redirect(`/game/${gameId}`);
-    }
-
     // Only participants (or host/co-host/admin) may view the draft room
     const isParticipant = data.participants.some(p => p.id === req.session.user.id);
     if (!isParticipant && !manageFlag) {
@@ -589,9 +583,10 @@ router.post('/toggle-paid', requireAuth, async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `UPDATE game_participants SET has_paid = NOT has_paid
-       WHERE game_id = $1 AND user_id = $2
-       RETURNING username, has_paid`,
+      `UPDATE game_participants gp SET has_paid = NOT has_paid
+       FROM users u
+       WHERE gp.game_id = $1 AND gp.user_id = $2 AND u.id = gp.user_id
+       RETURNING u.username, gp.has_paid`,
       [gameId, userId]
     );
     if (!rows[0]) return res.redirect(base + '?error=' + encodeURIComponent('Player not found.'));

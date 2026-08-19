@@ -70,8 +70,8 @@
         </p>
       <% } %>
       <div style="margin-top:.6rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
-        <% if (canManage) { %>
-          <a href="/game/<%= game.id %>/draft" class="btn btn-sm btn-ghost" style="color:var(--green-dark);border-color:var(--border)">👥 Manage players &amp; payments</a>
+        <% if (alreadyJoined || canManage) { %>
+          <a href="/game/<%= game.id %>/draft" class="btn btn-sm btn-ghost" style="color:var(--green-dark);border-color:var(--border)">Lobby</a>
         <% } %>
         <% if (game.invite_code && !game.is_started && !game.tournament_complete) { %>
           <button class="btn btn-sm btn-ghost" style="color:var(--green-dark);border-color:var(--border);background:var(--green-light)" onclick="

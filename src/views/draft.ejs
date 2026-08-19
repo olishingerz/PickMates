@@ -36,7 +36,7 @@
             Waiting for the admin to start the <%= state.game_type === 'last_man_standing' ? 'game' : 'draft' %>. (<%= participants.length %> player<%= participants.length !== 1 ? 's' : '' %> registered)
           <% } %>
         <% } else if (state.game_type === 'last_man_standing') { %>
-          Game in progress — teams are locked in, but you can still track payments below.
+          Game in progress.<% if (canManage) { %> You can still track payments below.<% } %>
         <% } else if (isMyTurn) { %>
           <strong style="color:var(--green-dark)">It's your pick!</strong>
         <% } else if (currentTurnUser) { %>
@@ -422,8 +422,8 @@
       </details>
     <% } %>
 
-    <!-- ── Draft board (shown once started) ──────────────────────────────── -->
-    <% if (state.is_started && participants.length > 0) { %>
+    <!-- ── Draft board (shown once started, golf_draft only) ──────────────── -->
+    <% if (state.is_started && participants.length > 0 && state.game_type !== 'last_man_standing') { %>
       <div class="card">
         <h2 class="section-title">Draft Board — Round <%= draftRound %> of <%= PICKS_PER_PLAYER %></h2>
         <div class="draft-board-wrap">
