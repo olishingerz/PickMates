@@ -813,12 +813,12 @@ a.nav-user:hover { color: var(--green); }
 .game-type-scorecard  { background: #e0f2fe; color: #075985; }
 
 /* ── Golf Scorecard: hole score colours (gross vs par) ────────────── */
-.score-eagle  { color: #b8860b; font-weight: 700; }
-.score-birdie { color: #dc2626; font-weight: 700; }
-.score-par    { color: #2563eb; }
-.score-bogey  { color: #16a34a; }
-.score-double { color: #6b7280; }
-.score-other  { color: #111827; }
+.score-eagle  { background: #fde68a; color: #78350f; font-weight: 700; border-radius: 4px; padding: .05rem .3rem; }
+.score-birdie { background: #fecaca; color: #7f1d1d; font-weight: 700; border-radius: 4px; padding: .05rem .3rem; }
+.score-par    { background: #bfdbfe; color: #1e3a8a; border-radius: 4px; padding: .05rem .3rem; }
+.score-bogey  { background: #bbf7d0; color: #14532d; border-radius: 4px; padding: .05rem .3rem; }
+.score-double { background: #e5e7eb; color: #1f2937; border-radius: 4px; padding: .05rem .3rem; }
+.score-other  { background: #111827; color: #fff; border-radius: 4px; padding: .05rem .3rem; }
 
 /* ── Last Man Standing ──────────────────────────────────────────── */
 .lms-eliminated td { opacity: .55; }

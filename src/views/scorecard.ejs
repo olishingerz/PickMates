@@ -65,20 +65,7 @@
 
       <!-- ── Standings ──────────────────────────────────────────────────── -->
       <h2 class="section-title mt-lg">Standings</h2>
-      <p class="admin-hint" style="margin-bottom:.2rem">Only each team's best 3 Stableford scores count on every hole.</p>
-      <p class="admin-hint" style="margin-bottom:.6rem">
-        <span class="score-eagle">● Eagle</span>
-        <span style="margin:0 .3rem">·</span>
-        <span class="score-birdie">● Birdie</span>
-        <span style="margin:0 .3rem">·</span>
-        <span class="score-par">● Par</span>
-        <span style="margin:0 .3rem">·</span>
-        <span class="score-bogey">● Bogey</span>
-        <span style="margin:0 .3rem">·</span>
-        <span class="score-double">● Double bogey</span>
-        <span style="margin:0 .3rem">·</span>
-        <span class="score-other">● Worse</span>
-      </p>
+      <p class="admin-hint" style="margin-bottom:.6rem">Only each team's best 3 Stableford scores count on every hole.</p>
       <div class="card">
         <% if (standings.length === 0) { %>
           <p class="muted">No teams yet.</p>
@@ -193,6 +180,19 @@
       <% } %>
 
       <!-- ── Per-team scorecards ────────────────────────────────────────── -->
+      <p class="admin-hint" style="margin-bottom:.8rem">
+        <span class="score-eagle">● Eagle</span>
+        <span style="margin:0 .3rem">·</span>
+        <span class="score-birdie">● Birdie</span>
+        <span style="margin:0 .3rem">·</span>
+        <span class="score-par">● Par</span>
+        <span style="margin:0 .3rem">·</span>
+        <span class="score-bogey">● Bogey</span>
+        <span style="margin:0 .3rem">·</span>
+        <span class="score-double">● Double bogey</span>
+        <span style="margin:0 .3rem">·</span>
+        <span class="score-other">● Worse</span>
+      </p>
       <% const ctpHolderByHole = new Map(closestToPin.map(c => [c.hole_number, c.holder ? c.holder.participant_id : null])); %>
       <% teams.forEach(team => { %>
         <%
