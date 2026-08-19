@@ -123,7 +123,11 @@
       </div>
     <% } else if (alreadyJoined && myStanding?.eliminated) { %>
       <div class="card" style="background:#fef2f2;border:1px solid #ef4444">
-        You were eliminated in week <%= myStanding.eliminatedWeek %>. Better luck next time!
+        <% if (myStanding.eliminatedReason === 'no_pick') { %>
+          💀 <strong>UR OUTTT!</strong> You didn't pick before the week <%= myStanding.eliminatedWeek %> deadline.
+        <% } else { %>
+          You were eliminated in week <%= myStanding.eliminatedWeek %>. Better luck next time!
+        <% } %>
       </div>
     <% } %>
 

@@ -83,14 +83,16 @@ async function getLmsData(gameId, userId) {
   // Build per-participant pick history and alive status
   const standings = participants.map(p => {
     const picks = allPicks.filter(pk => pk.user_id === p.user_id);
-    let eliminated    = false;
+    let eliminated     = false;
     let eliminatedWeek = null;
+    let eliminatedReason = null; // 'no_pick' | 'loss' | 'draw'
 
     for (const w of weeks.filter(w => w.results_locked)) {
       const pick = picks.find(pk => pk.week_number === w.week_number);
       if (!pick || pick.result === 'loss' || pick.result === 'draw') {
-        eliminated     = true;
-        eliminatedWeek = w.week_number;
+        eliminated       = true;
+        eliminatedWeek   = w.week_number;
+        eliminatedReason = !pick ? 'no_pick' : pick.result;
         break;
       }
     }
@@ -100,12 +102,13 @@ async function getLmsData(gameId, userId) {
     if (!eliminated && weekObj && !weekObj.results_locked && weekObj.deadline
         && new Date() > new Date(weekObj.deadline)
         && !picks.some(pk => pk.week_number === currentWeek)) {
-      eliminated     = true;
-      eliminatedWeek = currentWeek;
+      eliminated       = true;
+      eliminatedWeek   = currentWeek;
+      eliminatedReason = 'no_pick';
     }
 
     const myCurrentPick = picks.find(pk => pk.week_number === currentWeek) || null;
-    return { ...p, picks, eliminated, eliminatedWeek, myCurrentPick };
+    return { ...p, picks, eliminated, eliminatedWeek, eliminatedReason, myCurrentPick };
   });
 
   // Teams already picked by current user across all weeks
