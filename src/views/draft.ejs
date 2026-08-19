@@ -46,6 +46,9 @@
       <% if (state.host_username) { %>
         <p class="last-updated" style="margin-top:.2rem">👤 Hosted by <strong><%= state.host_username %></strong></p>
       <% } %>
+      <p style="margin-top:.6rem">
+        <a href="/game/<%= gameId %>" class="btn btn-sm btn-ghost" style="color:var(--text-muted);border-color:var(--border)">← Back to leaderboard</a>
+      </p>
     </div>
 
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>

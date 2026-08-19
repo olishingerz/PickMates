@@ -71,7 +71,7 @@
       <% } %>
       <div style="margin-top:.6rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
         <% if (alreadyJoined || canManage) { %>
-          <a href="/game/<%= game.id %>/draft" class="btn btn-sm btn-ghost" style="color:var(--green-dark);border-color:var(--border)">Lobby</a>
+          <a href="/game/<%= game.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Lobby</a>
         <% } %>
         <% if (game.invite_code && !game.is_started && !game.tournament_complete) { %>
           <button class="btn btn-sm btn-ghost" style="color:var(--green-dark);border-color:var(--border);background:var(--green-light)" onclick="
