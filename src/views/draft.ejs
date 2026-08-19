@@ -35,6 +35,8 @@
           <% } else { %>
             Waiting for the admin to start the <%= state.game_type === 'last_man_standing' ? 'game' : 'draft' %>. (<%= participants.length %> player<%= participants.length !== 1 ? 's' : '' %> registered)
           <% } %>
+        <% } else if (state.game_type === 'last_man_standing') { %>
+          Game in progress — teams are locked in, but you can still track payments below.
         <% } else if (isMyTurn) { %>
           <strong style="color:var(--green-dark)">It's your pick!</strong>
         <% } else if (currentTurnUser) { %>
@@ -96,7 +98,7 @@
     <!-- ── Registered players ──────────────────────────────────────────────── -->
     <div class="card">
       <h2 class="section-title"><%= participants.length %> Player<%= participants.length !== 1 ? 's' : '' %> Registered</h2>
-      <% if (user && canManage && !state.is_started && participants.length > 0 && state.game_type === 'last_man_standing') { %>
+      <% if (user && canManage && participants.length > 0 && state.game_type === 'last_man_standing') { %>
         <div class="leaderboard-table-wrap">
           <table class="leaderboard-table">
             <thead>

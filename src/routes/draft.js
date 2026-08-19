@@ -161,8 +161,9 @@ router.get('/', requireAuth, async (req, res) => {
       canManage(req, gameId),
     ]);
 
-    // LMS lobby disappears once the game has started — the live game room takes over
-    if (data.state.game_type === 'last_man_standing' && data.state.is_started) {
+    // LMS lobby disappears for regular players once the game has started — the live
+    // game room takes over. Host/co-host can still reach it (e.g. to track payments).
+    if (data.state.game_type === 'last_man_standing' && data.state.is_started && !manageFlag) {
       return res.redirect(`/game/${gameId}`);
     }
 
@@ -590,11 +591,11 @@ router.post('/toggle-paid', requireAuth, async (req, res) => {
     const { rows } = await pool.query(
       `UPDATE game_participants SET has_paid = NOT has_paid
        WHERE game_id = $1 AND user_id = $2
-       RETURNING has_paid`,
+       RETURNING username, has_paid`,
       [gameId, userId]
     );
     if (!rows[0]) return res.redirect(base + '?error=' + encodeURIComponent('Player not found.'));
-    res.redirect(base);
+    res.redirect(base + '?success=' + encodeURIComponent(`${rows[0].username} is now ${rows[0].has_paid ? 'paid' : 'not paid'}.`));
   } catch (err) {
     console.error('[toggle-paid]', err);
     res.redirect(base + '?error=' + encodeURIComponent('Failed to update paid status.'));
