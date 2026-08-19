@@ -38,11 +38,20 @@ async function refreshFixtureCache(gameId, week) {
   const { rows } = await pool.query('SELECT lms_leagues FROM games WHERE id = $1', [gameId]);
   const leagues = (rows[0]?.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean);
   const { fixtures } = await getCurrentGameweekFixtures(leagues);
+
+  // Auto-set the deadline to the earliest kickoff so players see a countdown
+  // right away — COALESCE means this never overwrites a deadline the host
+  // already chose, and they can still change it via "Save deadline" anytime.
+  const kickoffs = fixtures.map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
+  const suggestedDeadline = kickoffs.length > 0 ? new Date(Math.min(...kickoffs)) : null;
+
   await pool.query(
-    `INSERT INTO lms_weeks (game_id, week_number, fixtures_cache)
-     VALUES ($1,$2,$3)
-     ON CONFLICT (game_id, week_number) DO UPDATE SET fixtures_cache=$3`,
-    [gameId, week, JSON.stringify(fixtures)]
+    `INSERT INTO lms_weeks (game_id, week_number, fixtures_cache, deadline)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (game_id, week_number) DO UPDATE
+       SET fixtures_cache = $3,
+           deadline = COALESCE(lms_weeks.deadline, $4)`,
+    [gameId, week, JSON.stringify(fixtures), suggestedDeadline]
   );
   return fixtures;
 }

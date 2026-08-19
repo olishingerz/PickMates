@@ -113,6 +113,10 @@
           <strong>Week <%= currentWeek %> — make your pick!</strong>
           <% if (weekObj?.deadline) { %>
             <span class="muted" style="font-size:.85rem;margin-left:.5rem">Deadline: <span class="countdown-timer" data-deadline="<%= new Date(weekObj.deadline).toISOString() %>">…</span></span>
+          <% } else if (canManage) { %>
+            <span class="muted" style="font-size:.85rem;margin-left:.5rem">No deadline set yet — add one in Host Controls below so players see a countdown.</span>
+          <% } else { %>
+            <span class="muted" style="font-size:.85rem;margin-left:.5rem">No deadline set yet.</span>
           <% } %>
         </div>
         <a href="/game/<%= game.id %>/lms/picks" class="btn" style="background:#f59e0b;color:#1a1a1a">Make your pick</a>
