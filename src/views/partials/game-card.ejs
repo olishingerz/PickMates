@@ -2,7 +2,7 @@
   let statusLabel = null;
   let statusClass = null;
   if (g.tournament_complete)  { statusLabel = 'Complete';    statusClass = 'status-done'; }
-  else if (g.is_complete)     { statusLabel = 'In Progress'; statusClass = 'status-live'; }
+  else if (g.is_started)      { statusLabel = 'In Progress'; statusClass = 'status-live'; }
 %>
 <div class="card game-card" onclick="location.href='/game/<%= g.id %>'" style="cursor:pointer">
   <div class="game-card-header">
