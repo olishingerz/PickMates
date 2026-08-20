@@ -318,9 +318,13 @@
     });
 
     // If a required/invalid field is blocking submission, make that obvious instead
-    // of silently doing nothing — scroll to it and highlight it.
+    // of silently doing nothing — scroll to it and highlight it. Hooked on the
+    // button's click (not the form's submit) because the browser never fires
+    // "submit" at all when native validation blocks it — it fires "invalid" on
+    // the offending fields instead, so a submit-event listener never runs.
     const createForm = document.getElementById('create-form');
-    createForm.addEventListener('submit', (e) => {
+    const createBtn  = createForm.querySelector('button[type="submit"]');
+    createBtn.addEventListener('click', (e) => {
       if (!createForm.checkValidity()) {
         e.preventDefault();
         createForm.reportValidity();
