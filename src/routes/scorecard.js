@@ -79,7 +79,7 @@ async function getScorecardData(gameId, userId) {
     pool.query('SELECT id, label FROM scorecard_tee_times WHERE game_id = $1 ORDER BY id ASC', [gameId]),
     pool.query(`
       SELECT gp.id AS participant_id, u.id AS user_id, u.username,
-             gp.scorecard_team_id, gp.scorecard_tee_time_id, gp.handicap, gp.is_captain, gp.is_co_host
+             gp.scorecard_team_id, gp.scorecard_tee_time_id, gp.handicap, gp.is_co_host
       FROM game_participants gp
       JOIN users u ON u.id = gp.user_id
       WHERE gp.game_id = $1
@@ -205,7 +205,7 @@ async function renderLobby(req, res, gameId) {
 
     // Pre-start, this lobby is itself how a new player joins (picking a team
     // creates their game_participants row) — any logged-in user may view it.
-    // Once started it's a read-only view of teams/handicaps/captains, so it's
+    // Once started it's a read-only view of teams/handicaps, so it's
     // restricted to participants/host/co-host, same as the golf_draft/LMS lobby.
     if (data.game.is_started) {
       const isParticipant = data.allParticipants.some(p => p.user_id === req.session.user.id);
@@ -280,8 +280,8 @@ router.post('/join-team', requireAuth, async (req, res) => {
 
 // POST /game/:gameId/scorecard/add-player — host/co-host: add a player to a team by
 // username, without requiring them to join themselves. Creates a lightweight account
-// with a temp password if that username doesn't exist yet — captains do the scoring,
-// so most added players never need to log in at all.
+// with a temp password if that username doesn't exist yet — teammates/tee-time
+// partners do the scoring, so most added players never need to log in at all.
 router.post('/add-player', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base   = `/game/${gameId}/draft`;
@@ -421,33 +421,8 @@ router.post('/handicap', requireAuth, async (req, res) => {
   }
 });
 
-// POST /game/:gameId/scorecard/captain — host/co-host: toggle captain status
-router.post('/captain', requireAuth, async (req, res) => {
-  const gameId = getGameId(req);
-  const base = `/game/${gameId}/draft`;
-  if (!await canManage(req, gameId)) return res.redirect(base);
-
-  const participantId = parseInt(req.body.participant_id);
-  const make = req.body.make === '1';
-
-  try {
-    const { rows: gameRows } = await pool.query('SELECT is_started FROM games WHERE id = $1', [gameId]);
-    if (gameRows[0]?.is_started) {
-      return res.redirect(`/game/${gameId}?error=` + encodeURIComponent('The game has already started — captains are locked in.'));
-    }
-    await pool.query(
-      'UPDATE game_participants SET is_captain = $1 WHERE id = $2 AND game_id = $3',
-      [make, participantId, gameId]
-    );
-    res.redirect(base + '?success=' + encodeURIComponent(make ? 'Captain assigned.' : 'Captain removed.'));
-  } catch (err) {
-    console.error('[scorecard captain]', err);
-    res.redirect(base + '?error=' + encodeURIComponent('Failed to update captain.'));
-  }
-});
-
 // POST /game/:gameId/scorecard/tee-times/add — host/co-host: create a new tee time.
-// Unlike teams/handicaps/captains, tee times aren't locked at start — a host may
+// Unlike teams/handicaps, tee times aren't locked at start — a host may
 // well only want to set them up once the game is already underway.
 router.post('/tee-times/add', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
@@ -520,7 +495,7 @@ router.post('/tee-time', requireAuth, async (req, res) => {
   }
 });
 
-// POST /game/:gameId/scorecard/start — host/co-host: lock teams/handicaps/captains and begin
+// POST /game/:gameId/scorecard/start — host/co-host: lock teams/handicaps and begin
 router.post('/start', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base = `/game/${gameId}/draft`;
@@ -553,10 +528,9 @@ router.post('/start', requireAuth, async (req, res) => {
 });
 
 // POST /game/:gameId/scorecard/scores — save hole scores. Authorized per player, not
-// per form: host/co-host can edit anyone; a team captain can edit their own team;
-// anyone can edit a fellow member of their own tee-time group. This lets one
-// submission span multiple teams (needed for the tee-time view) and means a captain
-// scattered away from some teammates can still get help from whoever's playing with them.
+// per form: host/co-host can edit anyone; anyone can edit a fellow member of their
+// own tee-time group. This lets one submission span multiple teams (needed for the
+// tee-time view).
 router.post('/scores', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base = `/game/${gameId}`;
@@ -573,7 +547,7 @@ router.post('/scores', requireAuth, async (req, res) => {
 
     const manageFlag = await canManage(req, gameId);
     const { rows: allParts } = await pool.query(
-      'SELECT id, user_id, scorecard_team_id, scorecard_tee_time_id, is_captain FROM game_participants WHERE game_id = $1',
+      'SELECT id, user_id, scorecard_team_id, scorecard_tee_time_id FROM game_participants WHERE game_id = $1',
       [gameId]
     );
     const partsById = new Map(allParts.map(p => [p.id, p]));
@@ -582,7 +556,6 @@ router.post('/scores', requireAuth, async (req, res) => {
     function canEdit(participant) {
       if (manageFlag) return true;
       if (!me) return false;
-      if (me.is_captain && me.scorecard_team_id === participant.scorecard_team_id) return true;
       if (me.scorecard_tee_time_id && me.scorecard_tee_time_id === participant.scorecard_tee_time_id) return true;
       return false;
     }
@@ -619,7 +592,7 @@ router.post('/scores', requireAuth, async (req, res) => {
   }
 });
 
-// POST /game/:gameId/scorecard/closest-to-pin — captain (any team) or host/co-host:
+// POST /game/:gameId/scorecard/closest-to-pin — anyone in a tee time, or host/co-host:
 // nominate a player as closest-to-the-pin on the designated hole, replacing any previous holder
 router.post('/closest-to-pin', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
@@ -639,12 +612,12 @@ router.post('/closest-to-pin', requireAuth, async (req, res) => {
 
     const manageFlag = await canManage(req, gameId);
     if (!manageFlag) {
-      const { rows: captainRows } = await pool.query(
-        'SELECT id FROM game_participants WHERE game_id = $1 AND user_id = $2 AND is_captain = TRUE',
+      const { rows: meRows } = await pool.query(
+        'SELECT id FROM game_participants WHERE game_id = $1 AND user_id = $2 AND scorecard_tee_time_id IS NOT NULL',
         [gameId, req.session.user.id]
       );
-      if (!captainRows[0]) {
-        return res.redirect(base + '?error=' + encodeURIComponent('Only a captain or the host can set closest to the pin.'));
+      if (!meRows[0]) {
+        return res.redirect(base + '?error=' + encodeURIComponent('Only someone in a tee time or the host can set closest to the pin.'));
       }
     }
 
@@ -679,7 +652,7 @@ router.post('/closest-to-pin', requireAuth, async (req, res) => {
 
 // POST /game/:gameId/scorecard/ctp-holes — host/co-host: choose which par-3 holes
 // have a closest-to-the-pin competition. Works both pre-start (lobby) and once the
-// game is live (scorecard host controls) — unlike teams/handicaps/captains, this
+// game is live (scorecard host controls) — unlike teams/handicaps, this
 // isn't locked in at start.
 router.post('/ctp-holes', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
@@ -704,7 +677,7 @@ router.post('/ctp-holes', requireAuth, async (req, res) => {
 });
 
 // POST /game/:gameId/scorecard/reset-scores — host: wipe all entered hole scores
-// (keeps teams/handicaps/captains/closest-to-pin selections intact), so a captain
+// (keeps teams/handicaps/closest-to-pin selections intact), so players
 // can start entering strokes again after a mistake.
 router.post('/reset-scores', requireAuth, async (req, res) => {
   const gameId = getGameId(req);

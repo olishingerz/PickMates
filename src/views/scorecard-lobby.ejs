@@ -31,9 +31,9 @@
       <% } %>
       <p class="last-updated" style="margin-top:.2rem">
         <% if (game.is_started) { %>
-          <strong style="color:var(--green-dark)">Game in progress.</strong> Teams, handicaps and captains are locked in.
+          <strong style="color:var(--green-dark)">Game in progress.</strong> Teams and handicaps are locked in.
         <% } else if (user && canManage) { %>
-          <strong style="color:var(--green-dark)">Waiting to start.</strong> Get everyone into a team, set handicaps and captains, then start the game.
+          <strong style="color:var(--green-dark)">Waiting to start.</strong> Get everyone into a team, set handicaps, then start the game.
         <% } else { %>
           Waiting for the host to start the game.
         <% } %>
@@ -68,7 +68,6 @@
                 <tr>
                   <th>Player</th>
                   <th>Handicap</th>
-                  <th>Captain</th>
                   <% if (teeTimes.length > 0) { %><th>Tee Time</th><% } %>
                   <% if (canManage && !game.is_started) { %><th></th><% } %>
                 </tr>
@@ -88,19 +87,6 @@
                         </form>
                       <% } else { %>
                         <%= p.handicap !== null ? p.handicap : '—' %>
-                      <% } %>
-                    </td>
-                    <td>
-                      <% if (canManage && !game.is_started) { %>
-                        <form action="/game/<%= game.id %>/scorecard/captain" method="POST" style="display:inline">
-                          <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
-                          <input type="hidden" name="make" value="<%= p.is_captain ? '0' : '1' %>" />
-                          <button type="submit" class="btn btn-sm" style="padding:.2rem .55rem;font-size:.78rem;<%= p.is_captain ? 'background:var(--green);color:#fff' : 'background:var(--card-border);color:var(--text)' %>">
-                            <%= p.is_captain ? '⭐ Captain' : 'Make captain' %>
-                          </button>
-                        </form>
-                      <% } else { %>
-                        <% if (p.is_captain) { %><span class="status-badge status-live">⭐ Captain</span><% } else { %>—<% } %>
                       <% } %>
                     </td>
                     <% if (teeTimes.length > 0) { %>
@@ -253,9 +239,9 @@
     <% if (canManage && !game.is_started) { %>
       <div class="card admin-card">
         <h2 class="section-title">Host Controls</h2>
-        <p class="admin-hint">Everyone needs to be on a team before you can start. Once started, teams, handicaps and captains are locked in.</p>
+        <p class="admin-hint">Everyone needs to be on a team before you can start. Once started, teams and handicaps are locked in.</p>
         <form action="/game/<%= game.id %>/scorecard/start" method="POST" style="margin-top:.6rem"
-              onsubmit="return confirm('Start the game? Teams, handicaps and captains will be locked in.')">
+              onsubmit="return confirm('Start the game? Teams and handicaps will be locked in.')">
           <button type="submit" class="btn" style="background:var(--green);color:#fff">▶ Start Game</button>
         </form>
       </div>
