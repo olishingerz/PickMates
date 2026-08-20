@@ -140,11 +140,7 @@
               <% savedCourses.forEach(c => { %>
                 <div style="display:flex;align-items:center;gap:.4rem;font-size:.78rem" class="muted">
                   <span><%= c.name %></span>
-                  <form action="/games/create/delete-course" method="POST" style="display:inline"
-                        onsubmit="return confirm('Remove \'<%= c.name.replace(/'/g, "\\'") %>\' from your saved courses?')">
-                    <input type="hidden" name="course_id" value="<%= c.id %>" />
-                    <button type="submit" class="btn btn-sm btn-danger" style="padding:.05rem .35rem;font-size:.72rem">✕</button>
-                  </form>
+                  <button type="submit" form="delete-course-<%= c.id %>" class="btn btn-sm btn-danger" style="padding:.05rem .35rem;font-size:.72rem">✕</button>
                 </div>
               <% }) %>
             </div>
@@ -214,6 +210,17 @@
 
       <button type="submit" class="btn" style="font-size:1rem;padding:.6rem 1.5rem">Create game →</button>
     </form>
+
+    <!-- Each saved course's delete action is its own form, kept outside #create-form
+         (nested <form> elements are invalid HTML and silently break the outer form —
+         the browser closes #create-form early at the first nested </form> it hits).
+         The delete button above references this one by id via the "form" attribute. -->
+    <% savedCourses.forEach(c => { %>
+      <form id="delete-course-<%= c.id %>" action="/games/create/delete-course" method="POST" style="display:none"
+            onsubmit="return confirm('Remove \'<%= c.name.replace(/'/g, "\\'") %>\' from your saved courses?')">
+        <input type="hidden" name="course_id" value="<%= c.id %>" />
+      </form>
+    <% }) %>
   </main>
 
   <%- include('partials/footer') %>
