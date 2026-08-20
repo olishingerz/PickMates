@@ -21,7 +21,7 @@
   <main>
     <div class="page-header">
       <h1>Week <%= currentWeek %> Pick</h1>
-      <p class="muted">Pick one team to win. You can't pick the same team twice this season.</p>
+      <p class="muted">Pick one team to win. You can't pick the same team twice.</p>
       <% if (weekObj?.deadline) { %>
         <p class="last-updated">
           Deadline: <%= new Date(weekObj.deadline).toLocaleString('en-GB', { timeZone:'Europe/London', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %>
@@ -44,10 +44,10 @@
         <p>No fixtures available right now. ESPN may not have published this week's schedule yet — check back closer to the weekend.</p>
       </div>
     <% } else { %>
-      <!-- Teams already used this season -->
+      <!-- Teams already used -->
       <% if (usedTeamIds.size > 0) { %>
         <div class="card" style="margin-bottom:1rem">
-          <p class="label-small" style="margin-bottom:.4rem">Teams you've already used this season</p>
+          <p class="label-small" style="margin-bottom:.4rem">Teams you've already used</p>
           <div class="pill-list">
             <% const myPicks = allPicks.filter(p => p.user_id === user.id); %>
             <% myPicks.sort((a,b)=>a.week_number-b.week_number).forEach(p => { %>

@@ -207,7 +207,7 @@ router.post('/picks', requireAuth, async (req, res) => {
 
     // Check not already used this team
     if (data.usedTeamIds.has(team_id)) {
-      return res.redirect(base + '?error=' + encodeURIComponent(`You have already used ${team_name} this season.`));
+      return res.redirect(base + '?error=' + encodeURIComponent(`You have already used ${team_name}.`));
     }
 
     await pool.query(
