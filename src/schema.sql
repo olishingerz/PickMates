@@ -521,6 +521,23 @@ CREATE TABLE IF NOT EXISTS saved_course_holes (
   UNIQUE(course_id, hole_number)
 );
 
+-- Golf Scorecard: tee times — an independent grouping from teams, representing
+-- who physically plays together on the course. Optional; set up in the lobby.
+CREATE TABLE IF NOT EXISTS scorecard_tee_times (
+  id          SERIAL PRIMARY KEY,
+  game_id     INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  label       VARCHAR(50) NOT NULL,
+  created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Add scorecard_tee_time_id to game_participants if missing
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='game_participants' AND column_name='scorecard_tee_time_id') THEN
+    ALTER TABLE game_participants ADD COLUMN scorecard_tee_time_id INTEGER REFERENCES scorecard_tee_times(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
 -- ── One-time data fixes ───────────────────────────────────────────────────────
 -- Fix ESPN name mismatches for Masters 2026 (Samuel Stevens / Nicolas Echavarria)
 UPDATE picks SET player_name = 'Sam Stevens'

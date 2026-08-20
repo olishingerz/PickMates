@@ -69,6 +69,7 @@
                   <th>Player</th>
                   <th>Handicap</th>
                   <th>Captain</th>
+                  <% if (teeTimes.length > 0) { %><th>Tee Time</th><% } %>
                   <% if (canManage && !game.is_started) { %><th></th><% } %>
                 </tr>
               </thead>
@@ -102,6 +103,24 @@
                         <% if (p.is_captain) { %><span class="status-badge status-live">⭐ Captain</span><% } else { %>—<% } %>
                       <% } %>
                     </td>
+                    <% if (teeTimes.length > 0) { %>
+                      <td>
+                        <% if (canManage && !game.is_started) { %>
+                          <form action="/game/<%= game.id %>/scorecard/tee-time" method="POST" style="display:flex;gap:.3rem;align-items:center">
+                            <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
+                            <select name="tee_time_id" style="padding:.3rem .4rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.82rem">
+                              <option value="">— None —</option>
+                              <% teeTimes.forEach(tt => { %>
+                                <option value="<%= tt.id %>" <%= p.scorecard_tee_time_id === tt.id ? 'selected' : '' %>><%= tt.label %></option>
+                              <% }) %>
+                            </select>
+                            <button type="submit" class="btn btn-sm" style="padding:.2rem .5rem;font-size:.78rem">Save</button>
+                          </form>
+                        <% } else { %>
+                          <%= p.tee_time_label || '—' %>
+                        <% } %>
+                      </td>
+                    <% } %>
                     <% if (canManage && !game.is_started) { %>
                       <td>
                         <form action="/game/<%= game.id %>/scorecard/remove-player" method="POST" style="display:inline">
@@ -158,6 +177,37 @@
             </li>
           <% }) %>
         </ul>
+      </div>
+    <% } %>
+
+    <!-- ── Tee times ────────────────────────────────────────────────────── -->
+    <% if (canManage && !game.is_started) { %>
+      <div class="card admin-card" style="margin-bottom:1rem">
+        <h2 class="section-title">Tee Times</h2>
+        <p class="admin-hint">Optional — group players by who's actually playing together on the course. Anyone in a tee time can enter scores for the rest of their group, even across different teams.</p>
+        <% if (teeTimes.length > 0) { %>
+          <div style="display:flex;flex-direction:column;gap:.5rem;margin:.8rem 0">
+            <% teeTimes.forEach(tt => { %>
+              <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+                <strong style="font-size:.88rem;min-width:100px"><%= tt.label %></strong>
+                <span class="muted" style="font-size:.82rem;flex:1">
+                  <%= tt.players.length > 0 ? tt.players.map(p => p.username).join(', ') : 'No players yet' %>
+                </span>
+                <% if (tt.players.length === 0) { %>
+                  <form action="/game/<%= game.id %>/scorecard/tee-times/remove" method="POST" style="display:inline">
+                    <input type="hidden" name="tee_time_id" value="<%= tt.id %>" />
+                    <button type="submit" class="btn btn-sm btn-danger" style="padding:.15rem .45rem;font-size:.78rem">✕</button>
+                  </form>
+                <% } %>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+        <form action="/game/<%= game.id %>/scorecard/tee-times/add" method="POST" style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+          <input type="text" name="label" placeholder="e.g. 09:10" maxlength="50" required
+                 style="padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;min-width:140px" />
+          <button type="submit" class="btn btn-sm">+ Add tee time</button>
+        </form>
       </div>
     <% } %>
 

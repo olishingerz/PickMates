@@ -62,7 +62,28 @@
         <p style="margin:0">⏳ This game hasn't started yet. <a href="/game/<%= game.id %>/draft">Go to the lobby →</a></p>
       </div>
     <% } else { %>
+      <%
+        const ctpHolderByHole = new Map(closestToPin.map(c => [c.hole_number, c.holder ? c.holder.participant_id : null]));
+        function canEditPlayer(p) {
+          if (game.tournament_complete) return false;
+          if (canManage) return true;
+          if (!myParticipant) return false;
+          if (myParticipant.is_captain && myParticipant.scorecard_team_id === p.scorecard_team_id) return true;
+          if (myParticipant.scorecard_tee_time_id && myParticipant.scorecard_tee_time_id === p.scorecard_tee_time_id) return true;
+          return false;
+        }
+      %>
 
+      <% if (teeTimes.length > 0) { %>
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem" id="scorecard-tabs">
+          <button type="button" class="btn btn-sm tab-btn" data-tab="all">All</button>
+          <% teeTimes.forEach(tt => { %>
+            <button type="button" class="btn btn-sm btn-ghost tab-btn" data-tab="tt-<%= tt.id %>"><%= tt.label %></button>
+          <% }) %>
+        </div>
+      <% } %>
+
+      <div data-tab-panel="all">
       <!-- ── Standings ──────────────────────────────────────────────────── -->
       <h2 class="section-title mt-lg">Standings</h2>
       <p class="admin-hint" style="margin-bottom:.6rem">Only each team's best 3 Stableford scores count on every hole.</p>
@@ -193,19 +214,17 @@
         <span style="margin:0 .3rem">·</span>
         <span class="score-other">● Triple Bogey+</span>
       </p>
-      <% const ctpHolderByHole = new Map(closestToPin.map(c => [c.hole_number, c.holder ? c.holder.participant_id : null])); %>
       <% teams.forEach(team => { %>
         <%
-          const editable = !game.tournament_complete && (canManage || (myParticipant && myParticipant.is_captain && myParticipant.scorecard_team_id === team.id));
+          const teamHasEditable = team.players.some(p => canEditPlayer(p));
         %>
         <h2 class="section-title mt-lg"><%= team.name %> <span class="muted" style="font-size:.85rem;font-weight:400">— <%= team.totalPoints %> pts</span></h2>
         <div class="card">
           <% if (team.players.length === 0) { %>
             <p class="muted">No players on this team.</p>
           <% } else { %>
-            <% if (editable) { %>
-              <form action="/game/<%= game.id %>/scorecard/scores" method="POST">
-                <input type="hidden" name="team_id" value="<%= team.id %>" />
+            <% if (teamHasEditable) { %>
+              <form action="/game/<%= game.id %>/scorecard/scores#all" method="POST">
             <% } %>
             <div class="leaderboard-table-wrap">
               <table class="leaderboard-table">
@@ -229,9 +248,10 @@
                       <% team.players.forEach(p => {
                         const hs = p.holeScores.find(x => x.hole_number === h.hole_number);
                         const scoreClass = hs && hs.scoreClass ? hs.scoreClass : '';
+                        const cellEditable = canEditPlayer(p);
                       %>
                         <td>
-                          <% if (editable) { %>
+                          <% if (cellEditable) { %>
                             <input type="number" name="strokes_<%= p.participant_id %>_<%= h.hole_number %>" min="1" max="15"
                                    value="<%= hs && hs.strokes !== null ? hs.strokes : '' %>"
                                    class="<%= scoreClass %>"
@@ -290,11 +310,113 @@
                 </tbody>
               </table>
             </div>
-            <% if (editable) { %>
+            <% if (teamHasEditable) { %>
                 <button type="submit" class="btn btn-sm" style="margin-top:.6rem;background:var(--green);color:#fff">Save Scores</button>
               </form>
             <% } %>
           <% } %>
+        </div>
+      <% }) %>
+      </div>
+
+      <% teeTimes.forEach(tt => { %>
+        <div data-tab-panel="tt-<%= tt.id %>" style="display:none">
+          <h2 class="section-title mt-lg"><%= tt.label %></h2>
+          <div class="card">
+            <% if (tt.players.length === 0) { %>
+              <p class="muted">No players in this tee time yet.</p>
+            <% } else { %>
+              <% const ttHasEditable = tt.players.some(p => canEditPlayer(p)); %>
+              <% if (ttHasEditable) { %>
+                <form action="/game/<%= game.id %>/scorecard/scores#tt-<%= tt.id %>" method="POST">
+              <% } %>
+              <div class="leaderboard-table-wrap">
+                <table class="leaderboard-table">
+                  <thead>
+                    <tr>
+                      <th>Hole</th>
+                      <th>Par</th>
+                      <th>SI</th>
+                      <% tt.players.forEach(p => { %>
+                        <th title="<%= p.username %>" style="font-weight:500;text-transform:none">
+                          <%= p.username.length > 10 ? p.username.slice(0, 10) + '…' : p.username %><% if (p.is_captain) { %> ⭐<% } %>
+                          <% if (p.team_name) { %><br /><span class="muted" style="font-size:.68rem;font-weight:400"><%= p.team_name %></span><% } %>
+                        </th>
+                      <% }) %>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% holes.forEach(h => { %>
+                      <tr>
+                        <td><%= h.hole_number %></td>
+                        <td><%= h.par %></td>
+                        <td><%= h.stroke_index %></td>
+                        <% tt.players.forEach(p => {
+                          const hs = p.holeScores.find(x => x.hole_number === h.hole_number);
+                          const scoreClass = hs && hs.scoreClass ? hs.scoreClass : '';
+                          const cellEditable = canEditPlayer(p);
+                        %>
+                          <td>
+                            <% if (cellEditable) { %>
+                              <input type="number" name="strokes_<%= p.participant_id %>_<%= h.hole_number %>" min="1" max="15"
+                                     value="<%= hs && hs.strokes !== null ? hs.strokes : '' %>"
+                                     class="<%= scoreClass %>"
+                                     style="width:55px;padding:.25rem .35rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem" />
+                            <% } else { %>
+                              <span class="<%= scoreClass %>"><%= hs && hs.strokes !== null ? hs.strokes : '—' %></span>
+                            <% } %>
+                            <% if (hs && hs.points !== null) { %><span class="muted" style="font-size:.72rem"> (<%= hs.points %>pt)</span><% } %>
+                            <% if (ctpHolderByHole.get(h.hole_number) === p.participant_id) { %><span title="Closest to the pin">🎯</span><% } %>
+                          </td>
+                        <% }) %>
+                      </tr>
+                      <% if (h.hole_number === 9) { %>
+                        <tr style="font-weight:700;background:var(--green-light)">
+                          <td colspan="3">OUT</td>
+                          <% tt.players.forEach(p => { %>
+                            <td>
+                              <%= p.front9.strokes !== null ? p.front9.strokes : '—' %>
+                              <% if (p.front9.points !== null) { %><span class="muted" style="font-size:.72rem"> (<%= p.front9.points %>pt)</span><% } %>
+                            </td>
+                          <% }) %>
+                        </tr>
+                        <tr style="font-size:.72rem;color:var(--text-muted);background:var(--bg)">
+                          <td colspan="3">Back 9 →</td>
+                          <% tt.players.forEach(p => { %>
+                            <td title="<%= p.username %>"><%= p.username.length > 10 ? p.username.slice(0, 10) + '…' : p.username %><% if (p.is_captain) { %> ⭐<% } %></td>
+                          <% }) %>
+                        </tr>
+                      <% } %>
+                      <% if (h.hole_number === 18) { %>
+                        <tr style="font-weight:700;background:var(--green-light)">
+                          <td colspan="3">IN</td>
+                          <% tt.players.forEach(p => { %>
+                            <td>
+                              <%= p.back9.strokes !== null ? p.back9.strokes : '—' %>
+                              <% if (p.back9.points !== null) { %><span class="muted" style="font-size:.72rem"> (<%= p.back9.points %>pt)</span><% } %>
+                            </td>
+                          <% }) %>
+                        </tr>
+                        <tr style="font-weight:700">
+                          <td colspan="3">TOTAL</td>
+                          <% tt.players.forEach(p => { %>
+                            <td>
+                              <%= p.total18.strokes !== null ? p.total18.strokes : '—' %>
+                              <% if (p.total18.points !== null) { %><span class="muted" style="font-size:.72rem"> (<%= p.total18.points %>pt)</span><% } %>
+                            </td>
+                          <% }) %>
+                        </tr>
+                      <% } %>
+                    <% }) %>
+                  </tbody>
+                </table>
+              </div>
+              <% if (ttHasEditable) { %>
+                <button type="submit" class="btn btn-sm" style="margin-top:.6rem;background:var(--green);color:#fff">Save Scores</button>
+                </form>
+              <% } %>
+            <% } %>
+          </div>
         </div>
       <% }) %>
     <% } %>
@@ -343,6 +465,32 @@
       </details>
     <% } %>
   </main>
+
+  <script>
+    (function() {
+      const tabsBar = document.getElementById('scorecard-tabs');
+      if (!tabsBar) return;
+      const buttons = tabsBar.querySelectorAll('.tab-btn');
+      const panels  = document.querySelectorAll('[data-tab-panel]');
+
+      function activate(tab) {
+        buttons.forEach(b => b.classList.toggle('btn-ghost', b.dataset.tab !== tab));
+        panels.forEach(p => { p.style.display = p.dataset.tabPanel === tab ? '' : 'none'; });
+      }
+
+      buttons.forEach(b => {
+        b.addEventListener('click', () => {
+          activate(b.dataset.tab);
+          history.replaceState(null, '', '#' + b.dataset.tab);
+        });
+      });
+
+      const requested = (location.hash || '').slice(1);
+      let hasPanel = false;
+      try { hasPanel = !!document.querySelector('[data-tab-panel="' + requested + '"]'); } catch (e) {}
+      activate(hasPanel ? requested : 'all');
+    })();
+  </script>
 
   <%- include('partials/footer') %>
 </body>

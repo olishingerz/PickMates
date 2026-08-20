@@ -65,7 +65,7 @@ function sumField(holeScores, field) {
 }
 
 async function getScorecardData(gameId, userId) {
-  const [gameRes, teamsRes, participantsRes, holesRes, scoresRes, ctpRes] = await Promise.all([
+  const [gameRes, teamsRes, teeTimesRes, participantsRes, holesRes, scoresRes, ctpRes] = await Promise.all([
     pool.query(
       `SELECT g.id, g.name, g.game_type, g.is_started, g.tournament_complete, g.started_at, g.host_user_id, g.invite_code,
               g.scorecard_course_name, g.scorecard_course_par, g.scorecard_entry_fee, g.winner_username,
@@ -76,9 +76,10 @@ async function getScorecardData(gameId, userId) {
       [gameId]
     ),
     pool.query('SELECT id, name FROM scorecard_teams WHERE game_id = $1 ORDER BY id ASC', [gameId]),
+    pool.query('SELECT id, label FROM scorecard_tee_times WHERE game_id = $1 ORDER BY id ASC', [gameId]),
     pool.query(`
       SELECT gp.id AS participant_id, u.id AS user_id, u.username,
-             gp.scorecard_team_id, gp.handicap, gp.is_captain, gp.is_co_host
+             gp.scorecard_team_id, gp.scorecard_tee_time_id, gp.handicap, gp.is_captain, gp.is_co_host
       FROM game_participants gp
       JOIN users u ON u.id = gp.user_id
       WHERE gp.game_id = $1
@@ -99,6 +100,7 @@ async function getScorecardData(gameId, userId) {
   }
 
   const teamNameById = new Map(teamsRes.rows.map(t => [t.id, t.name]));
+  const teeTimeLabelById = new Map(teeTimesRes.rows.map(tt => [tt.id, tt.label]));
 
   const playersByTeam = new Map();
   const unassignedParticipants = [];
@@ -121,6 +123,7 @@ async function getScorecardData(gameId, userId) {
     const player = {
       ...p,
       team_name: teamNameById.get(p.scorecard_team_id) || null,
+      tee_time_label: teeTimeLabelById.get(p.scorecard_tee_time_id) || null,
       holeScores,
       front9:  { strokes: sumField(frontNine, 'strokes'), points: sumField(frontNine, 'points') },
       back9:   { strokes: sumField(backNine,  'strokes'), points: sumField(backNine,  'points') },
@@ -179,7 +182,15 @@ async function getScorecardData(gameId, userId) {
     return bp - ap;
   });
 
-  return { game, teams, standings, holes, parThreeHoles, unassignedParticipants, allParticipants, individualStandings, closestToPin, userId };
+  // Tee times are a second, independent grouping from teams (who plays together
+  // on the course, not who's on the same competitive team) — same player objects,
+  // just filtered differently. Purely optional; empty if the host never sets any up.
+  const teeTimes = teeTimesRes.rows.map(tt => ({
+    ...tt,
+    players: allParticipants.filter(p => p.scorecard_tee_time_id === tt.id),
+  }));
+
+  return { game, teams, standings, holes, parThreeHoles, teeTimes, unassignedParticipants, allParticipants, individualStandings, closestToPin, userId };
 }
 
 // Called from draft.js when game_type === 'golf_scorecard'
@@ -435,6 +446,90 @@ router.post('/captain', requireAuth, async (req, res) => {
   }
 });
 
+// POST /game/:gameId/scorecard/tee-times/add — host/co-host: create a new tee time
+router.post('/tee-times/add', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  const base = `/game/${gameId}/draft`;
+  if (!await canManage(req, gameId)) return res.redirect(base);
+
+  const label = req.body.label?.trim();
+  if (!label || label.length < 1 || label.length > 50) {
+    return res.redirect(base + '?error=' + encodeURIComponent('Tee time name must be between 1 and 50 characters.'));
+  }
+
+  try {
+    const { rows: gameRows } = await pool.query('SELECT is_started FROM games WHERE id = $1', [gameId]);
+    if (gameRows[0]?.is_started) {
+      return res.redirect(`/game/${gameId}?error=` + encodeURIComponent('The game has already started — tee times are locked in.'));
+    }
+    await pool.query('INSERT INTO scorecard_tee_times (game_id, label) VALUES ($1, $2)', [gameId, label]);
+    res.redirect(base + '?success=' + encodeURIComponent(`Tee time "${label}" added.`));
+  } catch (err) {
+    console.error('[scorecard tee-times add]', err);
+    res.redirect(base + '?error=' + encodeURIComponent('Failed to add tee time.'));
+  }
+});
+
+// POST /game/:gameId/scorecard/tee-times/remove — host/co-host: delete an empty tee time
+router.post('/tee-times/remove', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  const base = `/game/${gameId}/draft`;
+  if (!await canManage(req, gameId)) return res.redirect(base);
+
+  const teeTimeId = parseInt(req.body.tee_time_id);
+  if (!teeTimeId) return res.redirect(base + '?error=' + encodeURIComponent('Invalid tee time.'));
+
+  try {
+    const { rows: gameRows } = await pool.query('SELECT is_started FROM games WHERE id = $1', [gameId]);
+    if (gameRows[0]?.is_started) {
+      return res.redirect(`/game/${gameId}?error=` + encodeURIComponent('The game has already started — tee times are locked in.'));
+    }
+    const { rows: assigned } = await pool.query(
+      'SELECT COUNT(*)::int AS cnt FROM game_participants WHERE game_id = $1 AND scorecard_tee_time_id = $2',
+      [gameId, teeTimeId]
+    );
+    if (assigned[0].cnt > 0) {
+      return res.redirect(base + '?error=' + encodeURIComponent('Move everyone out of this tee time before removing it.'));
+    }
+    await pool.query('DELETE FROM scorecard_tee_times WHERE id = $1 AND game_id = $2', [teeTimeId, gameId]);
+    res.redirect(base + '?success=' + encodeURIComponent('Tee time removed.'));
+  } catch (err) {
+    console.error('[scorecard tee-times remove]', err);
+    res.redirect(base + '?error=' + encodeURIComponent('Failed to remove tee time.'));
+  }
+});
+
+// POST /game/:gameId/scorecard/tee-time — host/co-host: assign a participant to a tee time
+router.post('/tee-time', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  const base = `/game/${gameId}/draft`;
+  if (!await canManage(req, gameId)) return res.redirect(base);
+
+  const participantId = parseInt(req.body.participant_id);
+  const teeTimeId = req.body.tee_time_id === '' ? null : parseInt(req.body.tee_time_id);
+
+  try {
+    const { rows: gameRows } = await pool.query('SELECT is_started FROM games WHERE id = $1', [gameId]);
+    if (gameRows[0]?.is_started) {
+      return res.redirect(`/game/${gameId}?error=` + encodeURIComponent('The game has already started — tee times are locked in.'));
+    }
+    if (teeTimeId !== null) {
+      const { rows: teeTimeRows } = await pool.query('SELECT id FROM scorecard_tee_times WHERE id = $1 AND game_id = $2', [teeTimeId, gameId]);
+      if (!teeTimeRows[0]) {
+        return res.redirect(base + '?error=' + encodeURIComponent('Invalid tee time.'));
+      }
+    }
+    await pool.query(
+      'UPDATE game_participants SET scorecard_tee_time_id = $1 WHERE id = $2 AND game_id = $3',
+      [teeTimeId, participantId, gameId]
+    );
+    res.redirect(base + '?success=' + encodeURIComponent('Tee time updated.'));
+  } catch (err) {
+    console.error('[scorecard tee-time]', err);
+    res.redirect(base + '?error=' + encodeURIComponent('Failed to update tee time.'));
+  }
+});
+
 // POST /game/:gameId/scorecard/start — host/co-host: lock teams/handicaps/captains and begin
 router.post('/start', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
@@ -467,11 +562,14 @@ router.post('/start', requireAuth, async (req, res) => {
   }
 });
 
-// POST /game/:gameId/scorecard/scores — captain (their own team) or host/co-host: save hole scores
+// POST /game/:gameId/scorecard/scores — save hole scores. Authorized per player, not
+// per form: host/co-host can edit anyone; a team captain can edit their own team;
+// anyone can edit a fellow member of their own tee-time group. This lets one
+// submission span multiple teams (needed for the tee-time view) and means a captain
+// scattered away from some teammates can still get help from whoever's playing with them.
 router.post('/scores', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base = `/game/${gameId}`;
-  const teamId = parseInt(req.body.team_id);
 
   try {
     const { rows: gameRows } = await pool.query('SELECT is_started, tournament_complete FROM games WHERE id = $1', [gameId]);
@@ -484,21 +582,20 @@ router.post('/scores', requireAuth, async (req, res) => {
     }
 
     const manageFlag = await canManage(req, gameId);
-    if (!manageFlag) {
-      const { rows: captainRows } = await pool.query(
-        'SELECT id FROM game_participants WHERE game_id = $1 AND user_id = $2 AND is_captain = TRUE AND scorecard_team_id = $3',
-        [gameId, req.session.user.id, teamId]
-      );
-      if (!captainRows[0]) {
-        return res.redirect(base + '?error=' + encodeURIComponent('Only that team\'s captain (or the host) can enter its scores.'));
-      }
-    }
-
-    const { rows: teamPlayers } = await pool.query(
-      'SELECT id FROM game_participants WHERE game_id = $1 AND scorecard_team_id = $2',
-      [gameId, teamId]
+    const { rows: allParts } = await pool.query(
+      'SELECT id, user_id, scorecard_team_id, scorecard_tee_time_id, is_captain FROM game_participants WHERE game_id = $1',
+      [gameId]
     );
-    const validParticipantIds = new Set(teamPlayers.map(p => p.id));
+    const partsById = new Map(allParts.map(p => [p.id, p]));
+    const me = allParts.find(p => p.user_id === req.session.user.id) || null;
+
+    function canEdit(participant) {
+      if (manageFlag) return true;
+      if (!me) return false;
+      if (me.is_captain && me.scorecard_team_id === participant.scorecard_team_id) return true;
+      if (me.scorecard_tee_time_id && me.scorecard_tee_time_id === participant.scorecard_tee_time_id) return true;
+      return false;
+    }
 
     const updates = [];
     for (const key of Object.keys(req.body)) {
@@ -508,7 +605,8 @@ router.post('/scores', requireAuth, async (req, res) => {
       const holeNumber = parseInt(match[2]);
       const raw = req.body[key];
       if (raw === '' || raw === undefined || raw === null) continue;
-      if (!validParticipantIds.has(participantId)) continue;
+      const participant = partsById.get(participantId);
+      if (!participant || !canEdit(participant)) continue;
       const strokes = parseInt(raw);
       if (isNaN(strokes) || strokes < 1 || strokes > 15) continue;
       if (holeNumber < 1 || holeNumber > 18) continue;
