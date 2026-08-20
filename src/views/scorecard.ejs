@@ -327,6 +327,12 @@
               <button type="submit" class="btn btn-sm" style="width:100%;background:var(--green);color:#fff">Mark complete</button>
             </form>
           <% } %>
+          <% if (isHost && game.is_started) { %>
+            <form action="/game/<%= game.id %>/scorecard/reset-scores" method="POST"
+                  onsubmit="return confirm('Reset all entered scores? This clears every hole for every player and cannot be undone.')">
+              <button type="submit" class="btn btn-sm btn-danger" style="width:100%">Reset scores</button>
+            </form>
+          <% } %>
           <% if (isHost) { %>
             <form action="/game/<%= game.id %>/delete" method="POST"
                   onsubmit="return confirm('Delete this game and all scores? Cannot be undone.')">

@@ -615,4 +615,21 @@ router.post('/ctp-holes', requireAuth, async (req, res) => {
   }
 });
 
+// POST /game/:gameId/scorecard/reset-scores — host: wipe all entered hole scores
+// (keeps teams/handicaps/captains/closest-to-pin selections intact), so a captain
+// can start entering strokes again after a mistake.
+router.post('/reset-scores', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  const base = `/game/${gameId}`;
+  if (!await isHost(req, gameId)) return res.redirect(base);
+
+  try {
+    await pool.query('DELETE FROM scorecard_scores WHERE game_id = $1', [gameId]);
+    res.redirect(base + '?success=' + encodeURIComponent('All scores have been reset.'));
+  } catch (err) {
+    console.error('[scorecard reset-scores]', err);
+    res.redirect(base + '?error=' + encodeURIComponent('Failed to reset scores.'));
+  }
+});
+
 module.exports = { router, getScorecardData, isHost, canManage, renderLobby, stablefordPoints };
