@@ -446,7 +446,9 @@ router.post('/captain', requireAuth, async (req, res) => {
   }
 });
 
-// POST /game/:gameId/scorecard/tee-times/add — host/co-host: create a new tee time
+// POST /game/:gameId/scorecard/tee-times/add — host/co-host: create a new tee time.
+// Unlike teams/handicaps/captains, tee times aren't locked at start — a host may
+// well only want to set them up once the game is already underway.
 router.post('/tee-times/add', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base = `/game/${gameId}/draft`;
@@ -458,10 +460,6 @@ router.post('/tee-times/add', requireAuth, async (req, res) => {
   }
 
   try {
-    const { rows: gameRows } = await pool.query('SELECT is_started FROM games WHERE id = $1', [gameId]);
-    if (gameRows[0]?.is_started) {
-      return res.redirect(`/game/${gameId}?error=` + encodeURIComponent('The game has already started — tee times are locked in.'));
-    }
     await pool.query('INSERT INTO scorecard_tee_times (game_id, label) VALUES ($1, $2)', [gameId, label]);
     res.redirect(base + '?success=' + encodeURIComponent(`Tee time "${label}" added.`));
   } catch (err) {
@@ -480,10 +478,6 @@ router.post('/tee-times/remove', requireAuth, async (req, res) => {
   if (!teeTimeId) return res.redirect(base + '?error=' + encodeURIComponent('Invalid tee time.'));
 
   try {
-    const { rows: gameRows } = await pool.query('SELECT is_started FROM games WHERE id = $1', [gameId]);
-    if (gameRows[0]?.is_started) {
-      return res.redirect(`/game/${gameId}?error=` + encodeURIComponent('The game has already started — tee times are locked in.'));
-    }
     const { rows: assigned } = await pool.query(
       'SELECT COUNT(*)::int AS cnt FROM game_participants WHERE game_id = $1 AND scorecard_tee_time_id = $2',
       [gameId, teeTimeId]
@@ -509,10 +503,6 @@ router.post('/tee-time', requireAuth, async (req, res) => {
   const teeTimeId = req.body.tee_time_id === '' ? null : parseInt(req.body.tee_time_id);
 
   try {
-    const { rows: gameRows } = await pool.query('SELECT is_started FROM games WHERE id = $1', [gameId]);
-    if (gameRows[0]?.is_started) {
-      return res.redirect(`/game/${gameId}?error=` + encodeURIComponent('The game has already started — tee times are locked in.'));
-    }
     if (teeTimeId !== null) {
       const { rows: teeTimeRows } = await pool.query('SELECT id FROM scorecard_tee_times WHERE id = $1 AND game_id = $2', [teeTimeId, gameId]);
       if (!teeTimeRows[0]) {

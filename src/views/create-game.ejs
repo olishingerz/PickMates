@@ -316,6 +316,22 @@
         tEnd.value   = row.dataset.end;
       });
     });
+
+    // If a required/invalid field is blocking submission, make that obvious instead
+    // of silently doing nothing — scroll to it and highlight it.
+    const createForm = document.getElementById('create-form');
+    createForm.addEventListener('submit', (e) => {
+      if (!createForm.checkValidity()) {
+        e.preventDefault();
+        createForm.reportValidity();
+        const firstInvalid = createForm.querySelector(':invalid');
+        if (firstInvalid) {
+          firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          firstInvalid.style.outline = '2px solid #ef4444';
+          firstInvalid.focus();
+        }
+      }
+    });
   </script>
 </body>
 </html>

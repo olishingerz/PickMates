@@ -105,7 +105,7 @@
                     </td>
                     <% if (teeTimes.length > 0) { %>
                       <td>
-                        <% if (canManage && !game.is_started) { %>
+                        <% if (canManage) { %>
                           <form action="/game/<%= game.id %>/scorecard/tee-time" method="POST" style="display:flex;gap:.3rem;align-items:center">
                             <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
                             <select name="tee_time_id" style="padding:.3rem .4rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.82rem">
@@ -181,7 +181,7 @@
     <% } %>
 
     <!-- ── Tee times ────────────────────────────────────────────────────── -->
-    <% if (canManage && !game.is_started) { %>
+    <% if (canManage) { %>
       <div class="card admin-card" style="margin-bottom:1rem">
         <h2 class="section-title">Tee Times</h2>
         <p class="admin-hint">Optional — group players by who's actually playing together on the course. Anyone in a tee time can enter scores for the rest of their group, even across different teams.</p>
