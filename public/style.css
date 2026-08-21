@@ -880,11 +880,17 @@ a.nav-user:hover { color: var(--green); }
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1.1rem;
+  align-items: stretch;
 }
+/* Direct grid children are the per-game-type accent wrapper divs (see home.ejs) —
+   stretch them, then stretch .game-card inside to fill, so every card in a row
+   matches height regardless of how much text a given game type has. */
+.games-grid > div { display: flex; }
 .game-card {
   display: flex;
   flex-direction: column;
   gap: .55rem;
+  flex: 1;
   position: relative;
   overflow: hidden;
   transition: transform .18s cubic-bezier(.2,.7,.3,1), box-shadow .18s ease;
@@ -902,7 +908,7 @@ a.nav-user:hover { color: var(--green); }
 .game-card-name { font-size: 1.08rem; font-weight: 800; margin: 0; letter-spacing: -.01em; }
 .game-card-tournament { font-size: .84rem; margin: .2rem 0 0; }
 .game-card-meta { font-size: .82rem; }
-.game-card-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .35rem; }
+.game-card-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: auto; padding-top: .35rem; }
 .game-type-badge { font-size: .7rem; font-weight: 700; padding: .22rem .55rem; border-radius: 20px; white-space: nowrap; letter-spacing: -.005em; }
 .game-type-golf       { background: var(--green-light); color: var(--green-dark); }
 .game-type-lms         { background: var(--gold-light); color: var(--gold-dark); }
