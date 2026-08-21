@@ -4,6 +4,7 @@ const { fetchTournamentList, scrapeLeaderboard, computeRanks } = require('../ser
 const { LEAGUE_NAMES } = require('../services/football');
 const { PICKS_PER_PLAYER, SCORES_THAT_COUNT, MIN_CUT_MAKERS } = require('../constants');
 const { getLmsData } = require('./lms');
+const { TEAM_COUNTING_SCORES } = require('./scorecard');
 const { getGameCreationRoles, canCreateGames } = require('../services/settings');
 
 const router = express.Router();
@@ -332,7 +333,7 @@ router.get('/join/:inviteCode', async (req, res) => {
 
 // GET /how-it-works
 router.get('/how-it-works', (req, res) => {
-  res.render('how-it-works', { PICKS_PER_PLAYER, SCORES_THAT_COUNT, MIN_CUT_MAKERS });
+  res.render('how-it-works', { PICKS_PER_PLAYER, SCORES_THAT_COUNT, MIN_CUT_MAKERS, TEAM_COUNTING_SCORES });
 });
 
 // GET /hall-of-fame

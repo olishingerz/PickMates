@@ -743,4 +743,4 @@ router.post('/reset-scores', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = { router, getScorecardData, isHost, canManage, renderLobby, stablefordPoints };
+module.exports = { router, getScorecardData, isHost, canManage, renderLobby, stablefordPoints, TEAM_COUNTING_SCORES };

@@ -18,7 +18,7 @@
   <main>
     <div class="page-header">
       <h1>How It Works</h1>
-      <p class="last-updated">The rules for both game modes.</p>
+      <p class="last-updated">The rules for all three game modes.</p>
     </div>
 
     <!-- ── Golf Draft ─────────────────────────────────────────────────────── -->
@@ -48,6 +48,22 @@
         <li><strong>Rollover:</strong> if everyone gets eliminated in the same week, there's no winner — the prize <strong>doubles</strong> and the game restarts.</li>
         <li><strong>Auto-restart:</strong> once a round ends (win or rollover), the game automatically resets to week 1 and keeps going — nobody needs to re-register — until the host clicks <strong>Stop Game</strong>.</li>
         <li>Results are processed automatically once all of the gameweek's matches finish (the host can also process them manually at any time).</li>
+      </ol>
+    </div>
+
+    <!-- ── Golf Scorecard ────────────────────────────────────────────────── -->
+    <h2 class="section-title mt-lg">⛳ Golf Scorecard</h2>
+    <div class="card">
+      <ol style="margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:.5rem">
+        <li>For a real round you're all playing together — enter everyone's strokes hole-by-hole as you go, or catch up afterwards. The host sets up the course (par and stroke index for all 18 holes) and picks a <strong>format</strong> when creating the game: <strong>Team</strong> or <strong>Individual</strong>.</li>
+        <li>Scoring is <strong>net Stableford</strong>: 2 points for a net par on a hole, +1 for every shot better, −1 for every shot worse, floored at 0. Your handicap (set by the host in the lobby) determines how many strokes you receive on each hole based on its stroke index.</li>
+        <li><strong>Team format:</strong> players join one of the host's teams from the lobby. Only a team's best <strong><%= TEAM_COUNTING_SCORES %></strong> Stableford scores count on each hole, so bigger teams aren't penalised for a weak link. The team with the most points wins.</li>
+        <li><strong>Individual format:</strong> no teams — everyone just plays for their own net Stableford total. The player with the most points wins.</li>
+        <li><strong>Tee times</strong> (team format only, optional): group players by who's actually playing together on the course. Anyone in a tee time can enter scores for the rest of their group, even across different teams — handy since usually only one person in the group is holding the scorecard. Individual-format games skip tee times entirely; you just enter your own scores.</li>
+        <li>You can always enter your <strong>own</strong> scores yourself, whatever the format — the host/co-host can enter anyone's.</li>
+        <li><strong>Closest to the pin</strong> can be enabled on any par-3 hole (the host chooses which). Whoever's nearest gets nominated by the host, or by anyone in that hole's tee time (team format) or any player (individual format) — nominating someone new replaces the previous holder.</li>
+        <li>If there's an entry fee, the pot splits: <strong>team format</strong> is 50% winning team / 40% best individual net score / 10% nearest the pin. <strong>Individual format</strong> is 70% best individual net score / 30% nearest the pin (no team prize, since there are no teams).</li>
+        <li>Once the host starts the game, teams and handicaps lock in — but tee times and closest-to-the-pin holes can still be changed at any point.</li>
       </ol>
     </div>
   </main>
