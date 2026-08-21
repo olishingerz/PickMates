@@ -3,6 +3,7 @@ const bcrypt  = require('bcrypt');
 const { pool } = require('../db');
 const { ROLE_OPTIONS, getGameCreationRoles, setGameCreationRoles } = require('../services/settings');
 const { getHomeData } = require('./home');
+const { LEAGUE_NAMES } = require('../services/football');
 
 const ESPN_SCOREBOARD = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
 async function fetchJSON(url) {
@@ -63,6 +64,7 @@ router.get('/preview/home', requireAdmin, async (req, res) => {
     res.render('home-v2', {
       games,
       winners,
+      LEAGUE_NAMES,
       error: null,
       success: null,
     });
