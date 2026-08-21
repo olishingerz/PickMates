@@ -744,6 +744,25 @@ a.nav-user:hover { color: var(--green); }
   flex-shrink: 0;
 }
 
+/* ── Inline player avatar (standings, lobbies, winner cards) ──────── */
+.player-avatar {
+  border-radius: 50%;
+  object-fit: cover;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.player-avatar-initial {
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 /* Active nav item */
 .nav-dropdown-item.active {
   color: var(--green);

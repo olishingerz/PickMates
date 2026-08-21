@@ -148,7 +148,12 @@
                 <% individualStandings.forEach((p, i) => { %>
                   <tr class="<%= myParticipant && p.participant_id === myParticipant.participant_id ? 'my-row' : '' %>">
                     <td>#<%= i + 1 %></td>
-                    <td title="<%= p.username %>"><%= p.username.length > 9 ? p.username.slice(0, 9) + '…' : p.username %></td>
+                    <td title="<%= p.username %>">
+                      <span style="display:inline-flex;align-items:center;gap:.4rem">
+                        <%- include('partials/player-avatar', { avatar: p.avatar, username: p.username }) %>
+                        <%= p.username.length > 9 ? p.username.slice(0, 9) + '…' : p.username %>
+                      </span>
+                    </td>
                     <% if (!isIndividual) { %><td><%= p.team_name || '—' %></td><% } %>
                     <td><%= p.thru %>/18</td>
                     <td><strong><%= p.total18.points !== null ? p.total18.points : 0 %></strong> pts</td>

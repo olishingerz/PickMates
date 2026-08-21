@@ -175,6 +175,7 @@ router.get('/:gameId', async (req, res) => {
       SELECT
         u.id           AS user_id,
         u.username,
+        u.avatar,
         gp.team_name,
         gp.draft_position,
         gp.last_rank,
@@ -202,6 +203,7 @@ router.get('/:gameId', async (req, res) => {
         teamsMap.set(row.user_id, {
           user_id: row.user_id,
           username: row.username,
+          avatar: row.avatar,
           team_name: row.team_name || null,
           draft_position: row.draft_position,
           last_rank: row.last_rank || null,

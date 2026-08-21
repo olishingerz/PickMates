@@ -256,12 +256,17 @@
                   <% } %>
                 </td>
                 <td>
-                  <% if (t.team_name) { %>
-                    <strong><%= t.team_name.length > 22 ? t.team_name.slice(0, 22) + '…' : t.team_name %></strong>
-                    <br /><span class="muted" style="font-size:.75rem"><%= t.username %></span>
-                  <% } else { %>
-                    <strong><%= t.username.length > 22 ? t.username.slice(0, 22) + '…' : t.username %></strong>
-                  <% } %>
+                  <span style="display:inline-flex;align-items:center;gap:.4rem">
+                    <%- include('partials/player-avatar', { avatar: t.avatar, username: t.username }) %>
+                    <% if (t.team_name) { %>
+                      <span>
+                        <strong><%= t.team_name.length > 22 ? t.team_name.slice(0, 22) + '…' : t.team_name %></strong>
+                        <br /><span class="muted" style="font-size:.75rem"><%= t.username %></span>
+                      </span>
+                    <% } else { %>
+                      <strong><%= t.username.length > 22 ? t.username.slice(0, 22) + '…' : t.username %></strong>
+                    <% } %>
+                  </span>
                 </td>
                 <td>
                   <% if (t.teamScore !== null) { %>
@@ -328,7 +333,10 @@
                   <% if (i === 0) { %><span class="medal gold">1</span><% } else { %><%= i + 1 %><% } %>
                 </td>
                 <td>
-                  <strong><%= t.username %></strong>
+                  <span style="display:inline-flex;align-items:center;gap:.4rem">
+                    <%- include('partials/player-avatar', { avatar: t.avatar, username: t.username }) %>
+                    <strong><%= t.username %></strong>
+                  </span>
                 </td>
                 <td><%= t.bestIndividualPlayer %></td>
                 <td>
@@ -355,14 +363,17 @@
           %>
           <div class="card squad-card" style="border-top: 4px solid <%= colour %>">
             <div class="squad-header">
-              <% if (t.team_name) { %>
-                <div>
-                  <strong><%= t.team_name %></strong>
-                  <div class="muted" style="font-size:.75rem"><%= t.username %></div>
-                </div>
-              <% } else { %>
-                <strong><%= t.username %></strong>
-              <% } %>
+              <span style="display:inline-flex;align-items:center;gap:.5rem">
+                <%- include('partials/player-avatar', { avatar: t.avatar, username: t.username }) %>
+                <% if (t.team_name) { %>
+                  <span>
+                    <strong><%= t.team_name %></strong>
+                    <div class="muted" style="font-size:.75rem"><%= t.username %></div>
+                  </span>
+                <% } else { %>
+                  <strong><%= t.username %></strong>
+                <% } %>
+              </span>
               <% if (t.teamScore !== null) { %>
                 <span class="score-badge <%= t.teamScore < 0 ? 'under' : t.teamScore === 0 ? 'even' : 'over' %>">
                   <%= fmtScore(t.teamScore) %>

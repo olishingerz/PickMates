@@ -54,10 +54,14 @@ router.get('/', async (req, res) => {
     }
     const { rows: winners } = await pool.query(`
       SELECT g.id, g.name, g.game_type, g.tournament_name, g.scorecard_format,
-             g.winner_username,
-             g.winner_individual_username,
+             g.winner_username, wu.avatar AS winner_avatar,
+             g.winner_individual_username, wiu.avatar AS winner_individual_avatar,
              g.tournament_end_date, g.tournament_start_date
       FROM games g
+      -- winner_username is a real username for golf_draft/LMS, but a team name
+      -- for team-format golf_scorecard — only look up an avatar in the former case
+      LEFT JOIN users wu ON wu.username = g.winner_username AND g.game_type IN ('golf_draft', 'last_man_standing')
+      LEFT JOIN users wiu ON wiu.username = g.winner_individual_username
       WHERE g.tournament_complete = TRUE
         AND (g.winner_username IS NOT NULL OR g.winner_individual_username IS NOT NULL)
       ORDER BY g.tournament_end_date DESC NULLS LAST, g.created_at DESC
@@ -331,7 +335,7 @@ router.get('/hall-of-fame', async (req, res) => {
   try {
     const [allTimeRes, recentRes] = await Promise.all([
       pool.query(`
-        SELECT u.username,
+        SELECT u.username, u.avatar,
                COUNT(*) FILTER (WHERE g.winner_username = u.username)::int              AS team_wins,
                COUNT(*) FILTER (WHERE g.winner_individual_username = u.username)::int   AS indiv_wins,
                (COUNT(*) FILTER (WHERE g.winner_username = u.username)
@@ -339,15 +343,17 @@ router.get('/hall-of-fame', async (req, res) => {
         FROM users u
         JOIN games g ON g.tournament_complete = TRUE
                      AND (g.winner_username = u.username OR g.winner_individual_username = u.username)
-        GROUP BY u.username
+        GROUP BY u.id, u.username, u.avatar
         ORDER BY total_wins DESC, team_wins DESC
       `),
       pool.query(`
         SELECT g.id, g.name, g.game_type, g.tournament_name, g.scorecard_format,
-               g.winner_username,
-               g.winner_individual_username,
+               g.winner_username, wu.avatar AS winner_avatar,
+               g.winner_individual_username, wiu.avatar AS winner_individual_avatar,
                g.tournament_end_date, g.tournament_start_date
         FROM games g
+        LEFT JOIN users wu ON wu.username = g.winner_username AND g.game_type IN ('golf_draft', 'last_man_standing')
+        LEFT JOIN users wiu ON wiu.username = g.winner_individual_username
         WHERE g.tournament_complete = TRUE
           AND (g.winner_username IS NOT NULL OR g.winner_individual_username IS NOT NULL)
         ORDER BY g.tournament_end_date DESC NULLS LAST, g.created_at DESC

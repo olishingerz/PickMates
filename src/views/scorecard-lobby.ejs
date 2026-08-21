@@ -74,7 +74,13 @@
               <tbody>
                 <% allParticipants.forEach(p => { %>
                   <tr>
-                    <td><%= p.username %><% if (user && p.user_id === user.id) { %> <span class="muted" style="font-size:.78rem">(you)</span><% } %></td>
+                    <td>
+                      <span style="display:inline-flex;align-items:center;gap:.4rem">
+                        <%- include('partials/player-avatar', { avatar: p.avatar, username: p.username }) %>
+                        <%= p.username %>
+                      </span>
+                      <% if (user && p.user_id === user.id) { %> <span class="muted" style="font-size:.78rem">(you)</span><% } %>
+                    </td>
                     <td>
                       <% if (canManage && !game.is_started) { %>
                         <form action="/game/<%= game.id %>/scorecard/handicap" method="POST" style="display:flex;gap:.3rem;align-items:center">
@@ -155,7 +161,13 @@
               <tbody>
                 <% team.players.forEach(p => { %>
                   <tr>
-                    <td><%= p.username %><% if (user && p.user_id === user.id) { %> <span class="muted" style="font-size:.78rem">(you)</span><% } %></td>
+                    <td>
+                      <span style="display:inline-flex;align-items:center;gap:.4rem">
+                        <%- include('partials/player-avatar', { avatar: p.avatar, username: p.username }) %>
+                        <%= p.username %>
+                      </span>
+                      <% if (user && p.user_id === user.id) { %> <span class="muted" style="font-size:.78rem">(you)</span><% } %>
+                    </td>
                     <td>
                       <% if (canManage && !game.is_started) { %>
                         <form action="/game/<%= game.id %>/scorecard/handicap" method="POST" style="display:flex;gap:.3rem;align-items:center">

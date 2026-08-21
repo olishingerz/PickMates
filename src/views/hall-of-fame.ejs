@@ -50,7 +50,12 @@
                   <% } else if (i === 2) { %><span class="medal bronze">3</span>
                   <% } else { %><%= i + 1 %><% } %>
                 </td>
-                <td><strong><%= row.username %></strong></td>
+                <td>
+                  <span style="display:inline-flex;align-items:center;gap:.4rem">
+                    <%- include('partials/player-avatar', { avatar: row.avatar, username: row.username, size: 22 }) %>
+                    <strong><%= row.username %></strong>
+                  </span>
+                </td>
                 <td><%= row.team_wins %></td>
                 <td><%= row.indiv_wins %></td>
                 <td><strong><%= row.total_wins %></strong></td>
@@ -81,6 +86,7 @@
               <% if (w.winner_username) { %>
                 <div class="winner-entry">
                   <span class="winner-trophy">🥇</span>
+                  <%- include('partials/player-avatar', { avatar: w.winner_avatar, username: w.winner_username, size: 20 }) %>
                   <span class="winner-name"><%= w.winner_username %></span>
                   <span class="winner-label"><%= w.game_type === 'last_man_standing' ? '· Last Man Standing' : w.game_type === 'golf_scorecard' ? '· Winning team' : '· Team pot' %></span>
                 </div>
@@ -88,6 +94,7 @@
               <% if (w.winner_individual_username && w.game_type === 'golf_draft') { %>
                 <div class="winner-entry">
                   <span class="winner-trophy">🎯</span>
+                  <%- include('partials/player-avatar', { avatar: w.winner_individual_avatar, username: w.winner_individual_username, size: 20 }) %>
                   <span class="winner-name"><%= w.winner_individual_username %></span>
                   <span class="winner-label">· Individual pot</span>
                 </div>
@@ -95,6 +102,7 @@
               <% if (w.winner_individual_username && w.game_type === 'golf_scorecard' && w.scorecard_format === 'individual') { %>
                 <div class="winner-entry">
                   <span class="winner-trophy">🥇</span>
+                  <%- include('partials/player-avatar', { avatar: w.winner_individual_avatar, username: w.winner_individual_username, size: 20 }) %>
                   <span class="winner-name"><%= w.winner_individual_username %></span>
                   <span class="winner-label">· Winner</span>
                 </div>

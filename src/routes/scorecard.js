@@ -78,7 +78,7 @@ async function getScorecardData(gameId, userId) {
     pool.query('SELECT id, name FROM scorecard_teams WHERE game_id = $1 ORDER BY id ASC', [gameId]),
     pool.query('SELECT id, label FROM scorecard_tee_times WHERE game_id = $1 ORDER BY id ASC', [gameId]),
     pool.query(`
-      SELECT gp.id AS participant_id, u.id AS user_id, u.username,
+      SELECT gp.id AS participant_id, u.id AS user_id, u.username, u.avatar,
              gp.scorecard_team_id, gp.scorecard_tee_time_id, gp.handicap, gp.is_co_host
       FROM game_participants gp
       JOIN users u ON u.id = gp.user_id

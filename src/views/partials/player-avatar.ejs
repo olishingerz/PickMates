@@ -1,0 +1,9 @@
+<%
+  // locals: avatar, username, size (optional, default 24)
+  const _avSize = typeof size !== 'undefined' ? size : 24;
+%>
+<% if (avatar) { %>
+  <img src="<%= avatar %>" alt="" class="player-avatar" style="width:<%= _avSize %>px;height:<%= _avSize %>px" />
+<% } else { %>
+  <span class="player-avatar-initial" style="width:<%= _avSize %>px;height:<%= _avSize %>px;font-size:<%= Math.round(_avSize * 0.45) %>px"><%= (username || '?').charAt(0).toUpperCase() %></span>
+<% } %>

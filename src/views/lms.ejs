@@ -164,12 +164,17 @@
               <% const isMe = user && s.user_id === user.id; %>
               <tr class="<%= isMe ? 'my-row' : '' %> <%= s.eliminated ? 'lms-eliminated' : '' %>">
                 <td>
-                  <% if (s.team_name) { %>
-                    <strong><%= s.team_name.length > 22 ? s.team_name.slice(0, 22) + '…' : s.team_name %></strong>
-                    <br /><span class="muted" style="font-size:.75rem"><%= s.username %></span>
-                  <% } else { %>
-                    <strong><%= s.username %></strong>
-                  <% } %>
+                  <span style="display:inline-flex;align-items:center;gap:.4rem">
+                    <%- include('partials/player-avatar', { avatar: s.avatar, username: s.username }) %>
+                    <% if (s.team_name) { %>
+                      <span>
+                        <strong><%= s.team_name.length > 22 ? s.team_name.slice(0, 22) + '…' : s.team_name %></strong>
+                        <br /><span class="muted" style="font-size:.75rem"><%= s.username %></span>
+                      </span>
+                    <% } else { %>
+                      <strong><%= s.username %></strong>
+                    <% } %>
+                  </span>
                 </td>
                 <td>
                   <% if (!s.eliminated) { %>
