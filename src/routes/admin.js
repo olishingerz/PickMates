@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt  = require('bcrypt');
 const { pool } = require('../db');
 const { ROLE_OPTIONS, getGameCreationRoles, setGameCreationRoles } = require('../services/settings');
+const { getHomeData } = require('./home');
 
 const ESPN_SCOREBOARD = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
 async function fetchJSON(url) {
@@ -52,6 +53,22 @@ router.get('/', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('[admin]', err);
     res.redirect('/');
+  }
+});
+
+// ── GET /admin/preview/home — redesign testbed, doesn't touch the real homepage ──
+router.get('/preview/home', requireAdmin, async (req, res) => {
+  try {
+    const { games, winners } = await getHomeData(req.session.user.id);
+    res.render('home-v2', {
+      games,
+      winners,
+      error: null,
+      success: null,
+    });
+  } catch (err) {
+    console.error('[admin preview home]', err);
+    res.redirect('/admin?error=' + encodeURIComponent('Could not load homepage preview.'));
   }
 });
 

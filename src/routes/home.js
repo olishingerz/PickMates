@@ -8,9 +8,7 @@ const { getGameCreationRoles, canCreateGames } = require('../services/settings')
 
 const router = express.Router();
 
-router.get('/', async (req, res) => {
-  try {
-    const userId = req.session.user?.id || null;
+async function getHomeData(userId) {
     const { rows: games } = await pool.query(`
       SELECT g.id, g.name, g.tournament_name, g.is_started, g.is_complete, g.tournament_complete, g.created_at,
              g.game_type, g.host_user_id, g.is_public, g.lms_leagues, g.scorecard_course_name,
@@ -68,6 +66,13 @@ router.get('/', async (req, res) => {
       LIMIT 20
     `);
 
+  return { games, winners };
+}
+
+router.get('/', async (req, res) => {
+  try {
+    const userId = req.session.user?.id || null;
+    const { games, winners } = await getHomeData(userId);
     res.render('home', {
       games,
       winners,
@@ -372,3 +377,4 @@ router.get('/hall-of-fame', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.getHomeData = getHomeData;
