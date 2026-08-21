@@ -53,7 +53,7 @@ router.get('/', async (req, res) => {
         }));
     }
     const { rows: winners } = await pool.query(`
-      SELECT g.id, g.name, g.game_type, g.tournament_name,
+      SELECT g.id, g.name, g.game_type, g.tournament_name, g.scorecard_format,
              g.winner_username,
              g.winner_individual_username,
              g.tournament_end_date, g.tournament_start_date

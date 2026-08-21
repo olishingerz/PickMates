@@ -68,7 +68,7 @@ async function getScorecardData(gameId, userId) {
   const [gameRes, teamsRes, teeTimesRes, participantsRes, holesRes, scoresRes, ctpRes] = await Promise.all([
     pool.query(
       `SELECT g.id, g.name, g.game_type, g.is_started, g.tournament_complete, g.started_at, g.host_user_id, g.invite_code,
-              g.scorecard_course_name, g.scorecard_course_par, g.scorecard_entry_fee, g.scorecard_format, g.winner_username,
+              g.scorecard_course_name, g.scorecard_course_par, g.scorecard_entry_fee, g.scorecard_format, g.winner_username, g.winner_individual_username,
               hu.username AS host_username
        FROM games g
        LEFT JOIN users hu ON hu.id = g.host_user_id

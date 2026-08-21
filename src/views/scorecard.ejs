@@ -56,8 +56,8 @@
           🎯 Nearest the pin: <strong>£<%= ctpPrize %></strong>
         </p>
       <% } %>
-      <% if (game.tournament_complete && game.winner_username) { %>
-        <p class="muted" style="margin-top:.3rem">🏆 <%= isIndividual ? 'Winner' : 'Winning team' %>: <strong><%= game.winner_username %></strong></p>
+      <% if (game.tournament_complete && (game.winner_username || game.winner_individual_username)) { %>
+        <p class="muted" style="margin-top:.3rem">🏆 <%= isIndividual ? 'Winner' : 'Winning team' %>: <strong><%= isIndividual ? game.winner_individual_username : game.winner_username %></strong></p>
       <% } %>
       <% if (user && (myParticipant || canManage)) { %>
         <p style="margin-top:.6rem">

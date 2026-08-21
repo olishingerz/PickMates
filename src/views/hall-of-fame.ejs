@@ -82,7 +82,7 @@
                 <div class="winner-entry">
                   <span class="winner-trophy">🥇</span>
                   <span class="winner-name"><%= w.winner_username %></span>
-                  <span class="winner-label"><%= w.game_type === 'last_man_standing' ? '· Last Man Standing' : w.game_type === 'golf_scorecard' ? (w.scorecard_format === 'individual' ? '· Winner' : '· Winning team') : '· Team pot' %></span>
+                  <span class="winner-label"><%= w.game_type === 'last_man_standing' ? '· Last Man Standing' : w.game_type === 'golf_scorecard' ? '· Winning team' : '· Team pot' %></span>
                 </div>
               <% } %>
               <% if (w.winner_individual_username && w.game_type === 'golf_draft') { %>
@@ -90,6 +90,13 @@
                   <span class="winner-trophy">🎯</span>
                   <span class="winner-name"><%= w.winner_individual_username %></span>
                   <span class="winner-label">· Individual pot</span>
+                </div>
+              <% } %>
+              <% if (w.winner_individual_username && w.game_type === 'golf_scorecard' && w.scorecard_format === 'individual') { %>
+                <div class="winner-entry">
+                  <span class="winner-trophy">🥇</span>
+                  <span class="winner-name"><%= w.winner_individual_username %></span>
+                  <span class="winner-label">· Winner</span>
                 </div>
               <% } %>
             </div>

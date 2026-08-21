@@ -50,7 +50,10 @@ router.get('/', requireAuth, async (req, res) => {
       SELECT
         COUNT(DISTINCT gp.game_id) FILTER (WHERE g.game_type = 'golf_scorecard')::int      AS scorecard_played,
         COUNT(*)                   FILTER (WHERE st.name = g.winner_username
-                                              AND g.tournament_complete = TRUE)::int         AS scorecard_wins
+                                              AND g.tournament_complete = TRUE)::int         AS scorecard_wins,
+        COUNT(*)                   FILTER (WHERE g.winner_individual_username = u.username
+                                              AND g.game_type = 'golf_scorecard'
+                                              AND g.tournament_complete = TRUE)::int         AS scorecard_indiv_wins
       FROM users u
       LEFT JOIN game_participants gp ON gp.user_id = u.id
       LEFT JOIN games g ON g.id = gp.game_id AND g.game_type = 'golf_scorecard'

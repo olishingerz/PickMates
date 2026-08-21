@@ -83,19 +83,20 @@ async function saveWinner(gameId) {
     const winner = alive.length === 1 ? alive[0].username : null;
     await pool.query('UPDATE games SET winner_username=$1 WHERE id=$2', [winner, gameId]);
   } else if (gameType === 'golf_scorecard') {
-    // Golf Scorecard winner: team with the most Stableford points (team format),
-    // or the player with the most Stableford points (individual format)
+    // Golf Scorecard winner: team with the most Stableford points (team format,
+    // stored as a team win) or the player with the most Stableford points
+    // (individual format, stored as an individual win — there's no team here)
     const data = await getScorecardData(gameId, null);
-    let winner = null;
     if (scorecardFormat === 'individual') {
       const top = data.individualStandings[0];
-      winner = top && (top.total18.points ?? 0) > 0 ? top.username : null;
+      const winner = top && (top.total18.points ?? 0) > 0 ? top.username : null;
+      await pool.query('UPDATE games SET winner_username=NULL, winner_individual_username=$1 WHERE id=$2', [winner, gameId]);
     } else {
-      winner = data.standings.length > 0 && data.standings[0].totalPoints > 0
+      const winner = data.standings.length > 0 && data.standings[0].totalPoints > 0
         ? data.standings[0].name
         : null;
+      await pool.query('UPDATE games SET winner_username=$1 WHERE id=$2', [winner, gameId]);
     }
-    await pool.query('UPDATE games SET winner_username=$1 WHERE id=$2', [winner, gameId]);
   }
 }
 
