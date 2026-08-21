@@ -26,10 +26,15 @@
     <%
       const liveGames     = games.filter(g => !g.tournament_complete);
       const completeGames = games.filter(g => g.tournament_complete);
+      function accentClass(gameType) {
+        if (gameType === 'last_man_standing') return 'accent-lms';
+        if (gameType === 'golf_scorecard') return 'accent-scorecard';
+        return 'accent-golf';
+      }
     %>
 
     <!-- ── Live games ─────────────────────────────────────────────────────── -->
-    <h2 class="section-title" style="font-size:1rem;font-weight:600">Live Games</h2>
+    <h2 class="section-title">Live Games</h2>
     <% if (liveGames.length === 0) { %>
       <div class="card empty-state">
         <span class="empty-state-icon">⛳</span>
@@ -38,17 +43,21 @@
     <% } else { %>
       <div class="games-grid">
         <% liveGames.forEach(g => { %>
-          <%- include('partials/game-card', { g, user, LEAGUE_NAMES }) %>
+          <div class="<%= accentClass(g.game_type) %>">
+            <%- include('partials/game-card', { g, user, LEAGUE_NAMES }) %>
+          </div>
         <% }) %>
       </div>
     <% } %>
 
     <!-- ── Complete games ────────────────────────────────────────────────── -->
     <% if (completeGames.length > 0) { %>
-      <h2 class="section-title mt-lg" style="font-size:1rem;font-weight:600">Complete Games</h2>
+      <h2 class="section-title mt-lg">Complete Games</h2>
       <div class="games-grid">
         <% completeGames.forEach(g => { %>
-          <%- include('partials/game-card', { g, user, LEAGUE_NAMES }) %>
+          <div class="<%= accentClass(g.game_type) %>">
+            <%- include('partials/game-card', { g, user, LEAGUE_NAMES }) %>
+          </div>
         <% }) %>
       </div>
     <% } %>
@@ -62,7 +71,7 @@
     <!-- ── Winners Club ──────────────────────────────────────────────── -->
     <div style="margin-top:2.5rem">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-        <h2 class="section-title" style="font-size:1.2rem;margin-bottom:0">🏆 Winners Club</h2>
+        <h2 class="section-title" style="margin-bottom:0">🏆 Winners Club</h2>
         <% if (winners.length > 0) { %><a href="/hall-of-fame" style="font-size:.82rem">See all →</a><% } %>
       </div>
       <% if (winners.length === 0) { %>

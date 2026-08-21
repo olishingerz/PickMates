@@ -377,4 +377,3 @@ router.get('/hall-of-fame', async (req, res) => {
 });
 
 module.exports = router;
-module.exports.getHomeData = getHomeData;
