@@ -434,15 +434,20 @@
       </div>
 
       <% teeTimes.forEach(tt => { %>
+        <% const ttHasEditable = tt.players.some(p => canEditPlayer(p)); %>
         <div data-tab-panel="tt-<%= tt.id %>" style="display:none">
-          <h2 class="section-title mt-lg"><%= tt.label %></h2>
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+            <h2 class="section-title mt-lg" style="margin-bottom:0"><%= tt.label %></h2>
+            <% if (ttHasEditable) { %>
+              <button type="submit" form="tee-time-form-<%= tt.id %>" class="btn btn-sm" style="background:var(--green);color:#fff">Save Scores</button>
+            <% } %>
+          </div>
           <div class="card">
             <% if (tt.players.length === 0) { %>
               <p class="muted">No players in this tee time yet.</p>
             <% } else { %>
-              <% const ttHasEditable = tt.players.some(p => canEditPlayer(p)); %>
               <% if (ttHasEditable) { %>
-                <form action="/game/<%= game.id %>/scorecard/scores#tt-<%= tt.id %>" method="POST">
+                <form id="tee-time-form-<%= tt.id %>" action="/game/<%= game.id %>/scorecard/scores#tt-<%= tt.id %>" method="POST">
               <% } %>
               <div class="leaderboard-table-wrap">
                 <table class="leaderboard-table">
