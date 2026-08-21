@@ -31,8 +31,9 @@ function calcTeamData(picks) {
 
 // Compute winner(s) for a completed game and save to DB
 async function saveWinner(gameId) {
-  const { rows: gameRows } = await pool.query('SELECT game_type FROM games WHERE id=$1', [gameId]);
+  const { rows: gameRows } = await pool.query('SELECT game_type, scorecard_format FROM games WHERE id=$1', [gameId]);
   const gameType = gameRows[0]?.game_type;
+  const scorecardFormat = gameRows[0]?.scorecard_format;
 
   if (gameType === 'golf_draft') {
     const { rows } = await pool.query(`
@@ -82,11 +83,18 @@ async function saveWinner(gameId) {
     const winner = alive.length === 1 ? alive[0].username : null;
     await pool.query('UPDATE games SET winner_username=$1 WHERE id=$2', [winner, gameId]);
   } else if (gameType === 'golf_scorecard') {
-    // Golf Scorecard winner: team with the most Stableford points
+    // Golf Scorecard winner: team with the most Stableford points (team format),
+    // or the player with the most Stableford points (individual format)
     const data = await getScorecardData(gameId, null);
-    const winner = data.standings.length > 0 && data.standings[0].totalPoints > 0
-      ? data.standings[0].name
-      : null;
+    let winner = null;
+    if (scorecardFormat === 'individual') {
+      const top = data.individualStandings[0];
+      winner = top && (top.total18.points ?? 0) > 0 ? top.username : null;
+    } else {
+      winner = data.standings.length > 0 && data.standings[0].totalPoints > 0
+        ? data.standings[0].name
+        : null;
+    }
     await pool.query('UPDATE games SET winner_username=$1 WHERE id=$2', [winner, gameId]);
   }
 }

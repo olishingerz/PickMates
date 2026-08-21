@@ -68,7 +68,7 @@ async function getScorecardData(gameId, userId) {
   const [gameRes, teamsRes, teeTimesRes, participantsRes, holesRes, scoresRes, ctpRes] = await Promise.all([
     pool.query(
       `SELECT g.id, g.name, g.game_type, g.is_started, g.tournament_complete, g.started_at, g.host_user_id, g.invite_code,
-              g.scorecard_course_name, g.scorecard_course_par, g.scorecard_entry_fee, g.winner_username,
+              g.scorecard_course_name, g.scorecard_course_par, g.scorecard_entry_fee, g.scorecard_format, g.winner_username,
               hu.username AS host_username
        FROM games g
        LEFT JOIN users hu ON hu.id = g.host_user_id
@@ -278,6 +278,37 @@ router.post('/join-team', requireAuth, async (req, res) => {
   }
 });
 
+// POST /game/:gameId/scorecard/join — individual-format games only: join the game
+// with no team (there aren't any). Team-format games join via /join-team instead.
+router.post('/join', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  const userId = req.session.user.id;
+  const base = `/game/${gameId}/draft`;
+
+  try {
+    const { rows: gameRows } = await pool.query('SELECT is_started, scorecard_format FROM games WHERE id = $1', [gameId]);
+    if (!gameRows[0]) return res.redirect('/');
+    if (gameRows[0].scorecard_format !== 'individual') {
+      return res.redirect(base + '?error=' + encodeURIComponent('This game uses teams — join from a team card instead.'));
+    }
+    if (gameRows[0].is_started) {
+      return res.redirect(`/game/${gameId}?error=` + encodeURIComponent('The game has already started.'));
+    }
+
+    const { rows: existing } = await pool.query(
+      'SELECT id FROM game_participants WHERE game_id = $1 AND user_id = $2',
+      [gameId, userId]
+    );
+    if (!existing[0]) {
+      await pool.query('INSERT INTO game_participants (game_id, user_id) VALUES ($1, $2)', [gameId, userId]);
+    }
+    res.redirect(base + '?success=' + encodeURIComponent("You've joined the game!"));
+  } catch (err) {
+    console.error('[scorecard join]', err);
+    res.redirect(base + '?error=' + encodeURIComponent('Failed to join game.'));
+  }
+});
+
 // POST /game/:gameId/scorecard/add-player — host/co-host: add a player to a team by
 // username, without requiring them to join themselves. Creates a lightweight account
 // with a temp password if that username doesn't exist yet — teammates/tee-time
@@ -288,7 +319,7 @@ router.post('/add-player', requireAuth, async (req, res) => {
   if (!await canManage(req, gameId)) return res.redirect(base);
 
   const username = req.body.username?.trim();
-  const teamId   = parseInt(req.body.team_id);
+  const teamId   = req.body.team_id ? parseInt(req.body.team_id) : null;
   if (!username || username.length < 2 || username.length > 50) {
     return res.redirect(base + '?error=' + encodeURIComponent('Username must be between 2 and 50 characters.'));
   }
@@ -297,16 +328,23 @@ router.post('/add-player', requireAuth, async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    const { rows: stateRows } = await client.query('SELECT is_started FROM games WHERE id = $1', [gameId]);
+    const { rows: stateRows } = await client.query('SELECT is_started, scorecard_format FROM games WHERE id = $1', [gameId]);
     if (stateRows[0]?.is_started) {
       await client.query('ROLLBACK');
-      return res.redirect(base + '?error=' + encodeURIComponent('The game has already started — teams are locked in.'));
+      return res.redirect(base + '?error=' + encodeURIComponent('The game has already started — locked in.'));
     }
 
-    const { rows: teamRows } = await client.query('SELECT id FROM scorecard_teams WHERE id = $1 AND game_id = $2', [teamId, gameId]);
-    if (!teamRows[0]) {
-      await client.query('ROLLBACK');
-      return res.redirect(base + '?error=' + encodeURIComponent('Invalid team.'));
+    if (stateRows[0]?.scorecard_format === 'individual') {
+      if (teamId !== null) {
+        await client.query('ROLLBACK');
+        return res.redirect(base + '?error=' + encodeURIComponent('This game has no teams.'));
+      }
+    } else {
+      const { rows: teamRows } = await client.query('SELECT id FROM scorecard_teams WHERE id = $1 AND game_id = $2', [teamId, gameId]);
+      if (!teamRows[0]) {
+        await client.query('ROLLBACK');
+        return res.redirect(base + '?error=' + encodeURIComponent('Invalid team.'));
+      }
     }
 
     // Create the account if it doesn't already exist
@@ -343,8 +381,8 @@ router.post('/add-player', requireAuth, async (req, res) => {
     await client.query('COMMIT');
 
     const msg = tempPassword
-      ? `${username} added to the team. Temp password (only needed if they want to log in themselves): ${tempPassword}`
-      : `${username} added to the team.`;
+      ? `${username} added to the game. Temp password (only needed if they want to log in themselves): ${tempPassword}`
+      : `${username} added to the game.`;
     res.redirect(base + '?success=' + encodeURIComponent(msg));
   } catch (err) {
     await client.query('ROLLBACK');
@@ -502,14 +540,17 @@ router.post('/start', requireAuth, async (req, res) => {
   if (!await canManage(req, gameId)) return res.redirect(base);
 
   try {
-    const { rows: unassigned } = await pool.query(
-      'SELECT COUNT(*)::int AS cnt FROM game_participants WHERE game_id = $1 AND scorecard_team_id IS NULL',
-      [gameId]
-    );
-    if (unassigned[0].cnt > 0) {
-      return res.redirect(base + '?error=' + encodeURIComponent(
-        `${unassigned[0].cnt} player(s) haven't joined a team yet — everyone needs a team before you can start.`
-      ));
+    const { rows: gameRows } = await pool.query('SELECT scorecard_format FROM games WHERE id = $1', [gameId]);
+    if (gameRows[0]?.scorecard_format !== 'individual') {
+      const { rows: unassigned } = await pool.query(
+        'SELECT COUNT(*)::int AS cnt FROM game_participants WHERE game_id = $1 AND scorecard_team_id IS NULL',
+        [gameId]
+      );
+      if (unassigned[0].cnt > 0) {
+        return res.redirect(base + '?error=' + encodeURIComponent(
+          `${unassigned[0].cnt} player(s) haven't joined a team yet — everyone needs a team before you can start.`
+        ));
+      }
     }
     const { rows: total } = await pool.query(
       'SELECT COUNT(*)::int AS cnt FROM game_participants WHERE game_id = $1',
@@ -528,9 +569,9 @@ router.post('/start', requireAuth, async (req, res) => {
 });
 
 // POST /game/:gameId/scorecard/scores — save hole scores. Authorized per player, not
-// per form: host/co-host can edit anyone; anyone can edit a fellow member of their
-// own tee-time group. This lets one submission span multiple teams (needed for the
-// tee-time view).
+// per form: host/co-host can edit anyone; anyone can edit their own score, or a fellow
+// member of their own tee-time group. This lets one submission span multiple teams
+// (needed for the tee-time view).
 router.post('/scores', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base = `/game/${gameId}`;
@@ -556,6 +597,7 @@ router.post('/scores', requireAuth, async (req, res) => {
     function canEdit(participant) {
       if (manageFlag) return true;
       if (!me) return false;
+      if (me.id === participant.id) return true;
       if (me.scorecard_tee_time_id && me.scorecard_tee_time_id === participant.scorecard_tee_time_id) return true;
       return false;
     }
@@ -601,7 +643,7 @@ router.post('/closest-to-pin', requireAuth, async (req, res) => {
   const participantId = parseInt(req.body.participant_id);
 
   try {
-    const { rows: gameRows } = await pool.query('SELECT is_started, tournament_complete FROM games WHERE id = $1', [gameId]);
+    const { rows: gameRows } = await pool.query('SELECT is_started, tournament_complete, scorecard_format FROM games WHERE id = $1', [gameId]);
     if (!gameRows[0]) return res.redirect('/');
     if (!gameRows[0].is_started) {
       return res.redirect(base + '?error=' + encodeURIComponent("The host hasn't started the game yet."));
@@ -611,7 +653,15 @@ router.post('/closest-to-pin', requireAuth, async (req, res) => {
     }
 
     const manageFlag = await canManage(req, gameId);
-    if (!manageFlag) {
+    if (!manageFlag && gameRows[0].scorecard_format === 'individual') {
+      const { rows: meRows } = await pool.query(
+        'SELECT id FROM game_participants WHERE game_id = $1 AND user_id = $2',
+        [gameId, req.session.user.id]
+      );
+      if (!meRows[0]) {
+        return res.redirect(base + '?error=' + encodeURIComponent('Only a player in this game or the host can set closest to the pin.'));
+      }
+    } else if (!manageFlag) {
       const { rows: meRows } = await pool.query(
         'SELECT id FROM game_participants WHERE game_id = $1 AND user_id = $2 AND scorecard_tee_time_id IS NOT NULL',
         [gameId, req.session.user.id]

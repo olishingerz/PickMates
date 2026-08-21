@@ -165,6 +165,16 @@
           </div>
         </div>
 
+        <div style="margin-bottom:1.2rem">
+          <label class="form-label" style="display:block;margin-bottom:.5rem">Format</label>
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.9rem;cursor:pointer;margin-bottom:.4rem">
+            <input type="radio" name="scorecard_format" id="format-team" value="team" checked /> Team — players are grouped into teams, with optional tee times
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;font-size:.9rem;cursor:pointer">
+            <input type="radio" name="scorecard_format" id="format-individual" value="individual" /> Individual — just each player's own score, no teams or tee times
+          </label>
+        </div>
+
         <h3 style="font-size:.9rem;font-weight:700;margin-bottom:.6rem">Holes</h3>
         <div style="overflow-x:auto;margin-bottom:1rem">
           <table style="border-collapse:collapse;font-size:.85rem">
@@ -199,13 +209,15 @@
           💾 Save this course to my library for next time
         </label>
 
-        <h3 style="font-size:.9rem;font-weight:700;margin-bottom:.6rem">Teams</h3>
-        <div style="margin-bottom:.6rem">
-          <label class="form-label">Number of teams</label>
-          <input type="number" name="num_teams" id="num-teams" min="2" max="10" value="2"
-                 style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;width:110px;display:block;margin-top:.3rem" />
+        <div id="teams-subsection">
+          <h3 style="font-size:.9rem;font-weight:700;margin-bottom:.6rem">Teams</h3>
+          <div style="margin-bottom:.6rem">
+            <label class="form-label">Number of teams</label>
+            <input type="number" name="num_teams" id="num-teams" min="2" max="10" value="2"
+                   style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;width:110px;display:block;margin-top:.3rem" />
+          </div>
+          <div id="team-names"></div>
         </div>
-        <div id="team-names"></div>
       </div>
 
       <button type="submit" class="btn" style="font-size:1rem;padding:.6rem 1.5rem">Create game →</button>
@@ -260,6 +272,16 @@
         if (saveCourseCheckbox) saveCourseCheckbox.checked = false;
       });
     }
+
+    // Golf Scorecard: team vs individual format toggle
+    const teamsSubsection  = document.getElementById('teams-subsection');
+    const formatRadios     = document.querySelectorAll('input[name="scorecard_format"]');
+    function updateFormat() {
+      const isIndividual = document.getElementById('format-individual').checked;
+      teamsSubsection.style.display = isIndividual ? 'none' : '';
+    }
+    formatRadios.forEach(r => r.addEventListener('change', updateFormat));
+    updateFormat();
 
     // Golf Scorecard: team name fields, regenerated as the team count changes
     const numTeamsInput = document.getElementById('num-teams');

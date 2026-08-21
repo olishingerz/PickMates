@@ -154,8 +154,9 @@ router.post('/games/create', async (req, res) => {
     return res.redirect('/games/create?error=' + encodeURIComponent('Game name must be between 2 and 200 characters.'));
   }
 
-  // Golf Scorecard — validate course, 18 holes, entry fee, and team names
+  // Golf Scorecard — validate course, 18 holes, entry fee, and (team format only) team names
   let courseName = null, coursePar = null, scorecardEntryFee = 0, holes = [], teamNames = [];
+  const scorecardFormat = req.body.scorecard_format === 'individual' ? 'individual' : 'team';
   if (gameType === 'golf_scorecard') {
     courseName = req.body.course_name?.trim();
     coursePar  = parseInt(req.body.course_par);
@@ -185,16 +186,18 @@ router.post('/games/create', async (req, res) => {
       return res.redirect('/games/create?error=' + encodeURIComponent('Stroke Index must be a unique number 1–18 across the round.'));
     }
 
-    const numTeams = Math.min(10, Math.max(2, parseInt(req.body.num_teams) || 2));
-    for (let i = 1; i <= numTeams; i++) {
-      const teamName = req.body[`team_name_${i}`]?.trim();
-      if (!teamName || teamName.length < 1 || teamName.length > 50) {
-        return res.redirect('/games/create?error=' + encodeURIComponent(`Team ${i} needs a name (max 50 characters).`));
+    if (scorecardFormat === 'team') {
+      const numTeams = Math.min(10, Math.max(2, parseInt(req.body.num_teams) || 2));
+      for (let i = 1; i <= numTeams; i++) {
+        const teamName = req.body[`team_name_${i}`]?.trim();
+        if (!teamName || teamName.length < 1 || teamName.length > 50) {
+          return res.redirect('/games/create?error=' + encodeURIComponent(`Team ${i} needs a name (max 50 characters).`));
+        }
+        teamNames.push(teamName);
       }
-      teamNames.push(teamName);
-    }
-    if (new Set(teamNames.map(t => t.toLowerCase())).size !== teamNames.length) {
-      return res.redirect('/games/create?error=' + encodeURIComponent('Team names must be unique.'));
+      if (new Set(teamNames.map(t => t.toLowerCase())).size !== teamNames.length) {
+        return res.redirect('/games/create?error=' + encodeURIComponent('Team names must be unique.'));
+      }
     }
   }
 
@@ -203,10 +206,10 @@ router.post('/games/create', async (req, res) => {
   try {
     const { rows } = await pool.query(
       `INSERT INTO games (name, game_type, host_user_id, invite_code, prize_team, prize_individual, lms_leagues,
-                           scorecard_course_name, scorecard_course_par, scorecard_entry_fee)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+                           scorecard_course_name, scorecard_course_par, scorecard_entry_fee, scorecard_format)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
       [name, gameType, user.id, inviteCode, prizeTeam, prizeIndividual, lmsLeagues,
-       courseName, coursePar, scorecardEntryFee]
+       courseName, coursePar, scorecardEntryFee, scorecardFormat]
     );
     const gameId = rows[0].id;
 
@@ -340,7 +343,7 @@ router.get('/hall-of-fame', async (req, res) => {
         ORDER BY total_wins DESC, team_wins DESC
       `),
       pool.query(`
-        SELECT g.id, g.name, g.game_type, g.tournament_name,
+        SELECT g.id, g.name, g.game_type, g.tournament_name, g.scorecard_format,
                g.winner_username,
                g.winner_individual_username,
                g.tournament_end_date, g.tournament_start_date

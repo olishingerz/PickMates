@@ -436,6 +436,12 @@ DO $$ BEGIN
                  WHERE table_name='games' AND column_name='scorecard_entry_fee') THEN
     ALTER TABLE games ADD COLUMN scorecard_entry_fee INTEGER DEFAULT 0;
   END IF;
+  -- 'team' (default, existing behaviour) or 'individual' — individual games have no
+  -- teams and no tee times, just each player's own net Stableford score.
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='games' AND column_name='scorecard_format') THEN
+    ALTER TABLE games ADD COLUMN scorecard_format VARCHAR(20) DEFAULT 'team';
+  END IF;
 END $$;
 
 -- Golf Scorecard: 18 holes per game (par + stroke index)
