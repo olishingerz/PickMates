@@ -809,7 +809,9 @@ a.nav-user:hover { color: var(--green); }
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1rem;
 }
-.game-card { display: flex; flex-direction: column; gap: .5rem; }
+.game-card { display: flex; flex-direction: column; gap: .5rem; transition: transform .15s ease, box-shadow .15s ease; }
+.game-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
+.game-card:active { transform: translateY(-1px) scale(.98); transition: transform .06s ease; }
 .game-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem; }
 .game-card-name { font-size: 1.05rem; font-weight: 700; margin: 0; }
 .game-card-tournament { font-size: .82rem; margin: .15rem 0 0; }
