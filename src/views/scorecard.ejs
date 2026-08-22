@@ -81,6 +81,8 @@
           if (myParticipant.scorecard_tee_time_id && myParticipant.scorecard_tee_time_id === p.scorecard_tee_time_id) return true;
           return false;
         }
+        const allScoresIn = isHost && !game.tournament_complete
+          && allParticipants.length > 0 && allParticipants.every(p => p.thru === 18);
       %>
 
       <% if (!isIndividual && teeTimes.length > 0) { %>
@@ -93,6 +95,20 @@
       <% } %>
 
       <div data-tab-panel="all">
+      <!-- ── All scores in — offer to complete the game ────────────────────── -->
+      <% if (allScoresIn) { %>
+        <div class="card" style="margin-bottom:1.2rem;border:2px solid var(--gold);background:var(--gold-light);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.8rem">
+          <div>
+            <strong style="font-size:1rem">🏁 All scores are in!</strong>
+            <p class="muted" style="margin-top:.2rem;font-size:.85rem">Every player has a score for all 18 holes. Ready to finalise the scorecard?</p>
+          </div>
+          <form action="/game/<%= game.id %>/complete" method="POST"
+                onsubmit="return confirm('This will finalise the scorecard and complete the game. Continue?')">
+            <button type="submit" class="btn" style="background:var(--green);color:#fff">✅ Complete Game</button>
+          </form>
+        </div>
+      <% } %>
+
       <!-- ── Standings ──────────────────────────────────────────────────── -->
       <% if (!isIndividual) { %>
         <h2 class="section-title mt-lg">Standings</h2>
