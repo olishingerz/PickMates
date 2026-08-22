@@ -2,12 +2,25 @@ const express = require('express');
 const bcrypt  = require('bcrypt');
 const { pool } = require('../db');
 const { ROLE_OPTIONS, getGameCreationRoles, setGameCreationRoles } = require('../services/settings');
+const { generateTempPassword } = require('../utils');
 
 const ESPN_SCOREBOARD = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
 async function fetchJSON(url) {
   const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } });
   if (!res.ok) throw new Error(`ESPN ${res.status}`);
   return res.json();
+}
+
+// This debug route builds its response as a raw HTML string (not an EJS view,
+// which auto-escapes) — escape anything that ultimately traces back to a
+// user-chosen value (game name) or third-party data (ESPN athlete names).
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 const router = express.Router();
@@ -157,7 +170,7 @@ router.post('/reset-password', requireAdmin, async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT username FROM users WHERE id = $1', [targetId]);
     if (!rows[0]) return res.redirect('/admin?error=' + encodeURIComponent('User not found.'));
-    const tempPassword = Math.random().toString(36).slice(2, 10); // e.g. "k4f9xz2m"
+    const tempPassword = generateTempPassword();
     const hash = await bcrypt.hash(tempPassword, 10);
     await pool.query(
       'UPDATE users SET password_hash = $1, must_change_password = TRUE WHERE id = $2',
@@ -284,7 +297,7 @@ router.get('/espn-debug/:gameId', requireAdmin, async (req, res) => {
       const hasR3 = lsPeriodsRaw.includes(3);
       const name  = c.athlete?.displayName || '?';
       return {
-        name,
+        name: escapeHtml(name),
         score:      c.score,
         lsPeriods:  lsPeriodsRaw.join(',') || '(none)',
         hasR3,
@@ -296,7 +309,7 @@ router.get('/espn-debug/:gameId', requireAdmin, async (req, res) => {
 
     res.setHeader('Content-Type', 'text/html');
     res.send(`
-      <h2>ESPN Debug: ${name} (game ${gameId})</h2>
+      <h2>ESPN Debug: ${escapeHtml(name)} (game ${gameId})</h2>
       <p>Tournament ID: ${tournament_id} · Current period: ${currentPeriod} · R3 started: ${r3HasStarted}</p>
       <p><em>Cut detection: ${r3HasStarted ? 'ACTIVE — players without R3 linescore = missed cut' : 'NOT YET — still in R1/R2'}</em></p>
       <table border="1" cellpadding="4" style="border-collapse:collapse;font-family:monospace;font-size:13px">

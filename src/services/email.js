@@ -7,6 +7,18 @@ const APP_URL        = process.env.APP_URL    || 'https://pickmates.up.railway.a
 // Only initialise Resend if an API key is configured — avoids crashing in dev
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
+// Game names and usernames are user-chosen and get interpolated straight into
+// these HTML emails — escape them so a malicious game name can't inject markup
+// (e.g. a fake login link) into mail sent to every participant's real inbox.
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 async function sendEmail({ to, subject, html }) {
   if (!resend) {
     console.log(`[email] No RESEND_API_KEY — would have sent "${subject}" to ${to}`);
@@ -27,12 +39,13 @@ async function sendEmail({ to, subject, html }) {
  */
 async function sendDraftTurnEmail(user, game) {
   if (!user.email) return;
+  const gameName = escapeHtml(game.name);
   await sendEmail({
     to:      user.email,
     subject: `⛳ It's your pick! — ${game.name}`,
     html: `
-      <p>Hi ${user.username},</p>
-      <p>It's your turn to pick in <strong>${game.name}</strong>.</p>
+      <p>Hi ${escapeHtml(user.username)},</p>
+      <p>It's your turn to pick in <strong>${gameName}</strong>.</p>
       <p><a href="${APP_URL}/game/${game.id}/draft" style="background:#006747;color:#fff;padding:.5rem 1rem;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">Make your pick →</a></p>
       <p style="color:#666;font-size:.85em">PickMates · Golf draft competitions</p>
     `,
@@ -53,14 +66,15 @@ async function sendLmsDeadlineEmails(players, game, weekNumber, deadline) {
     hour: '2-digit', minute: '2-digit',
   });
 
+  const gameName = escapeHtml(game.name);
   for (const player of players) {
     if (!player.email) continue;
     await sendEmail({
       to:      player.email,
       subject: `🏆 Pick reminder — Week ${weekNumber} closes ${deadlineStr}`,
       html: `
-        <p>Hi ${player.username},</p>
-        <p>Don't forget to submit your pick for <strong>${game.name}</strong> — Week ${weekNumber}.</p>
+        <p>Hi ${escapeHtml(player.username)},</p>
+        <p>Don't forget to submit your pick for <strong>${gameName}</strong> — Week ${weekNumber}.</p>
         <p><strong>Deadline: ${deadlineStr}</strong></p>
         <p><a href="${APP_URL}/game/${game.id}/lms/picks" style="background:#006747;color:#fff;padding:.5rem 1rem;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">Make your pick →</a></p>
         <p style="color:#666;font-size:.85em">PickMates · Last Man Standing</p>

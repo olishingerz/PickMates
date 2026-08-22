@@ -4,54 +4,85 @@ const { pool } = require('../db');
 
 const router = express.Router();
 
+// In-memory sliding-window login limiter, keyed by IP+username so one attacker
+// hammering a known username can't lock a real player out entirely. Fine at
+// this app's scale — swap for a shared store if it's ever run multi-instance.
+const loginAttempts = new Map();
+const MAX_LOGIN_ATTEMPTS = 8;
+const LOGIN_WINDOW_MS    = 15 * 60 * 1000;
+
+function loginRateLimited(key) {
+  const entry = loginAttempts.get(key);
+  if (!entry || Date.now() > entry.resetAt) return false;
+  return entry.count >= MAX_LOGIN_ATTEMPTS;
+}
+
+function recordFailedLogin(key) {
+  const now = Date.now();
+  const entry = loginAttempts.get(key);
+  if (!entry || now > entry.resetAt) {
+    loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+  } else {
+    entry.count++;
+  }
+}
+
 router.get('/login', (req, res) => {
   if (req.session.user) return res.redirect('/');
-  res.render('login', { error: null, next: req.query.next || '' });
+  res.render('login', { error: null, next: req.query.next || '', username: '' });
 });
 
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
   const next = req.query.next || req.body.next || '';
   if (!username || !password) {
-    return res.render('login', { error: 'Please fill in all fields.', next });
+    return res.render('login', { error: 'Please fill in all fields.', next, username: username || '' });
   }
+
+  const rateLimitKey = `${req.ip}:${username.trim().toLowerCase()}`;
+  if (loginRateLimited(rateLimitKey)) {
+    return res.render('login', { error: 'Incorrect username or password.', next, username });
+  }
+
   try {
     const { rows } = await pool.query('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [username.trim()]);
     const user = rows[0];
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
-      return res.render('login', { error: 'Incorrect username or password.', next });
+      recordFailedLogin(rateLimitKey);
+      return res.render('login', { error: 'Incorrect username or password.', next, username });
     }
     if (user.is_banned) {
-      return res.render('login', { error: 'This account has been suspended. Please contact the host.', next });
+      return res.render('login', { error: 'This account has been suspended. Please contact the host.', next, username });
     }
+    loginAttempts.delete(rateLimitKey);
     req.session.user = { id: user.id, username: user.username, isAdmin: user.is_admin, isPaid: user.is_paid || false };
     if (user.must_change_password) return res.redirect('/auth/change-password');
     res.redirect(next.startsWith('/') ? next : '/');
   } catch (err) {
     console.error(err);
-    res.render('login', { error: 'Something went wrong. Please try again.', next });
+    res.render('login', { error: 'Something went wrong. Please try again.', next, username });
   }
 });
 
 router.get('/register', (req, res) => {
   if (req.session.user) return res.redirect('/');
-  res.render('register', { error: null });
+  res.render('register', { error: null, username: '' });
 });
 
 router.post('/register', async (req, res) => {
   const { username, password, confirmPassword } = req.body;
 
   if (!username || !password || !confirmPassword) {
-    return res.render('register', { error: 'Please fill in all fields.' });
+    return res.render('register', { error: 'Please fill in all fields.', username: username || '' });
   }
   if (username.trim().length < 2 || username.trim().length > 50) {
-    return res.render('register', { error: 'Username must be between 2 and 50 characters.' });
+    return res.render('register', { error: 'Username must be between 2 and 50 characters.', username });
   }
   if (password.length < 6) {
-    return res.render('register', { error: 'Password must be at least 6 characters.' });
+    return res.render('register', { error: 'Password must be at least 6 characters.', username });
   }
   if (password !== confirmPassword) {
-    return res.render('register', { error: 'Passwords do not match.' });
+    return res.render('register', { error: 'Passwords do not match.', username });
   }
 
   const client = await pool.connect();
@@ -78,10 +109,10 @@ router.post('/register', async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     if (err.code === '23505') {
-      return res.render('register', { error: 'That username is already taken.' });
+      return res.render('register', { error: 'That username is already taken.', username });
     }
     console.error(err);
-    res.render('register', { error: 'Something went wrong. Please try again.' });
+    res.render('register', { error: 'Something went wrong. Please try again.', username });
   } finally {
     client.release();
   }
