@@ -20,7 +20,7 @@ function requireAuth(req, res, next) {
 
 router.get('/', requireAuth, async (req, res) => {
   const id = req.session.user.id;
-  const [profileRes, golfRes, lmsRes, scorecardRes, winningsRes] = await Promise.all([
+  const [profileRes, golfRes, lmsRes, scorecardRes, winningsRes, scorecardWinningsRes] = await Promise.all([
     pool.query('SELECT username, avatar, email FROM users WHERE id = $1', [id]),
     pool.query(`
       SELECT
@@ -60,11 +60,10 @@ router.get('/', requireAuth, async (req, res) => {
       LEFT JOIN scorecard_teams st ON st.id = gp.scorecard_team_id
       WHERE u.id = $1
     `, [id]),
-    // Total cash winnings. Golf Draft is the only type with a real per-game
-    // prize_team/prize_individual amount (golf_scorecard games always store 0
-    // there — there's no tracked cash split for that type). LMS winnings come
-    // from lms_winners.prize_amount, a per-win snapshot, since games.prize_individual
-    // is a live pot that mutates on rollover and isn't a reliable history.
+    // Golf Draft (prize_team/prize_individual, paid entirely to the single
+    // winner) and LMS (lms_winners.prize_amount — a per-win snapshot, since
+    // games.prize_individual is a live pot that mutates on rollover and isn't
+    // a reliable history) winnings.
     pool.query(`
       SELECT
         (SELECT COALESCE(SUM(CASE WHEN g.winner_username = u.username THEN g.prize_team ELSE 0 END)
@@ -76,10 +75,47 @@ router.get('/', requireAuth, async (req, res) => {
       FROM users u
       WHERE u.id = $1
     `, [id]),
+    // Golf Scorecard prizes aren't stored anywhere — scorecard.ejs computes them
+    // live from entry fee × player count (50/40/10 split of team/individual/CTP
+    // for team format, 70/30 individual/CTP for individual format). Mirror that
+    // math here per completed game the user was in, so the team prize (unlike
+    // Golf Draft's single winner) gets divided across the winning team's actual
+    // members rather than counted in full. Closest-to-the-pin isn't included —
+    // there's no reliable "who held it at completion" history to attribute it.
+    pool.query(`
+      SELECT g.id, g.scorecard_entry_fee, g.scorecard_format, g.winner_username, g.winner_individual_username,
+             u.username AS my_username, st.name AS my_team_name,
+             (SELECT COUNT(*) FROM game_participants gp2 WHERE gp2.game_id = g.id) AS total_players,
+             (SELECT COUNT(*) FROM game_participants gp3
+                JOIN scorecard_teams st3 ON st3.id = gp3.scorecard_team_id
+                WHERE gp3.game_id = g.id AND st3.name = g.winner_username) AS winning_team_size
+      FROM games g
+      JOIN game_participants gp ON gp.game_id = g.id AND gp.user_id = $1
+      JOIN users u ON u.id = $1
+      LEFT JOIN scorecard_teams st ON st.id = gp.scorecard_team_id
+      WHERE g.game_type = 'golf_scorecard' AND g.tournament_complete = TRUE
+        AND g.scorecard_entry_fee > 0
+    `, [id]),
   ]);
 
+  const scorecardWinnings = scorecardWinningsRes.rows.reduce((total, row) => {
+    const pot = (parseFloat(row.scorecard_entry_fee) || 0) * (row.total_players || 0);
+    if (row.scorecard_format === 'individual') {
+      const indivPrize = Math.round(pot * 0.7);
+      return total + (row.winner_individual_username === row.my_username ? indivPrize : 0);
+    }
+    const teamPrize  = Math.round(pot * 0.5);
+    const indivPrize = Math.round(pot * 0.4);
+    let winnings = row.winner_individual_username === row.my_username ? indivPrize : 0;
+    if (row.my_team_name && row.my_team_name === row.winner_username && row.winning_team_size > 0) {
+      winnings += teamPrize / row.winning_team_size;
+    }
+    return total + winnings;
+  }, 0);
+
   const totalWinnings = (parseFloat(winningsRes.rows[0]?.golf_winnings) || 0)
-                       + (parseFloat(winningsRes.rows[0]?.lms_winnings) || 0);
+                       + (parseFloat(winningsRes.rows[0]?.lms_winnings) || 0)
+                       + scorecardWinnings;
 
   res.render('profile', {
     profileUser: profileRes.rows[0],
