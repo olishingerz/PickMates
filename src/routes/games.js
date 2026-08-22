@@ -49,19 +49,21 @@ async function saveWinner(gameId) {
     const winner = alive.length === 1 ? alive[0].username : null;
     await pool.query('UPDATE games SET winner_username=$1 WHERE id=$2', [winner, gameId]);
   } else if (gameType === 'golf_scorecard') {
-    // Golf Scorecard winner: team with the most Stableford points (team format,
-    // stored as a team win) or the player with the most Stableford points
-    // (individual format, stored as an individual win — there's no team here)
+    // Golf Scorecard winners: team with the most Stableford points (team format
+    // only), and separately the individual with the most Stableford points
+    // (both formats — team format still pays out an individual net-score pot
+    // alongside the team pot, so this needs recording even when there's a team winner).
     const data = await getScorecardData(gameId, null);
+    const topIndiv = data.individualStandings[0];
+    const indivWinner = topIndiv && (topIndiv.total18.points ?? 0) > 0 ? topIndiv.username : null;
+
     if (scorecardFormat === 'individual') {
-      const top = data.individualStandings[0];
-      const winner = top && (top.total18.points ?? 0) > 0 ? top.username : null;
-      await pool.query('UPDATE games SET winner_username=NULL, winner_individual_username=$1 WHERE id=$2', [winner, gameId]);
+      await pool.query('UPDATE games SET winner_username=NULL, winner_individual_username=$1 WHERE id=$2', [indivWinner, gameId]);
     } else {
-      const winner = data.standings.length > 0 && data.standings[0].totalPoints > 0
+      const teamWinner = data.standings.length > 0 && data.standings[0].totalPoints > 0
         ? data.standings[0].name
         : null;
-      await pool.query('UPDATE games SET winner_username=$1 WHERE id=$2', [winner, gameId]);
+      await pool.query('UPDATE games SET winner_username=$1, winner_individual_username=$2 WHERE id=$3', [teamWinner, indivWinner, gameId]);
     }
   }
 }
