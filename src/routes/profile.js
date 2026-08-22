@@ -20,7 +20,7 @@ function requireAuth(req, res, next) {
 
 router.get('/', requireAuth, async (req, res) => {
   const id = req.session.user.id;
-  const [profileRes, golfRes, lmsRes, scorecardRes, pickHistoryRes] = await Promise.all([
+  const [profileRes, golfRes, lmsRes, scorecardRes, winningsRes] = await Promise.all([
     pool.query('SELECT username, avatar, email FROM users WHERE id = $1', [id]),
     pool.query(`
       SELECT
@@ -60,26 +60,33 @@ router.get('/', requireAuth, async (req, res) => {
       LEFT JOIN scorecard_teams st ON st.id = gp.scorecard_team_id
       WHERE u.id = $1
     `, [id]),
+    // Total cash winnings. Golf Draft is the only type with a real per-game
+    // prize_team/prize_individual amount (golf_scorecard games always store 0
+    // there — there's no tracked cash split for that type). LMS winnings come
+    // from lms_winners.prize_amount, a per-win snapshot, since games.prize_individual
+    // is a live pot that mutates on rollover and isn't a reliable history.
     pool.query(`
-      SELECT g.id AS game_id, g.name AS game_name, g.tournament_name, g.tournament_complete,
-             p.player_name, p.pick_slot,
-             l.score_to_par, l.made_cut, l.position AS lb_position
-      FROM picks p
-      JOIN games g ON g.id = p.game_id AND g.game_type = 'golf_draft'
-      LEFT JOIN leaderboard l ON l.game_id = p.game_id
-                              AND LOWER(TRIM(l.player_name)) = LOWER(TRIM(p.player_name))
-      WHERE p.user_id = $1
-      ORDER BY g.created_at DESC, p.pick_slot ASC
-      LIMIT 36
+      SELECT
+        (SELECT COALESCE(SUM(CASE WHEN g.winner_username = u.username THEN g.prize_team ELSE 0 END)
+                        + SUM(CASE WHEN g.winner_individual_username = u.username THEN g.prize_individual ELSE 0 END), 0)
+         FROM games g
+         WHERE g.game_type = 'golf_draft' AND g.tournament_complete = TRUE
+           AND (g.winner_username = u.username OR g.winner_individual_username = u.username)) AS golf_winnings,
+        (SELECT COALESCE(SUM(prize_amount), 0) FROM lms_winners WHERE user_id = u.id) AS lms_winnings
+      FROM users u
+      WHERE u.id = $1
     `, [id]),
   ]);
+
+  const totalWinnings = (parseFloat(winningsRes.rows[0]?.golf_winnings) || 0)
+                       + (parseFloat(winningsRes.rows[0]?.lms_winnings) || 0);
 
   res.render('profile', {
     profileUser: profileRes.rows[0],
     golfStats:      golfRes.rows[0],
     lmsStats:       lmsRes.rows[0],
     scorecardStats: scorecardRes.rows[0],
-    pickHistory: pickHistoryRes.rows,
+    totalWinnings,
     error:   req.query.error   || null,
     success: req.query.success || null,
   });
