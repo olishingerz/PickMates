@@ -1,4 +1,5 @@
 const { pool } = require('../db');
+const { computeGolfDraftWinner } = require('./golfWinner');
 
 const ESPN_SCOREBOARD = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
 
@@ -55,39 +56,10 @@ async function fetchTournamentList() {
   return [...live, ...upcoming, ...completed];
 }
 
-const SCORES_THAT_COUNT = parseInt(process.env.SCORES_THAT_COUNT) || 3;
-
 // Compute golf winner and save to games table (accepts a pool client or pool itself)
 async function saveGolfWinner(db, gameId) {
   try {
-    const { rows } = await db.query(`
-      SELECT u.username,
-             ARRAY_AGG(l.score_to_par ORDER BY l.score_to_par ASC)
-               FILTER (WHERE l.score_to_par IS NOT NULL) AS scores,
-             COUNT(CASE WHEN l.made_cut = TRUE THEN 1 END)::int AS cut_makers
-      FROM game_participants gp
-      JOIN users u ON u.id = gp.user_id
-      LEFT JOIN picks p ON p.user_id = gp.user_id AND p.game_id = gp.game_id
-      LEFT JOIN leaderboard l ON l.game_id = gp.game_id
-                              AND LOWER(TRIM(l.player_name)) = LOWER(TRIM(p.player_name))
-      WHERE gp.game_id = $1
-      GROUP BY u.username, gp.user_id
-    `, [gameId]);
-
-    let teamWinner = null, bestTeam = Infinity;
-    let indivWinner = null, bestIndiv = Infinity;
-
-    for (const row of rows) {
-      const scores = row.scores || [];
-      if (scores.length > 0 && scores[0] < bestIndiv) {
-        bestIndiv = scores[0];
-        indivWinner = row.username;
-      }
-      if (row.cut_makers >= SCORES_THAT_COUNT && scores.length >= SCORES_THAT_COUNT) {
-        const ts = scores.slice(0, SCORES_THAT_COUNT).reduce((s, v) => s + v, 0);
-        if (ts < bestTeam) { bestTeam = ts; teamWinner = row.username; }
-      }
-    }
+    const { teamWinner, indivWinner } = await computeGolfDraftWinner(db, gameId);
 
     await db.query(
       'UPDATE games SET winner_username=$1, winner_individual_username=$2 WHERE id=$3',

@@ -56,41 +56,12 @@ async function refreshFixtureCache(gameId, week) {
   return fixtures;
 }
 
-async function getLmsData(gameId, userId) {
-  const [gameRes, participantsRes, weeksRes, picksRes] = await Promise.all([
-    pool.query(`
-      SELECT g.id, g.name, g.lms_leagues, g.lms_current_week, g.is_complete, g.is_started, g.tournament_complete,
-             g.host_user_id, g.invite_code, g.prize_individual, g.lms_continuous, hu.username AS host_username
-      FROM games g
-      LEFT JOIN users hu ON hu.id = g.host_user_id
-      WHERE g.id = $1
-    `, [gameId]),
-    pool.query(`
-      SELECT u.id AS user_id, u.username, u.avatar, gp.draft_position, gp.team_name, gp.is_co_host, gp.has_paid
-      FROM game_participants gp
-      JOIN users u ON u.id = gp.user_id
-      WHERE gp.game_id = $1
-      ORDER BY gp.draft_position ASC NULLS LAST, u.username ASC
-    `, [gameId]),
-    pool.query(
-      'SELECT * FROM lms_weeks WHERE game_id=$1 ORDER BY week_number ASC',
-      [gameId]
-    ),
-    pool.query(
-      'SELECT * FROM lms_picks WHERE game_id=$1 ORDER BY week_number ASC',
-      [gameId]
-    ),
-  ]);
-
-  const game        = gameRes.rows[0];
-  const participants = participantsRes.rows;
-  const weeks       = weeksRes.rows;
-  const allPicks    = picksRes.rows;
-  const currentWeek = game?.lms_current_week || 1;
-  const weekObj     = weeks.find(w => w.week_number === currentWeek) || null;
-
-  // Build per-participant pick history and alive status
-  const standings = participants.map(p => {
+// Pure — derives each participant's alive/eliminated status from raw pick/week
+// rows. Extracted from getLmsData so the elimination logic (the source of a
+// real bug: a player's own already-graded loss wasn't reflected until the
+// whole gameweek round locked) can be unit tested without a database.
+function computeLmsStandings(participants, allPicks, weeks, currentWeek, weekObj) {
+  return participants.map(p => {
     const picks = allPicks.filter(pk => pk.user_id === p.user_id);
     let eliminated     = false;
     let eliminatedWeek = null;
@@ -133,6 +104,43 @@ async function getLmsData(gameId, userId) {
     const myCurrentPick = picks.find(pk => pk.week_number === currentWeek) || null;
     return { ...p, picks, eliminated, eliminatedWeek, eliminatedReason, myCurrentPick };
   });
+}
+
+async function getLmsData(gameId, userId) {
+  const [gameRes, participantsRes, weeksRes, picksRes] = await Promise.all([
+    pool.query(`
+      SELECT g.id, g.name, g.lms_leagues, g.lms_current_week, g.is_complete, g.is_started, g.tournament_complete,
+             g.host_user_id, g.invite_code, g.prize_individual, g.lms_continuous, hu.username AS host_username
+      FROM games g
+      LEFT JOIN users hu ON hu.id = g.host_user_id
+      WHERE g.id = $1
+    `, [gameId]),
+    pool.query(`
+      SELECT u.id AS user_id, u.username, u.avatar, gp.draft_position, gp.team_name, gp.is_co_host, gp.has_paid
+      FROM game_participants gp
+      JOIN users u ON u.id = gp.user_id
+      WHERE gp.game_id = $1
+      ORDER BY gp.draft_position ASC NULLS LAST, u.username ASC
+    `, [gameId]),
+    pool.query(
+      'SELECT * FROM lms_weeks WHERE game_id=$1 ORDER BY week_number ASC',
+      [gameId]
+    ),
+    pool.query(
+      'SELECT * FROM lms_picks WHERE game_id=$1 ORDER BY week_number ASC',
+      [gameId]
+    ),
+  ]);
+
+  const game        = gameRes.rows[0];
+  const participants = participantsRes.rows;
+  const weeks       = weeksRes.rows;
+  const allPicks    = picksRes.rows;
+  const currentWeek = game?.lms_current_week || 1;
+  const weekObj     = weeks.find(w => w.week_number === currentWeek) || null;
+
+  // Build per-participant pick history and alive status
+  const standings = computeLmsStandings(participants, allPicks, weeks, currentWeek, weekObj);
 
   // Teams already picked by current user across all weeks
   const myPicks  = allPicks.filter(pk => pk.user_id === userId);
@@ -410,4 +418,4 @@ router.post('/override-result', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = { router, getLmsData, isHost, canManage, processGameResults, refreshFixtureCache };
+module.exports = { router, getLmsData, isHost, canManage, processGameResults, refreshFixtureCache, computeLmsStandings };

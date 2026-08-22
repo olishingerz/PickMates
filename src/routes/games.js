@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const { SCORES_THAT_COUNT, MIN_CUT_MAKERS } = require('../constants');
+const { computeGolfDraftWinner } = require('../services/golfWinner');
 const draftRouter = require('./draft');
 const { router: lmsRouter, getLmsData, isHost: lmsIsHost, canManage: lmsCanManage } = require('./lms');
 const { router: scorecardRouter, getScorecardData, isHost: scorecardIsHost, canManage: scorecardCanManage } = require('./scorecard');
@@ -36,42 +37,7 @@ async function saveWinner(gameId) {
   const scorecardFormat = gameRows[0]?.scorecard_format;
 
   if (gameType === 'golf_draft') {
-    const { rows } = await pool.query(`
-      SELECT u.username, gp.user_id,
-             ARRAY_AGG(l.score_to_par ORDER BY l.score_to_par ASC) FILTER (WHERE l.score_to_par IS NOT NULL) AS scores,
-             COUNT(CASE WHEN l.made_cut = TRUE THEN 1 END)::int AS cut_makers
-      FROM game_participants gp
-      JOIN users u ON u.id = gp.user_id
-      LEFT JOIN picks p ON p.user_id = gp.user_id AND p.game_id = gp.game_id
-      LEFT JOIN leaderboard l ON l.game_id = gp.game_id
-                              AND LOWER(TRIM(l.player_name)) = LOWER(TRIM(p.player_name))
-      WHERE gp.game_id = $1
-      GROUP BY u.username, gp.user_id
-    `, [gameId]);
-
-    // Team winner (lowest sum of best 3, must have 3+ cut makers)
-    let teamWinner = null;
-    let bestTeamScore = Infinity;
-    // Individual pot winner (lowest single score)
-    let indivWinner = null;
-    let bestIndivScore = Infinity;
-
-    for (const row of rows) {
-      const scores = row.scores || [];
-      const cutMakers = row.cut_makers || 0;
-      if (scores.length > 0 && scores[0] < bestIndivScore) {
-        bestIndivScore = scores[0];
-        indivWinner = row.username;
-      }
-      if (cutMakers >= SCORES_THAT_COUNT && scores.length >= SCORES_THAT_COUNT) {
-        const teamScore = scores.slice(0, SCORES_THAT_COUNT).reduce((s, v) => s + v, 0);
-        if (teamScore < bestTeamScore) {
-          bestTeamScore = teamScore;
-          teamWinner = row.username;
-        }
-      }
-    }
-
+    const { teamWinner, indivWinner } = await computeGolfDraftWinner(pool, gameId);
     await pool.query(
       'UPDATE games SET winner_username=$1, winner_individual_username=$2 WHERE id=$3',
       [teamWinner, indivWinner, gameId]
