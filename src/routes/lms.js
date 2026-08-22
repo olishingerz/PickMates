@@ -116,6 +116,20 @@ async function getLmsData(gameId, userId) {
       eliminatedReason = 'no_pick';
     }
 
+    // Current week's own match has already finished and been graded by the
+    // incremental cron, even though the whole gameweek round hasn't locked yet
+    // (that waits for every match in the round, not just this player's). Reflect
+    // the loss/draw immediately rather than leaving them shown as alive until
+    // every other match in the round finishes too.
+    if (!eliminated && weekObj && !weekObj.results_locked) {
+      const curPick = picks.find(pk => pk.week_number === currentWeek);
+      if (curPick && (curPick.result === 'loss' || curPick.result === 'draw')) {
+        eliminated       = true;
+        eliminatedWeek   = currentWeek;
+        eliminatedReason = curPick.result;
+      }
+    }
+
     const myCurrentPick = picks.find(pk => pk.week_number === currentWeek) || null;
     return { ...p, picks, eliminated, eliminatedWeek, eliminatedReason, myCurrentPick };
   });
