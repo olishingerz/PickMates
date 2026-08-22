@@ -9,7 +9,9 @@
     ? new Date(eventDateRaw).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
     : null;
 %>
-<div class="card game-card" onclick="location.href='/game/<%= g.id %>'" style="cursor:pointer">
+<div class="card game-card" onclick="location.href='/game/<%= g.id %>'"
+     onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='/game/<%= g.id %>'}"
+     tabindex="0" role="link" aria-label="Open <%= g.name %>" style="cursor:pointer">
   <div class="game-card-header">
     <div>
       <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
@@ -61,6 +63,7 @@
           <% } %>
           <% if (!g.user_joined) { %>
             <form action="/game/<%= g.id %>/join" method="POST" style="display:inline">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">Join game</button>
             </form>
           <% } %>

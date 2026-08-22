@@ -24,6 +24,7 @@
     <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
 
     <form action="/games/create" method="POST" id="create-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 
       <!-- ── Step 1: Basic details ───────────────────────────────────── -->
       <div class="card" style="margin-bottom:1rem">
@@ -230,6 +231,7 @@
     <% savedCourses.forEach(c => { %>
       <form id="delete-course-<%= c.id %>" action="/games/create/delete-course" method="POST" style="display:none"
             onsubmit="return confirm('Remove \'<%= c.name.replace(/'/g, "\\'") %>\' from your saved courses?')">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
         <input type="hidden" name="course_id" value="<%= c.id %>" />
       </form>
     <% }) %>

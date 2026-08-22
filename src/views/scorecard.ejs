@@ -104,6 +104,7 @@
           </div>
           <form action="/game/<%= game.id %>/complete" method="POST"
                 onsubmit="return confirm('This will finalise the scorecard and complete the game. Continue?')">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <button type="submit" class="btn" style="background:var(--green);color:#fff">✅ Complete Game</button>
           </form>
         </div>
@@ -212,6 +213,7 @@
                     <% if (ctpEditable) { %>
                       <td>
                         <form action="/game/<%= game.id %>/scorecard/closest-to-pin" method="POST" style="display:flex;gap:.4rem;align-items:center">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                           <input type="hidden" name="hole_number" value="<%= c.hole_number %>" />
                           <select name="participant_id" style="padding:.3rem .4rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.8rem;max-width:110px">
                             <% allParticipants.forEach(p => { %>
@@ -257,6 +259,7 @@
           <% } else { %>
             <% if (anyEditable) { %>
               <form action="/game/<%= game.id %>/scorecard/scores#all" method="POST">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <% } %>
             <div class="leaderboard-table-wrap">
               <table class="leaderboard-table">
@@ -354,6 +357,7 @@
           <% } else { %>
             <% if (teamHasEditable) { %>
               <form action="/game/<%= game.id %>/scorecard/scores#all" method="POST">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <% } %>
             <div class="leaderboard-table-wrap">
               <table class="leaderboard-table">
@@ -464,6 +468,7 @@
             <% } else { %>
               <% if (ttHasEditable) { %>
                 <form id="tee-time-form-<%= tt.id %>" action="/game/<%= game.id %>/scorecard/scores#tt-<%= tt.id %>" method="POST">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <% } %>
               <div class="leaderboard-table-wrap">
                 <table class="leaderboard-table">
@@ -565,6 +570,7 @@
             <div>
               <p class="label-small" style="margin-bottom:.3rem">Closest to the Pin holes</p>
               <form action="/game/<%= game.id %>/scorecard/ctp-holes" method="POST">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                 <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.4rem">
                   <% parThreeHoles.forEach(h => { %>
                     <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;cursor:pointer">
@@ -581,18 +587,21 @@
           <% if (!game.tournament_complete && isHost) { %>
             <form action="/game/<%= game.id %>/complete" method="POST"
                   onsubmit="return confirm('Mark this game complete? <%= isIndividual ? 'This locks in the winner.' : 'This locks in the winning team.' %>')">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <button type="submit" class="btn btn-sm" style="width:100%;background:var(--green);color:#fff">Mark complete</button>
             </form>
           <% } %>
           <% if (isHost && game.is_started) { %>
             <form action="/game/<%= game.id %>/scorecard/reset-scores" method="POST"
                   onsubmit="return confirm('Reset all entered scores? This clears every hole for every player and cannot be undone.')">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <button type="submit" class="btn btn-sm btn-danger" style="width:100%">Reset scores</button>
             </form>
           <% } %>
           <% if (isHost) { %>
             <form action="/game/<%= game.id %>/delete" method="POST"
                   onsubmit="return confirm('Delete this game and all scores? Cannot be undone.')">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <button type="submit" class="btn btn-sm btn-danger" style="width:100%">Delete game</button>
             </form>
           <% } %>

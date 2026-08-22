@@ -83,6 +83,7 @@
       <% } %>
       <% if (user && !userInGame && !game.is_started && !game.tournament_complete) { %>
         <form action="/game/<%= game.id %>/join" method="POST" style="display:inline;margin-top:.4rem">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">Join game</button>
         </form>
       <% } %>
@@ -96,11 +97,13 @@
             <% if (game.tournament_complete) { %>
               <form action="/game/<%= game.id %>/uncomplete" method="POST"
                     onsubmit="return confirm('Unmark as complete? Scores will resume updating from ESPN.')">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                 <button type="submit" class="btn btn-sm btn-ghost" style="width:100%;text-align:left">Unmark complete</button>
               </form>
             <% } %>
             <form action="/game/<%= game.id %>/delete" method="POST"
                   onsubmit="return confirm('Delete this game and all its picks? This cannot be undone.')">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <button type="submit" class="btn btn-sm btn-danger" style="width:100%;text-align:left">Delete game</button>
             </form>
           </div>

@@ -52,6 +52,7 @@
           <h2 class="section-title" style="margin:0">Players</h2>
           <% if (!game.is_started && user && !meJoined) { %>
             <form action="/game/<%= game.id %>/scorecard/join" method="POST" style="display:inline">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">Join game</button>
             </form>
           <% } else if (meJoined) { %>
@@ -84,6 +85,7 @@
                     <td>
                       <% if (canManage && !game.is_started) { %>
                         <form action="/game/<%= game.id %>/scorecard/handicap" method="POST" style="display:flex;gap:.3rem;align-items:center">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                           <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
                           <input type="number" name="handicap" min="0" max="54" step="0.1"
                                  value="<%= p.handicap !== null ? p.handicap : '' %>" placeholder="—"
@@ -97,6 +99,7 @@
                     <% if (canManage && !game.is_started) { %>
                       <td>
                         <form action="/game/<%= game.id %>/scorecard/remove-player" method="POST" style="display:inline">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                           <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
                           <button type="submit" class="btn btn-sm btn-danger" style="padding:.15rem .45rem;font-size:.8rem"
                                   onclick="return confirm('Remove <%= p.username.replace(/'/g, "\\'") %> from this game?')">✕</button>
@@ -113,6 +116,7 @@
         <% if (canManage && !game.is_started) { %>
           <form action="/game/<%= game.id %>/scorecard/add-player" method="POST"
                 style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-top:.7rem;padding-top:.7rem;border-top:1px solid var(--border)">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <input type="text" name="username" list="all-usernames" placeholder="Add player by username…" maxlength="50" required
                    autocomplete="off"
                    style="padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;min-width:200px" />
@@ -137,6 +141,7 @@
           <h2 class="section-title" style="margin:0"><%= team.name %></h2>
           <% if (!game.is_started && user && !onThisTeam) { %>
             <form action="/game/<%= game.id %>/scorecard/join-team" method="POST" style="display:inline">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <input type="hidden" name="team_id" value="<%= team.id %>" />
               <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">Join this team</button>
             </form>
@@ -171,6 +176,7 @@
                     <td>
                       <% if (canManage && !game.is_started) { %>
                         <form action="/game/<%= game.id %>/scorecard/handicap" method="POST" style="display:flex;gap:.3rem;align-items:center">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                           <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
                           <input type="number" name="handicap" min="0" max="54" step="0.1"
                                  value="<%= p.handicap !== null ? p.handicap : '' %>" placeholder="—"
@@ -185,6 +191,7 @@
                       <td>
                         <% if (canManage) { %>
                           <form action="/game/<%= game.id %>/scorecard/tee-time" method="POST" style="display:flex;gap:.3rem;align-items:center">
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                             <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
                             <select name="tee_time_id" style="padding:.3rem .4rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.82rem">
                               <option value="">— None —</option>
@@ -202,6 +209,7 @@
                     <% if (canManage && !game.is_started) { %>
                       <td>
                         <form action="/game/<%= game.id %>/scorecard/remove-player" method="POST" style="display:inline">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                           <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
                           <button type="submit" class="btn btn-sm btn-danger" style="padding:.15rem .45rem;font-size:.8rem"
                                   onclick="return confirm('Remove <%= p.username.replace(/'/g, "\\'") %> from this game?')">✕</button>
@@ -218,6 +226,7 @@
         <% if (canManage && !game.is_started) { %>
           <form action="/game/<%= game.id %>/scorecard/add-player" method="POST"
                 style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-top:.7rem;padding-top:.7rem;border-top:1px solid var(--border)">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <input type="hidden" name="team_id" value="<%= team.id %>" />
             <input type="text" name="username" list="all-usernames" placeholder="Add player by username…" maxlength="50" required
                    autocomplete="off"
@@ -247,6 +256,7 @@
               <%= p.username %>
               <% if (canManage && !game.is_started) { %>
                 <form action="/game/<%= game.id %>/scorecard/remove-player" method="POST" style="display:inline">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                   <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
                   <button type="submit" class="btn btn-sm btn-danger" style="padding:.1rem .4rem;font-size:.75rem"
                           onclick="return confirm('Remove <%= p.username.replace(/'/g, "\\'") %> from this game?')">✕</button>
@@ -274,6 +284,7 @@
                 </span>
                 <% if (tt.players.length === 0) { %>
                   <form action="/game/<%= game.id %>/scorecard/tee-times/remove" method="POST" style="display:inline">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                     <input type="hidden" name="tee_time_id" value="<%= tt.id %>" />
                     <button type="submit" class="btn btn-sm btn-danger" style="padding:.15rem .45rem;font-size:.78rem">✕</button>
                   </form>
@@ -283,6 +294,7 @@
           </div>
         <% } %>
         <form action="/game/<%= game.id %>/scorecard/tee-times/add" method="POST" style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <input type="text" name="label" placeholder="e.g. 09:10" maxlength="50" required
                  style="padding:.35rem .6rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;min-width:140px" />
           <button type="submit" class="btn btn-sm">+ Add tee time</button>
@@ -314,6 +326,7 @@
         <h2 class="section-title">Closest to the Pin holes</h2>
         <p class="admin-hint">Untick any par-3 hole you don't want a closest-to-the-pin competition on. You can change this later too.</p>
         <form action="/game/<%= game.id %>/scorecard/ctp-holes" method="POST" style="margin-top:.6rem">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <input type="hidden" name="return_to" value="draft" />
           <div style="display:flex;flex-wrap:wrap;gap:.8rem;margin-bottom:.8rem">
             <% parThreeHoles.forEach(h => { %>
@@ -335,6 +348,7 @@
         <p class="admin-hint"><%= isIndividual ? 'Once started, handicaps are locked in.' : 'Everyone needs to be on a team before you can start. Once started, teams and handicaps are locked in.' %></p>
         <form action="/game/<%= game.id %>/scorecard/start" method="POST" style="margin-top:.6rem"
               onsubmit="return confirm('Start the game? <%= isIndividual ? 'Handicaps will be locked in.' : 'Teams and handicaps will be locked in.' %>')">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <button type="submit" class="btn" style="background:var(--green);color:#fff">▶ Start Game</button>
         </form>
       </div>

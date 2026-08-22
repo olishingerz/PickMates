@@ -31,6 +31,7 @@
       </div>
     <% } else { %>
       <form action="/game/<%= gameId %>/draft/tournaments" method="POST">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
         <div class="card">
           <table class="leaderboard-table tournament-table">
             <thead>

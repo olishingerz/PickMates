@@ -13,7 +13,6 @@
       <a href="/" class="logo">
         <span class="logo-flag">⛳</span>
         PickMates
-        <span class="logo-sub">Masters 2026</span>
       </a>
       <nav>
         <a href="/auth/register" class="btn btn-sm">Register</a>
@@ -31,10 +30,11 @@
         <% } %>
 
         <form action="/auth/login" method="POST">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <input type="hidden" name="next" value="<%= next %>" />
           <div class="form-group">
             <label for="username">Username</label>
-            <input type="text" id="username" name="username" required autofocus autocomplete="username" />
+            <input type="text" id="username" name="username" value="<%= username %>" required autofocus autocomplete="username" />
           </div>
           <div class="form-group">
             <label for="password">Password</label>

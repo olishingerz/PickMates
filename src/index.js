@@ -1,4 +1,5 @@
 require('dotenv').config();
+const crypto = require('crypto');
 const express = require('express');
 const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
@@ -18,8 +19,18 @@ const { getGameCreationRoles, canCreateGames } = require('./services/settings');
 
 const app = express();
 
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (isProduction && !process.env.SESSION_SECRET) {
+  throw new Error('SESSION_SECRET must be set in production — refusing to start with an insecure default.');
+}
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+
+// Railway terminates TLS at a proxy in front of the app — without this, Express
+// sees every request as plain HTTP and a `secure` cookie would never get set.
+if (isProduction) app.set('trust proxy', 1);
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -30,7 +41,11 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-secret-please-change',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 },
+  cookie: {
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    secure: isProduction,
+    sameSite: 'lax',
+  },
 }));
 
 app.use(async (req, res, next) => {
@@ -42,20 +57,55 @@ app.use(async (req, res, next) => {
     res.locals.canCreateGames = req.session.user?.isAdmin || false;
   }
   if (req.session.user) {
-    // Sync avatar + paid status on first request of the session
+    // Sync avatar/paid/admin status on first request of the session
     if (req.session.user.avatar === undefined) {
       try {
-        const { rows } = await pool.query('SELECT avatar, is_paid FROM users WHERE id = $1', [req.session.user.id]);
-        req.session.user.avatar = rows[0]?.avatar  || null;
-        req.session.user.isPaid = rows[0]?.is_paid || false;
+        const { rows } = await pool.query('SELECT avatar, is_paid, is_admin FROM users WHERE id = $1', [req.session.user.id]);
+        req.session.user.avatar  = rows[0]?.avatar  || null;
+        req.session.user.isPaid  = rows[0]?.is_paid || false;
+        req.session.user.isAdmin = rows[0]?.is_admin || false;
       } catch (_) {}
     }
-    // Update last_seen at most once every 5 minutes per session
+    // At most once every 5 minutes per session: update last_seen and re-sync
+    // is_admin/is_paid, so a revoked admin loses access without needing to log
+    // out (previously only the one-time sync above ever refreshed these).
     const now = Date.now();
     if (!req.session.lastSeenAt || now - req.session.lastSeenAt > 5 * 60 * 1000) {
       req.session.lastSeenAt = now;
-      pool.query('UPDATE users SET last_seen = NOW() WHERE id = $1', [req.session.user.id]).catch(() => {});
+      pool.query('UPDATE users SET last_seen = NOW() WHERE id = $1 RETURNING is_admin, is_paid', [req.session.user.id])
+        .then(({ rows }) => {
+          if (rows[0]) {
+            req.session.user.isAdmin = rows[0].is_admin || false;
+            req.session.user.isPaid  = rows[0].is_paid  || false;
+          }
+        })
+        .catch(() => {});
     }
+  }
+  next();
+});
+
+// CSRF protection for the server-rendered forms — every POST in this app is a
+// plain <form> submission (no fetch-based POSTs from any view), so a token tied
+// to the session and echoed back as a hidden field is enough. Assigning the
+// token below does mean an anonymous visitor's session now gets persisted
+// (previously `saveUninitialized: false` skipped that for pure browsing) —
+// an accepted trade-off since a form's own page needs the token before submit.
+app.use((req, res, next) => {
+  if (!req.session.csrfToken) {
+    req.session.csrfToken = crypto.randomBytes(24).toString('hex');
+  }
+  res.locals.csrfToken = req.session.csrfToken;
+  next();
+});
+
+app.use((req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  // External API-key-authenticated endpoint, not a browser form — no session/token to check.
+  if (req.path === '/api/scrape') return next();
+  const token = req.body?._csrf;
+  if (!token || token !== req.session.csrfToken) {
+    return res.status(403).send('Your session has expired or the form was out of date — please go back and try again.');
   }
   next();
 });

@@ -6,9 +6,6 @@
   <title>Draft – <%= state.name || 'PickMates' %></title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/style.css" />
-  <% if (state.is_started && !state.is_complete) { %>
-  <meta http-equiv="refresh" content="30" />
-  <% } %>
 </head>
 <body>
   <header>
@@ -61,6 +58,7 @@
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
         <p style="margin:0">You're not in this game yet.</p>
         <form action="/game/<%= gameId %>/join" method="POST" style="display:inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <button type="submit" class="btn" style="background:var(--green);color:#fff">Join game</button>
         </form>
       </div>
@@ -81,6 +79,7 @@
           <form action="/game/<%= gameId %>/draft/team-name" method="POST"
                 style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap"
                 onsubmit="return confirm('Set your team name to \'' + this.team_name.value.trim() + '\'? You won\'t be able to change it again.')">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <input type="text" name="team_name" placeholder="Team name" maxlength="25" required
                    autocomplete="off"
                    class="team-name-input"
@@ -117,6 +116,7 @@
                   <td><%= p.username %></td>
                   <td>
                     <form action="/game/<%= gameId %>/draft/toggle-paid" method="POST" style="display:inline">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                       <input type="hidden" name="user_id" value="<%= p.id %>" />
                       <button type="submit" class="btn btn-sm" style="padding:.2rem .55rem;font-size:.78rem;<%= p.has_paid ? 'background:var(--green);color:#fff' : 'background:var(--card-border);color:var(--text)' %>">
                         <%= p.has_paid ? '✓ Paid' : 'Not paid' %>
@@ -125,6 +125,7 @@
                   </td>
                   <td>
                     <form action="/game/<%= gameId %>/draft/remove-user" method="POST" style="display:inline">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                       <input type="hidden" name="user_id" value="<%= p.id %>" />
                       <button type="submit" class="btn btn-sm btn-danger" style="padding:.15rem .45rem;font-size:.8rem"
                               onclick="return confirm('Remove <%= p.username.replace(/'/g, "\\'") %> from this game?')">✕</button>
@@ -138,6 +139,7 @@
       <% } else if (user && canManage && !state.is_started && participants.length > 0) { %>
         <p class="admin-hint" style="margin-bottom:.6rem">Drag to set the pick order, then save — or use Randomise below.</p>
         <form action="/game/<%= gameId %>/draft/set-order" method="POST" id="order-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <input type="hidden" name="ordered_ids" id="ordered-ids-input" value="<%= participants.map(p=>p.id).join(',') %>" />
           <ul class="drag-list" id="drag-list">
             <% participants.forEach((p, i) => { %>
@@ -286,6 +288,7 @@
             <div style="display:flex;flex-direction:column;gap:.3rem">
               <% participants.filter(p => p.id !== state.host_user_id).forEach(p => { %>
                 <form action="/game/<%= gameId %>/draft/toggle-co-host" method="POST" style="display:flex;align-items:center;gap:.5rem">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                   <input type="hidden" name="user_id" value="<%= p.id %>" />
                   <span style="flex:1;font-size:.88rem"><%= p.username %></span>
                   <button type="submit" class="btn btn-sm" style="padding:.2rem .55rem;font-size:.78rem;<%= p.is_co_host ? 'background:var(--green);color:#fff' : 'background:var(--card-border);color:var(--text)' %>">
@@ -304,6 +307,7 @@
             <div class="admin-section">
               <p class="label-small">Entry fee (£ per player)</p>
               <form action="/game/<%= gameId %>/draft/entry-fee" method="POST" style="display:flex;gap:.5rem;align-items:center;margin-top:.3rem">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                 <input type="number" name="entry_fee" min="0" value="<%= state.prize_individual || 0 %>"
                        style="padding:.4rem .7rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.88rem;width:100px" />
                 <button type="submit" class="btn btn-sm">Save</button>
@@ -314,6 +318,7 @@
             <div class="admin-section">
               <p class="label-small">Add a player manually</p>
               <form action="/game/<%= gameId %>/draft/add-user" method="POST" style="display:flex;gap:.5rem;align-items:center;margin-top:.3rem">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                 <input type="text" name="username" placeholder="Username" required
                        style="padding:.4rem .7rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.88rem;width:180px" />
                 <button type="submit" class="btn btn-sm">Add player</button>
@@ -326,6 +331,7 @@
             <% if (!state.is_started) { %>
               <form action="/game/<%= gameId %>/draft/start" method="POST" style="display:inline"
                     onsubmit="return confirm('Start the game? Players will be able to submit their picks.')">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                 <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">
                   ▶ Start Game (<%= participants.length %> players)
                 </button>
@@ -333,11 +339,13 @@
             <% } %>
             <form action="/game/<%= gameId %>/draft/reset" method="POST" style="display:inline"
                   onsubmit="return confirm('Reset the game? This removes all picks.')">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <button type="submit" class="btn btn-sm btn-danger">↺ Reset</button>
             </form>
             <% if (isHost) { %>
               <form action="/game/<%= gameId %>/delete" method="POST" style="display:inline"
                     onsubmit="return confirm('Delete this game and all picks? Cannot be undone.')">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                 <button type="submit" class="btn btn-sm btn-danger">Delete game</button>
               </form>
             <% } %>
@@ -351,11 +359,13 @@
             <p class="label-small">Player list source</p>
             <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.3rem">
               <form action="/game/<%= gameId %>/draft/player-source" method="POST" style="display:inline">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                 <input type="hidden" name="player_source" value="espn" />
                 <button type="submit" class="btn btn-sm <%= playerSource === 'espn' ? '' : 'btn-ghost' %>"
                         style="<%= playerSource === 'espn' ? '' : 'color:var(--text)' %>">ESPN (auto)</button>
               </form>
               <form action="/game/<%= gameId %>/draft/player-source" method="POST" style="display:inline">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                 <input type="hidden" name="player_source" value="custom" />
                 <button type="submit" class="btn btn-sm <%= playerSource === 'custom' ? '' : 'btn-ghost' %>"
                         style="<%= playerSource === 'custom' ? '' : 'color:var(--text)' %>">Custom list</button>
@@ -369,6 +379,7 @@
                 </p>
               <% } %>
               <form action="/game/<%= gameId %>/draft/player-list" method="POST" style="margin-top:.5rem">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                 <textarea name="player_names" rows="8"
                           placeholder="Paste player names here — one per line&#10;e.g.&#10;Rory McIlroy&#10;Scottie Scheffler&#10;Jon Rahm"
                           style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;font-family:inherit;resize:vertical"></textarea>
@@ -390,6 +401,7 @@
             <div class="admin-section">
               <p class="label-small">Add a player manually</p>
               <form action="/game/<%= gameId %>/draft/add-user" method="POST" style="display:flex;gap:.5rem;align-items:center;margin-top:.3rem">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                 <input type="text" name="username" placeholder="Player name" required
                        style="padding:.4rem .7rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.88rem;width:180px" />
                 <button type="submit" class="btn btn-sm">Add player</button>
@@ -403,10 +415,12 @@
           <div class="admin-row">
             <% if (!state.is_started) { %>
               <form action="/game/<%= gameId %>/draft/randomise" method="POST" style="display:inline">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                 <button type="submit" class="btn btn-sm">🔀 Randomise order</button>
               </form>
               <form action="/game/<%= gameId %>/draft/start" method="POST" style="display:inline"
                     onsubmit="return confirm('Start the draft? Pick order will be locked in.')">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                 <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">
                   ▶ Start Draft (<%= participants.length %> players)
                 </button>
@@ -414,6 +428,7 @@
             <% } %>
             <form action="/game/<%= gameId %>/draft/reset" method="POST" style="display:inline"
                   onsubmit="return confirm('Reset the entire draft? This deletes all picks and restarts.')">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <button type="submit" class="btn btn-sm btn-danger">↺ Reset draft</button>
             </form>
           </div>
@@ -492,6 +507,7 @@
           <% } %>
 
           <form action="/game/<%= gameId %>/draft" method="POST" id="pick-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <input type="hidden" name="player_name" id="pick-hidden" value="" />
 
             <% if (available.length > 0) { %>
@@ -584,5 +600,44 @@
   </main>
 
   <%- include('partials/footer') %>
+
+  <% if (state.is_started && !state.is_complete) { %>
+  <script>
+    // Poll for draft progress instead of blindly reloading the whole page every
+    // 30s (which used to wipe out any in-progress typing in the player search box
+    // even when nothing had changed). Reload only when the pick count or draft
+    // state actually moves on, and never while the player is actively searching.
+    (function() {
+      let lastPickIndex = <%= state.current_pick_index %>;
+      let reloadPending = false;
+
+      function isSearchFocused() {
+        const search = document.getElementById('player-search');
+        return !!search && document.activeElement === search;
+      }
+
+      async function poll() {
+        try {
+          const res = await fetch('/game/<%= gameId %>/draft/status');
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data.isComplete || data.currentPickIndex !== lastPickIndex) {
+            if (isSearchFocused()) {
+              reloadPending = true;
+            } else {
+              location.reload();
+            }
+          }
+        } catch (_) { /* network hiccup — just try again next tick */ }
+      }
+
+      document.addEventListener('focusout', (e) => {
+        if (reloadPending && e.target && e.target.id === 'player-search') location.reload();
+      });
+
+      setInterval(poll, 15000);
+    })();
+  </script>
+  <% } %>
 </body>
 </html>

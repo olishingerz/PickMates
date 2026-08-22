@@ -13,13 +13,13 @@
       <a href="/" class="logo">
         <span class="logo-flag">⛳</span>
         PickMates
-        <span class="logo-sub">Masters 2026</span>
       </a>
       <nav>
         <% if (user) { %>
           <span class="nav-user">👤 <%= user.username %></span>
           <a href="/" class="btn btn-sm btn-ghost">Leaderboard</a>
           <form action="/auth/logout" method="POST" style="display:inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <button type="submit" class="btn btn-sm btn-ghost">Log out</button>
           </form>
         <% } %>
@@ -59,6 +59,7 @@
           </p>
 
           <form action="/picks" method="POST">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <div class="form-group">
               <label for="player_name">Choose your player</label>
               <% if (players.length > 0) { %>

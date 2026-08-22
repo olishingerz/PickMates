@@ -93,6 +93,7 @@
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
         <p style="margin:0">You're not in this game yet.</p>
         <form action="/game/<%= game.id %>/join" method="POST" style="display:inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <button type="submit" class="btn" style="background:var(--green);color:#fff">Join game</button>
         </form>
       </div>
@@ -224,6 +225,7 @@
                   <% if (curPick && curPick.result === 'pending') { %>
                   <td>
                     <form action="/game/<%= game.id %>/lms/override-result" method="POST" style="display:inline;white-space:nowrap">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                       <input type="hidden" name="pick_id" value="<%= curPick.id %>" />
                       <select name="result" style="font-size:.78rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:4px">
                         <option value="pending">pending</option>
@@ -256,6 +258,7 @@
               <div style="display:flex;flex-direction:column;gap:.3rem">
                 <% participants.filter(p => p.user_id !== game.host_user_id).forEach(p => { %>
                   <form action="/game/<%= game.id %>/draft/toggle-co-host" method="POST" style="display:flex;align-items:center;gap:.4rem">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                     <input type="hidden" name="user_id" value="<%= p.user_id %>" />
                     <span style="flex:1;font-size:.82rem"><%= p.username %></span>
                     <button type="submit" class="btn btn-sm" style="padding:.15rem .4rem;font-size:.74rem;<%= p.is_co_host ? 'background:var(--green);color:#fff' : 'background:var(--card-border);color:var(--text)' %>">
@@ -271,6 +274,7 @@
           <div>
             <p class="label-small" style="margin-bottom:.3rem">Week <%= currentWeek %> deadline</p>
             <form action="/game/<%= game.id %>/lms/set-deadline" method="POST" style="display:flex;gap:.3rem;align-items:center;flex-wrap:wrap">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <input type="datetime-local" name="deadline"
                      value="<%= weekObj?.deadline ? new Date(weekObj.deadline).toISOString().slice(0,16) : (suggestedDeadline ? new Date(suggestedDeadline).toISOString().slice(0,16) : '') %>"
                      style="padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.82rem;width:100%" />
@@ -281,6 +285,7 @@
           <!-- Process results -->
           <form action="/game/<%= game.id %>/lms/process-results" method="POST"
                 onsubmit="return confirm('Fetch results from ESPN and lock week <%= currentWeek %>? This cannot be undone.')">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <button type="submit" class="btn btn-sm" style="width:100%;background:var(--green);color:#fff">
               Process results — Wk <%= currentWeek %>
             </button>
@@ -290,6 +295,7 @@
           <% if (weekObj?.results_locked) { %>
             <form action="/game/<%= game.id %>/lms/advance-week" method="POST"
                   onsubmit="return confirm('Move to week <%= currentWeek + 1 %>?')">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <button type="submit" class="btn btn-sm" style="width:100%">Advance to week <%= currentWeek + 1 %></button>
             </form>
           <% } %>
@@ -298,6 +304,7 @@
           <% if (game.lms_continuous) { %>
             <form action="/game/<%= game.id %>/lms/stop" method="POST"
                   onsubmit="return confirm('Turn off auto-restart? This round will still finish normally, but the game will return to the lobby afterward instead of starting a new round.')">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <button type="submit" class="btn btn-sm btn-danger" style="width:100%">⏹ Stop Game</button>
             </form>
           <% } %>
@@ -306,6 +313,7 @@
           <% if (isHost) { %>
             <form action="/game/<%= game.id %>/delete" method="POST"
                   onsubmit="return confirm('Delete this game and all picks? Cannot be undone.')">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <button type="submit" class="btn btn-sm btn-danger" style="width:100%">Delete game</button>
             </form>
           <% } %>

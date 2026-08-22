@@ -104,6 +104,7 @@
           <% } %>
         </div>
         <form action="/profile/avatar" method="POST" enctype="multipart/form-data" style="margin-top:.8rem">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <div class="form-group">
             <label for="avatar">Upload image <span class="muted">(max 2 MB)</span></label>
             <input type="file" id="avatar" name="avatar" accept="image/*" />
@@ -121,6 +122,7 @@
       <div class="card">
         <h2 class="section-title">Username</h2>
         <form action="/profile/username" method="POST">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <div class="form-group">
             <label for="username">Username</label>
             <input type="text" id="username" name="username"
@@ -135,6 +137,7 @@
       <div class="card">
         <h2 class="section-title">Email &amp; notifications</h2>
         <form action="/profile/email" method="POST">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <div class="form-group">
             <label for="email">Email address</label>
             <input type="email" id="email" name="email"
@@ -150,6 +153,7 @@
       <div class="card">
         <h2 class="section-title">Change password</h2>
         <form action="/profile/password" method="POST">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <div class="form-group">
             <label for="current_password">Current password</label>
             <input type="password" id="current_password" name="current_password"
