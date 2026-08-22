@@ -34,7 +34,7 @@
     %>
 
     <!-- ── Live games ─────────────────────────────────────────────────────── -->
-    <h2 class="section-title">Live Games</h2>
+    <h2 class="section-title">Live Games <span class="muted" style="font-size:.85rem;font-weight:400">(<%= liveGames.length %>)</span></h2>
     <% if (liveGames.length === 0) { %>
       <div class="card empty-state">
         <span class="empty-state-icon">⛳</span>
@@ -52,7 +52,7 @@
 
     <!-- ── Complete games ────────────────────────────────────────────────── -->
     <% if (completeGames.length > 0) { %>
-      <h2 class="section-title mt-lg">Complete Games</h2>
+      <h2 class="section-title mt-lg">Complete Games <span class="muted" style="font-size:.85rem;font-weight:400">(<%= completeGames.length %>)</span></h2>
       <div class="games-grid">
         <% completeGames.forEach(g => { %>
           <div class="<%= accentClass(g.game_type) %>">
@@ -86,6 +86,7 @@
                 </span>
                 <div class="winner-card-name"><%= w.name %></div>
                 <% if (w.tournament_name) { %><div class="muted" style="font-size:.8rem"><%= w.tournament_name %></div><% } %>
+                <% if (w.event_date) { %><div class="muted" style="font-size:.76rem"><%= new Date(w.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) %></div><% } %>
               </div>
               <div class="winner-card-prizes">
                 <% if (w.winner_username) { %>

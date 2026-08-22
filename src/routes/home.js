@@ -12,6 +12,7 @@ const router = express.Router();
 async function getHomeData(userId) {
     const { rows: games } = await pool.query(`
       SELECT g.id, g.name, g.tournament_name, g.is_started, g.is_complete, g.tournament_complete, g.created_at,
+             g.tournament_start_date, g.tournament_end_date,
              g.game_type, g.host_user_id, g.is_public, g.lms_leagues, g.scorecard_course_name,
              COUNT(gp.id)::int AS participant_count,
              BOOL_OR(gp.user_id = $1) AS user_joined
@@ -55,7 +56,8 @@ async function getHomeData(userId) {
       SELECT g.id, g.name, g.game_type, g.tournament_name, g.scorecard_format,
              g.winner_username, wu.avatar AS winner_avatar,
              g.winner_individual_username, wiu.avatar AS winner_individual_avatar,
-             g.tournament_end_date, g.tournament_start_date
+             g.tournament_end_date, g.tournament_start_date, g.created_at,
+             COALESCE(g.tournament_end_date, g.created_at) AS event_date
       FROM games g
       -- winner_username is a real username for golf_draft/LMS, but a team name
       -- for team-format golf_scorecard — only look up an avatar in the former case
@@ -63,7 +65,7 @@ async function getHomeData(userId) {
       LEFT JOIN users wiu ON wiu.username = g.winner_individual_username
       WHERE g.tournament_complete = TRUE
         AND (g.winner_username IS NOT NULL OR g.winner_individual_username IS NOT NULL)
-      ORDER BY g.tournament_end_date DESC NULLS LAST, g.created_at DESC
+      ORDER BY COALESCE(g.tournament_end_date, g.created_at) DESC
       LIMIT 20
     `);
 
@@ -356,13 +358,14 @@ router.get('/hall-of-fame', async (req, res) => {
         SELECT g.id, g.name, g.game_type, g.tournament_name, g.scorecard_format,
                g.winner_username, wu.avatar AS winner_avatar,
                g.winner_individual_username, wiu.avatar AS winner_individual_avatar,
-               g.tournament_end_date, g.tournament_start_date
+               g.tournament_end_date, g.tournament_start_date, g.created_at,
+               COALESCE(g.tournament_end_date, g.created_at) AS event_date
         FROM games g
         LEFT JOIN users wu ON wu.username = g.winner_username AND g.game_type IN ('golf_draft', 'last_man_standing')
         LEFT JOIN users wiu ON wiu.username = g.winner_individual_username
         WHERE g.tournament_complete = TRUE
           AND (g.winner_username IS NOT NULL OR g.winner_individual_username IS NOT NULL)
-        ORDER BY g.tournament_end_date DESC NULLS LAST, g.created_at DESC
+        ORDER BY COALESCE(g.tournament_end_date, g.created_at) DESC
       `),
     ]);
     res.render('hall-of-fame', {

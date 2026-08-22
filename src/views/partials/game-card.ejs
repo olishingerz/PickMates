@@ -3,6 +3,11 @@
   let statusClass = null;
   if (g.tournament_complete)  { statusLabel = 'Complete';    statusClass = 'status-done'; }
   else if (g.is_started)      { statusLabel = 'In Progress'; statusClass = 'status-live'; }
+
+  const eventDateRaw = g.tournament_start_date || g.created_at;
+  const eventDate = eventDateRaw
+    ? new Date(eventDateRaw).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : null;
 %>
 <div class="card game-card" onclick="location.href='/game/<%= g.id %>'" style="cursor:pointer">
   <div class="game-card-header">
@@ -28,6 +33,7 @@
   </div>
   <div class="game-card-meta" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
     <span class="muted"><%= g.participant_count %> player<%= g.participant_count !== 1 ? 's' : '' %></span>
+    <% if (eventDate) { %><span class="muted">· <%= eventDate %></span><% } %>
     <% if (user && g.user_joined && g.is_started && g.user_rank) { %>
       <span style="font-size:.8rem;font-weight:700;color:var(--green-dark);background:var(--green-light);padding:.15rem .45rem;border-radius:20px">
         #<%= g.user_rank %> of <%= g.participant_count %>

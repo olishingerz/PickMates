@@ -78,8 +78,8 @@
               </span>
               <div class="winner-card-name"><%= w.name %></div>
               <% if (w.tournament_name) { %><div class="muted" style="font-size:.8rem"><%= w.tournament_name %></div><% } %>
-              <% if (w.tournament_end_date) { %>
-                <div class="muted" style="font-size:.78rem"><%= new Date(w.tournament_end_date).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) %></div>
+              <% if (w.event_date) { %>
+                <div class="muted" style="font-size:.78rem"><%= new Date(w.event_date).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) %></div>
               <% } %>
             </div>
             <div class="winner-card-prizes">
