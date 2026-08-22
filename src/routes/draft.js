@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const { pool } = require('../db');
 const { PICKS_PER_PLAYER } = require('../constants');
+const { generateTempPassword } = require('../utils');
 const { fetchTournamentList, scrapeLeaderboard } = require('../services/scraper');
 const { sendDraftTurnEmail } = require('../services/email');
 const { refreshFixtureCache } = require('./lms');
@@ -141,6 +142,31 @@ async function getDraftData(userId, gameId) {
       : PICKS_PER_PLAYER,
   };
 }
+
+// GET /game/:gameId/draft/status — cheap JSON poll target for the waiting-room
+// screen, so it can reload only when something actually changed instead of
+// blindly reloading (and wiping any in-progress player-search typing) on a timer.
+router.get('/status', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  try {
+    const { rows } = await pool.query(
+      `SELECT current_pick_index, is_started, is_complete
+       FROM games WHERE id = $1`,
+      [gameId]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Game not found' });
+    const { rows: pickCountRows } = await pool.query('SELECT COUNT(*)::int AS count FROM picks WHERE game_id = $1', [gameId]);
+    res.json({
+      currentPickIndex: rows[0].current_pick_index,
+      isStarted:        rows[0].is_started,
+      isComplete:       rows[0].is_complete,
+      pickCount:        pickCountRows[0].count,
+    });
+  } catch (err) {
+    console.error('[draft status]', err);
+    res.status(500).json({ error: 'Failed to load status' });
+  }
+});
 
 // GET /game/:gameId/draft
 router.get('/', requireAuth, async (req, res) => {
@@ -371,16 +397,26 @@ router.post('/randomise', requireAuth, async (req, res) => {
       [positions[i], positions[j]] = [positions[j], positions[i]];
     }
 
-    for (const p of participants) {
+    if (participants.length > 0) {
+      // Null out every position first (single statement — was one query per
+      // participant), since UNIQUE(game_id, draft_position) would otherwise
+      // reject a swapped-in position that's still held by another row mid-update.
+      await client.query('UPDATE game_participants SET draft_position = NULL WHERE game_id = $1', [gameId]);
+
+      // Then assign the new shuffled positions in one batched UPDATE instead of
+      // one round-trip per participant.
+      const values = [];
+      const placeholders = participants.map((p, i) => {
+        const b = i * 2;
+        values.push(p.id, positions[i]);
+        return `($${b + 1}::int,$${b + 2}::int)`;
+      }).join(',');
       await client.query(
-        'UPDATE game_participants SET draft_position = NULL WHERE id = $1',
-        [p.id]
-      );
-    }
-    for (let i = 0; i < participants.length; i++) {
-      await client.query(
-        'UPDATE game_participants SET draft_position = $1 WHERE id = $2',
-        [positions[i], participants[i].id]
+        `UPDATE game_participants AS gp
+         SET draft_position = v.position
+         FROM (VALUES ${placeholders}) AS v(id, position)
+         WHERE gp.id = v.id`,
+        values
       );
     }
 
@@ -494,9 +530,7 @@ router.post('/add-user', requireAuth, async (req, res) => {
     if (existing.length > 0) {
       userId = existing[0].id;
     } else {
-      // Generate a readable temp password: golf-XXXX
-      const suffix = Math.random().toString(36).slice(2, 6);
-      tempPassword = `golf-${suffix}`;
+      tempPassword = generateTempPassword('golf');
       const passwordHash = await bcrypt.hash(tempPassword, 10);
       const { rows } = await client.query(
         'INSERT INTO users (username, password_hash, must_change_password) VALUES ($1, $2, TRUE) RETURNING id',

@@ -422,6 +422,14 @@ CREATE TABLE IF NOT EXISTS session (
 
 CREATE INDEX IF NOT EXISTS session_expire_idx ON session(expire);
 
+-- ── Indexes for "this user, across all their games" lookups ────────────────────
+-- game_participants/picks/lms_picks only had composite unique indexes with
+-- game_id as the leading column, which Postgres can't use for a user_id-only
+-- filter (e.g. the profile page's pick history across every game a user's in).
+CREATE INDEX IF NOT EXISTS idx_game_participants_user ON game_participants(user_id);
+CREATE INDEX IF NOT EXISTS idx_picks_user             ON picks(user_id);
+CREATE INDEX IF NOT EXISTS idx_lms_picks_user          ON lms_picks(user_id);
+
 -- Golf Scorecard columns on games
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns

@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const { pool } = require('../db');
+const { generateTempPassword } = require('../utils');
 
 const router = express.Router({ mergeParams: true });
 
@@ -354,8 +355,7 @@ router.post('/add-player', requireAuth, async (req, res) => {
     if (existingUser.length > 0) {
       userId = existingUser[0].id;
     } else {
-      const suffix = Math.random().toString(36).slice(2, 6);
-      tempPassword = `golf-${suffix}`;
+      tempPassword = generateTempPassword('golf');
       const passwordHash = await bcrypt.hash(tempPassword, 10);
       const { rows } = await client.query(
         'INSERT INTO users (username, password_hash, must_change_password) VALUES ($1, $2, TRUE) RETURNING id',
@@ -618,12 +618,20 @@ router.post('/scores', requireAuth, async (req, res) => {
       updates.push({ participantId, holeNumber, strokes });
     }
 
-    for (const u of updates) {
+    if (updates.length > 0) {
+      // One multi-row upsert instead of one round-trip per stroke (a full 18-hole
+      // round for a big team can mean 100+ individual scores in a single submit).
+      const values = [];
+      const placeholders = updates.map((u, i) => {
+        const p = i * 4;
+        values.push(gameId, u.participantId, u.holeNumber, u.strokes);
+        return `($${p + 1},$${p + 2},$${p + 3},$${p + 4})`;
+      }).join(',');
       await pool.query(
         `INSERT INTO scorecard_scores (game_id, participant_id, hole_number, strokes)
-         VALUES ($1,$2,$3,$4)
-         ON CONFLICT (participant_id, hole_number) DO UPDATE SET strokes = $4, updated_at = NOW()`,
-        [gameId, u.participantId, u.holeNumber, u.strokes]
+         VALUES ${placeholders}
+         ON CONFLICT (participant_id, hole_number) DO UPDATE SET strokes = EXCLUDED.strokes, updated_at = NOW()`,
+        values
       );
     }
 
