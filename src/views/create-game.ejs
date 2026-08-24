@@ -31,11 +31,6 @@
         <h2 class="section-title">Game Details</h2>
         <div style="display:flex;gap:.8rem;flex-wrap:wrap;align-items:flex-end">
           <div>
-            <label class="form-label">Game name</label>
-            <input type="text" name="name" placeholder="e.g. The Masters 2026" required maxlength="200"
-                   style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;min-width:260px;display:block;margin-top:.3rem" />
-          </div>
-          <div>
             <label class="form-label">Game type</label>
             <select name="game_type" id="game-type"
                     style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;background:#fff;display:block;margin-top:.3rem">
@@ -43,6 +38,11 @@
               <option value="last_man_standing">🏆 Last Man Standing</option>
               <option value="golf_scorecard">⛳ Golf Scorecard</option>
             </select>
+          </div>
+          <div>
+            <label class="form-label">Game name</label>
+            <input type="text" name="name" placeholder="Enter a name for your game" required maxlength="200"
+                   style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;min-width:260px;display:block;margin-top:.3rem" />
           </div>
         </div>
         <p style="margin-top:.8rem;font-size:.85rem;line-height:1.5">
