@@ -41,6 +41,23 @@
       </form>
     </div>
 
+    <!-- ── Email ──────────────────────────────────────────────────────────── -->
+    <div class="card" style="margin-bottom:2rem">
+      <h2 class="section-title">Email</h2>
+      <p class="admin-hint" style="margin-bottom:.6rem">
+        SMTP: <strong style="color:<%= emailConfigured ? 'var(--green)' : '#ef4444' %>"><%= emailConfigured ? 'Configured' : 'Not configured (SMTP_HOST missing)' %></strong>
+      </p>
+      <form action="/admin/test-email" method="POST" style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <div>
+          <label class="form-label">Send a test email to</label>
+          <input type="email" name="to" required placeholder="you@example.com"
+                 style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;min-width:220px;display:block;margin-top:.3rem" />
+        </div>
+        <button type="submit" class="btn btn-sm">Send test</button>
+      </form>
+    </div>
+
     <!-- ── Games ──────────────────────────────────────────────────────────── -->
     <h2 class="section-title">Games <span class="muted" style="font-size:.85rem;font-weight:400">(<%= games.length %>)</span></h2>
     <div class="leaderboard-table-wrap" style="margin-bottom:2rem">

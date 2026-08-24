@@ -4,6 +4,7 @@ const { pool } = require('../db');
 const { ROLE_OPTIONS, getGameCreationRoles, setGameCreationRoles } = require('../services/settings');
 const { generateTempPassword } = require('../utils');
 const { computeGolfDraftWinner } = require('../services/golfWinner');
+const { sendTestEmail, isConfigured: isEmailConfigured } = require('../services/email');
 
 const ESPN_SCOREBOARD = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
 async function fetchJSON(url) {
@@ -68,6 +69,7 @@ router.get('/', requireAdmin, async (req, res) => {
       users:  usersRes.rows,
       games:  gamesRes.rows,
       lmsWinners: lmsWinnersRes.rows,
+      emailConfigured: isEmailConfigured(),
       gameCreationRoles,
       ROLE_OPTIONS,
       success: req.query.success || null,
@@ -232,6 +234,21 @@ router.post('/unimpersonate', async (req, res) => {
   } catch (err) {
     console.error('[admin unimpersonate]', err);
     res.redirect('/');
+  }
+});
+
+// ── POST /admin/test-email — send a real test email via the configured SMTP
+// transport and report the actual success/failure, unlike the real password-
+// reset flow which always shows a generic message regardless of outcome ────
+router.post('/test-email', requireAdmin, async (req, res) => {
+  const to = req.body.to?.trim();
+  if (!to) return res.redirect('/admin?error=' + encodeURIComponent('Enter an email address to test.'));
+  try {
+    await sendTestEmail(to);
+    res.redirect('/admin?success=' + encodeURIComponent(`Test email sent to ${to} — check the inbox (and spam folder).`));
+  } catch (err) {
+    console.error('[admin test-email]', err);
+    res.redirect('/admin?error=' + encodeURIComponent(`SMTP failed: ${err.message}`));
   }
 });
 

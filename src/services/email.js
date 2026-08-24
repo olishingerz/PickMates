@@ -112,4 +112,20 @@ async function sendPasswordResetEmail(user, resetUrl) {
   });
 }
 
-module.exports = { sendDraftTurnEmail, sendLmsDeadlineEmails, sendPasswordResetEmail };
+// Sends without swallowing the error, so a caller (the admin test-email route)
+// can show the real SMTP failure reason instead of the generic silent-log
+// behaviour every other email in this file uses.
+async function sendTestEmail(to) {
+  if (!transporter) throw new Error('SMTP is not configured — SMTP_HOST is not set.');
+  await transporter.sendMail({
+    from: FROM_ADDRESS,
+    to,
+    subject: '✅ PickMates SMTP test',
+    html: '<p>If you\'re reading this, SMTP is working.</p>',
+  });
+}
+
+module.exports = {
+  sendDraftTurnEmail, sendLmsDeadlineEmails, sendPasswordResetEmail, sendTestEmail,
+  isConfigured: () => !!transporter,
+};
