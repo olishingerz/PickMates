@@ -5,6 +5,7 @@ const { ROLE_OPTIONS, getGameCreationRoles, setGameCreationRoles } = require('..
 const { generateTempPassword } = require('../utils');
 const { computeGolfDraftWinner } = require('../services/golfWinner');
 const { sendTestEmail, isConfigured: isEmailConfigured } = require('../services/email');
+const net = require('net');
 
 const ESPN_SCOREBOARD = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
 async function fetchJSON(url) {
@@ -235,6 +236,36 @@ router.post('/unimpersonate', async (req, res) => {
     console.error('[admin unimpersonate]', err);
     res.redirect('/');
   }
+});
+
+// ── GET /admin/network-test — raw TCP connect checks (no SMTP protocol, no
+// auth) against Brevo's relay on all three ports plus a couple of unrelated
+// hosts, to tell a Railway-wide outbound block apart from Brevo specifically
+// blocking connections from cloud/datacenter IP ranges ─────────────────────
+router.get('/network-test', requireAdmin, async (req, res) => {
+  function checkConnect(host, port, timeoutMs = 5000) {
+    return new Promise(resolve => {
+      const start = Date.now();
+      const socket = net.createConnection({ host, port, timeout: timeoutMs });
+      const finish = (result) => {
+        socket.destroy();
+        resolve({ host, port, ms: Date.now() - start, ...result });
+      };
+      socket.on('connect', () => finish({ ok: true }));
+      socket.on('timeout', () => finish({ ok: false, error: 'timeout' }));
+      socket.on('error', (err) => finish({ ok: false, error: err.code || err.message }));
+    });
+  }
+
+  const targets = [
+    ['google.com', 443],
+    ['smtp-relay.brevo.com', 587],
+    ['smtp-relay.brevo.com', 465],
+    ['smtp-relay.brevo.com', 2525],
+    ['smtp.gmail.com', 587],
+  ];
+  const results = await Promise.all(targets.map(([host, port]) => checkConnect(host, port)));
+  res.json(results);
 });
 
 // ── POST /admin/test-email — send a real test email via the configured SMTP
