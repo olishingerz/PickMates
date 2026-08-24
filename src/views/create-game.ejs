@@ -45,6 +45,10 @@
             </select>
           </div>
         </div>
+        <p style="margin-top:.8rem;font-size:.85rem;line-height:1.5">
+          <span id="game-type-description" class="muted"></span>
+          <a id="game-type-more-link" href="/how-it-works" target="_blank" style="white-space:nowrap">Full rules →</a>
+        </p>
       </div>
 
       <!-- ── Golf Draft options ─────────────────────────────────────── -->
@@ -245,11 +249,26 @@
     const golfSection      = document.getElementById('golf-section');
     const lmsSection        = document.getElementById('lms-section');
     const scorecardSection = document.getElementById('scorecard-section');
+    const typeDescription   = document.getElementById('game-type-description');
+    const typeMoreLink      = document.getElementById('game-type-more-link');
+
+    const GAME_TYPE_DESCRIPTIONS = {
+      golf_draft: 'Draft real PGA Tour golfers with your friends in a snake draft, then follow live tournament scores. Your team’s combined score wins the team pot; the single best individual golfer wins a separate pot.',
+      last_man_standing: 'Pick one football team to win each gameweek — you can never pick the same team twice. Lose or draw and you’re out; last player standing takes the pot.',
+      golf_scorecard: 'Score a real round you’re all playing together, hole by hole, using net Stableford. Compete as teams or as individuals — most points wins.',
+    };
+    const GAME_TYPE_ANCHORS = {
+      golf_draft: '#golf-draft',
+      last_man_standing: '#last-man-standing',
+      golf_scorecard: '#golf-scorecard',
+    };
 
     function updateType() {
       golfSection.style.display      = gameType.value === 'golf_draft'      ? '' : 'none';
       lmsSection.style.display       = gameType.value === 'last_man_standing' ? '' : 'none';
       scorecardSection.style.display = gameType.value === 'golf_scorecard'  ? '' : 'none';
+      typeDescription.textContent = GAME_TYPE_DESCRIPTIONS[gameType.value] || '';
+      typeMoreLink.href = '/how-it-works' + (GAME_TYPE_ANCHORS[gameType.value] || '');
     }
     gameType.addEventListener('change', updateType);
     updateType();
