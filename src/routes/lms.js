@@ -373,8 +373,16 @@ async function processGameResults(gameId) {
       message: `😱 Everyone was eliminated in week ${week} — rollover! Prize is now £${newPrize}. The game is back in the lobby — start again when ready.` };
   }
 
+  // More than one survivor — the round continues. Advance to the next week
+  // automatically instead of leaving it on the host to click "Advance week"
+  // separately (survivors couldn't pick again until that happened).
+  const nextWeek = week + 1;
+  await pool.query('UPDATE games SET lms_current_week=$1 WHERE id=$2', [nextWeek, gameId]);
+  try { await refreshFixtureCache(gameId, nextWeek); }
+  catch (err) { console.warn(`[lms] fixture cache refresh failed after auto-advancing week for game ${gameId}:`, err.message); }
+
   return { week, updated, concluded: null, continuous,
-    message: `Results processed for week ${week} — ${updated} picks updated.` };
+    message: `Results processed for week ${week} — ${updated} picks updated. Advanced to week ${nextWeek}.` };
 }
 
 // POST /game/:gameId/lms/process-results — host: fetch ESPN results and mark wins/losses
