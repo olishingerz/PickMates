@@ -7,12 +7,18 @@ const APP_URL       = process.env.APP_URL    || 'https://pickmates.up.railway.ap
 // Standard SMTP settings, set as env vars (Railway → Variables):
 //   SMTP_HOST, SMTP_PORT, SMTP_SECURE ("true" for port 465, "false" for 587/STARTTLS),
 //   SMTP_USER, SMTP_PASS
+// Short timeouts so a blocked/unreachable SMTP host fails fast with a real
+// error (e.g. ETIMEDOUT) instead of hanging on nodemailer's default 2-minute
+// connection timeout, which just looks like a frozen request.
 const transporter = process.env.SMTP_HOST
   ? nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: parseInt(process.env.SMTP_PORT) || 587,
       secure: process.env.SMTP_SECURE === 'true',
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 10000,
     })
   : null;
 
