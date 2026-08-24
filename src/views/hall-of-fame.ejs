@@ -83,7 +83,21 @@
               <% } %>
             </div>
             <div class="winner-card-prizes">
-              <% if (w.winner_username) { %>
+              <% if (w.winner_username && w.game_type === 'golf_scorecard' && w.winning_team_members && w.winning_team_members.length > 0) { %>
+                <div class="winner-entry">
+                  <span class="winner-trophy">🥇</span>
+                  <span class="winner-name"><%= w.winner_username %></span>
+                  <span class="winner-label">· Winning team</span>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.2rem">
+                  <% w.winning_team_members.forEach(m => { %>
+                    <span style="display:inline-flex;align-items:center;gap:.25rem;font-size:.78rem">
+                      <%- include('partials/player-avatar', { avatar: m.avatar, username: m.username, size: 18 }) %>
+                      <%= m.username %>
+                    </span>
+                  <% }) %>
+                </div>
+              <% } else if (w.winner_username) { %>
                 <div class="winner-entry">
                   <span class="winner-trophy">🥇</span>
                   <%- include('partials/player-avatar', { avatar: w.winner_avatar, username: w.winner_username, size: 20 }) %>

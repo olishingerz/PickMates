@@ -341,17 +341,41 @@ router.get('/how-it-works', (req, res) => {
 // GET /hall-of-fame
 router.get('/hall-of-fame', async (req, res) => {
   try {
+    // Golf Draft/LMS store the winner's own username in winner_username, so a
+    // simple string match works. Golf Scorecard team-format games instead store
+    // the winning TEAM'S NAME there — matching it against usernames would never
+    // hit, so every member of that team needs crediting via scorecard_teams.
     const [allTimeRes, recentRes] = await Promise.all([
       pool.query(`
+        WITH team_wins AS (
+          SELECT g.id AS game_id, u.id AS user_id
+          FROM games g
+          JOIN users u ON u.username = g.winner_username
+          WHERE g.tournament_complete = TRUE
+            AND g.game_type IN ('golf_draft', 'last_man_standing')
+          UNION ALL
+          SELECT g.id AS game_id, gp.user_id
+          FROM games g
+          JOIN scorecard_teams st ON st.game_id = g.id AND st.name = g.winner_username
+          JOIN game_participants gp ON gp.scorecard_team_id = st.id AND gp.game_id = g.id
+          WHERE g.tournament_complete = TRUE AND g.game_type = 'golf_scorecard'
+        ),
+        indiv_wins AS (
+          SELECT g.id AS game_id, u.id AS user_id
+          FROM games g
+          JOIN users u ON u.username = g.winner_individual_username
+          WHERE g.tournament_complete = TRUE
+        ),
+        team_counts  AS (SELECT user_id, COUNT(DISTINCT game_id)::int AS cnt FROM team_wins  GROUP BY user_id),
+        indiv_counts AS (SELECT user_id, COUNT(DISTINCT game_id)::int AS cnt FROM indiv_wins GROUP BY user_id)
         SELECT u.username, u.avatar,
-               COUNT(*) FILTER (WHERE g.winner_username = u.username)::int              AS team_wins,
-               COUNT(*) FILTER (WHERE g.winner_individual_username = u.username)::int   AS indiv_wins,
-               (COUNT(*) FILTER (WHERE g.winner_username = u.username)
-                 + COUNT(*) FILTER (WHERE g.winner_individual_username = u.username))::int AS total_wins
+               COALESCE(t.cnt, 0) AS team_wins,
+               COALESCE(i.cnt, 0) AS indiv_wins,
+               (COALESCE(t.cnt, 0) + COALESCE(i.cnt, 0)) AS total_wins
         FROM users u
-        JOIN games g ON g.tournament_complete = TRUE
-                     AND (g.winner_username = u.username OR g.winner_individual_username = u.username)
-        GROUP BY u.id, u.username, u.avatar
+        LEFT JOIN team_counts  t ON t.user_id = u.id
+        LEFT JOIN indiv_counts i ON i.user_id = u.id
+        WHERE t.cnt IS NOT NULL OR i.cnt IS NOT NULL
         ORDER BY total_wins DESC, team_wins DESC
       `),
       pool.query(`
@@ -359,7 +383,13 @@ router.get('/hall-of-fame', async (req, res) => {
                g.winner_username, wu.avatar AS winner_avatar,
                g.winner_individual_username, wiu.avatar AS winner_individual_avatar,
                g.tournament_end_date, g.tournament_start_date, g.created_at,
-               COALESCE(g.tournament_end_date, g.created_at) AS event_date
+               COALESCE(g.tournament_end_date, g.created_at) AS event_date,
+               (SELECT COALESCE(json_agg(json_build_object('username', u2.username, 'avatar', u2.avatar) ORDER BY u2.username), '[]')
+                FROM game_participants gp2
+                JOIN scorecard_teams st2 ON st2.id = gp2.scorecard_team_id
+                JOIN users u2 ON u2.id = gp2.user_id
+                WHERE g.game_type = 'golf_scorecard' AND gp2.game_id = g.id AND st2.name = g.winner_username
+               ) AS winning_team_members
         FROM games g
         LEFT JOIN users wu ON wu.username = g.winner_username AND g.game_type IN ('golf_draft', 'last_man_standing')
         LEFT JOIN users wiu ON wiu.username = g.winner_individual_username
