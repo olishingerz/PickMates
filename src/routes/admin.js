@@ -34,7 +34,7 @@ function requireAdmin(req, res, next) {
 // ── GET /admin ────────────────────────────────────────────────────────────────
 router.get('/', requireAdmin, async (req, res) => {
   try {
-    const [usersRes, gamesRes, gameCreationRoles] = await Promise.all([
+    const [usersRes, gamesRes, gameCreationRoles, lmsWinnersRes] = await Promise.all([
       pool.query(`
         SELECT u.id, u.username, u.email,
                u.is_admin, u.is_paid, u.is_banned, u.created_at, u.last_seen,
@@ -54,10 +54,20 @@ router.get('/', requireAdmin, async (req, res) => {
         ORDER BY g.created_at DESC
       `),
       getGameCreationRoles(),
+      // Non-rollover wins only — a rollover row has no user to pay, its
+      // prize_amount is just the carrying pot size, not worth exposing here.
+      pool.query(`
+        SELECT lw.id, lw.game_id, g.name AS game_name, lw.username, lw.final_week, lw.prize_amount
+        FROM lms_winners lw
+        JOIN games g ON g.id = lw.game_id
+        WHERE lw.is_rollover = FALSE
+        ORDER BY lw.created_at DESC
+      `),
     ]);
     res.render('admin', {
       users:  usersRes.rows,
       games:  gamesRes.rows,
+      lmsWinners: lmsWinnersRes.rows,
       gameCreationRoles,
       ROLE_OPTIONS,
       success: req.query.success || null,
@@ -222,6 +232,24 @@ router.post('/unimpersonate', async (req, res) => {
   } catch (err) {
     console.error('[admin unimpersonate]', err);
     res.redirect('/');
+  }
+});
+
+// ── POST /admin/set-lms-prize — correct a historical LMS win's prize_amount,
+// since amounts recorded before the per-player-rate multiplication fix are
+// too low and can't be safely recomputed automatically ─────────────────────
+router.post('/set-lms-prize', requireAdmin, async (req, res) => {
+  const winnerId = parseInt(req.body.winner_id);
+  const amount   = parseFloat(req.body.prize_amount);
+  if (!winnerId || isNaN(amount) || amount < 0) {
+    return res.redirect('/admin?error=' + encodeURIComponent('Invalid prize amount.'));
+  }
+  try {
+    await pool.query('UPDATE lms_winners SET prize_amount = $1 WHERE id = $2', [amount, winnerId]);
+    res.redirect('/admin?success=' + encodeURIComponent('Prize amount updated.'));
+  } catch (err) {
+    console.error('[admin set-lms-prize]', err);
+    res.redirect('/admin?error=' + encodeURIComponent('Could not update prize amount.'));
   }
 });
 

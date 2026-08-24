@@ -89,6 +89,43 @@
       </table>
     </div>
 
+    <!-- ── LMS win amounts ───────────────────────────────────────────────── -->
+    <% if (lmsWinners.length > 0) { %>
+      <h2 class="section-title">LMS Winnings <span class="muted" style="font-size:.85rem;font-weight:400">(<%= lmsWinners.length %>)</span></h2>
+      <p class="admin-hint" style="margin-bottom:.6rem">Wins recorded before the per-player-rate fix have a too-low prize_amount — correct them here.</p>
+      <div class="leaderboard-table-wrap" style="margin-bottom:2rem">
+        <table class="leaderboard-table">
+          <thead>
+            <tr>
+              <th>Game</th>
+              <th>Week</th>
+              <th>Winner</th>
+              <th>Prize amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% lmsWinners.forEach(w => { %>
+              <tr>
+                <td><a href="/game/<%= w.game_id %>" style="font-weight:600"><%= w.game_name %></a></td>
+                <td class="muted" style="text-align:center"><%= w.final_week %></td>
+                <td><%= w.username %></td>
+                <td style="white-space:nowrap">
+                  <form action="/admin/set-lms-prize" method="POST" style="display:flex;gap:.3rem;align-items:center">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <input type="hidden" name="winner_id" value="<%= w.id %>" />
+                    <span>£</span>
+                    <input type="number" name="prize_amount" min="0" step="0.01" value="<%= w.prize_amount %>"
+                           style="font-size:.78rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:4px;width:90px" />
+                    <button type="submit" class="btn btn-sm" style="padding:.15rem .4rem;font-size:.72rem">Save</button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+
     <!-- ── Users ──────────────────────────────────────────────────────────── -->
     <h2 class="section-title">Users <span class="muted" style="font-size:.85rem;font-weight:400">(<%= users.length %>)</span></h2>
     <div class="leaderboard-table-wrap" style="margin-bottom:2rem">
