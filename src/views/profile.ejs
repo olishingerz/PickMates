@@ -128,6 +128,39 @@
         </form>
       </div>
 
+      <!-- ── Friends ─────────────────────────────────────────────────────── -->
+      <div class="card">
+        <h2 class="section-title">Friends</h2>
+        <p class="muted" style="font-size:.85rem;margin-bottom:.8rem">Your own quick-add list — lets you add these players to a new game in one click instead of typing their username.</p>
+        <% if (friends.length === 0) { %>
+          <p class="muted" style="font-size:.85rem;margin-bottom:.8rem">No friends added yet.</p>
+        <% } else { %>
+          <div style="display:flex;flex-direction:column;gap:.4rem;margin-bottom:1rem">
+            <% friends.forEach(f => { %>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+                <span style="display:inline-flex;align-items:center;gap:.4rem">
+                  <%- include('partials/player-avatar', { avatar: f.avatar, username: f.username, size: 22 }) %>
+                  <%= f.username %>
+                </span>
+                <form action="/profile/friends/remove" method="POST" style="margin:0">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <input type="hidden" name="friend_id" value="<%= f.id %>" />
+                  <button type="submit" class="btn btn-sm btn-ghost" style="padding:.15rem .5rem;font-size:.78rem">Remove</button>
+                </form>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+        <form action="/profile/friends/add" method="POST" style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <div class="form-group" style="flex:1;min-width:160px;margin-bottom:0">
+            <label for="friend-username">Add a friend</label>
+            <input type="text" id="friend-username" name="username" placeholder="Username" required maxlength="50" />
+          </div>
+          <button type="submit" class="btn btn-sm">Add</button>
+        </form>
+      </div>
+
       <!-- ── Password ────────────────────────────────────────────────────── -->
       <div class="card">
         <h2 class="section-title">Change password</h2>

@@ -417,6 +417,20 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- ── Friends ───────────────────────────────────────────────────────────────────
+-- One-directional "quick add" list — adding someone doesn't add you to their
+-- list, and there's no request/accept step. Purely a personal shortcut for
+-- adding known players to a game without retyping their username.
+CREATE TABLE IF NOT EXISTS friends (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  friend_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, friend_id),
+  CHECK (user_id <> friend_id)
+);
+CREATE INDEX IF NOT EXISTS idx_friends_user ON friends(user_id);
+
 -- ── Round-by-round rank history ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS game_rank_history (
   id          SERIAL PRIMARY KEY,

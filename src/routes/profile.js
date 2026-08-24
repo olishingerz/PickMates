@@ -20,7 +20,7 @@ function requireAuth(req, res, next) {
 
 router.get('/', requireAuth, async (req, res) => {
   const id = req.session.user.id;
-  const [profileRes, golfRes, lmsRes, scorecardRes, winningsRes, scorecardWinningsRes] = await Promise.all([
+  const [profileRes, golfRes, lmsRes, scorecardRes, winningsRes, scorecardWinningsRes, friendsRes] = await Promise.all([
     pool.query('SELECT username, avatar, email, notify_draft_turn, notify_lms_deadline FROM users WHERE id = $1', [id]),
     pool.query(`
       SELECT
@@ -99,6 +99,13 @@ router.get('/', requireAuth, async (req, res) => {
       WHERE g.game_type = 'golf_scorecard' AND g.tournament_complete = TRUE
         AND g.scorecard_entry_fee > 0
     `, [id]),
+    pool.query(`
+      SELECT u.id, u.username, u.avatar
+      FROM friends f
+      JOIN users u ON u.id = f.friend_id
+      WHERE f.user_id = $1
+      ORDER BY u.username ASC
+    `, [id]),
   ]);
 
   const scorecardWinnings = scorecardWinningsRes.rows.reduce((total, row) => {
@@ -126,6 +133,7 @@ router.get('/', requireAuth, async (req, res) => {
     lmsStats:       lmsRes.rows[0],
     scorecardStats: scorecardRes.rows[0],
     totalWinnings,
+    friends: friendsRes.rows,
     error:   req.query.error   || null,
     success: req.query.success || null,
   });
@@ -220,6 +228,45 @@ router.post('/avatar', requireAuth, upload.single('avatar'), async (req, res) =>
     }
     console.error(err);
     res.redirect('/profile?error=' + encodeURIComponent('Upload failed — max size is 2 MB.'));
+  }
+});
+
+// POST /profile/friends/add
+router.post('/friends/add', requireAuth, async (req, res) => {
+  const username = req.body.username?.trim();
+  if (!username) {
+    return res.redirect('/profile?error=' + encodeURIComponent('Enter a username.'));
+  }
+  try {
+    const { rows } = await pool.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [username]);
+    if (!rows[0]) {
+      return res.redirect('/profile?error=' + encodeURIComponent(`No account found for "${username}".`));
+    }
+    const friendId = rows[0].id;
+    if (friendId === req.session.user.id) {
+      return res.redirect('/profile?error=' + encodeURIComponent("You can't add yourself as a friend."));
+    }
+    await pool.query(
+      'INSERT INTO friends (user_id, friend_id) VALUES ($1, $2) ON CONFLICT (user_id, friend_id) DO NOTHING',
+      [req.session.user.id, friendId]
+    );
+    res.redirect('/profile?success=' + encodeURIComponent(`${username} added to your friends.`));
+  } catch (err) {
+    console.error('[profile friends/add]', err);
+    res.redirect('/profile?error=' + encodeURIComponent('Something went wrong.'));
+  }
+});
+
+// POST /profile/friends/remove
+router.post('/friends/remove', requireAuth, async (req, res) => {
+  const friendId = parseInt(req.body.friend_id);
+  if (!friendId) return res.redirect('/profile?error=' + encodeURIComponent('Invalid friend.'));
+  try {
+    await pool.query('DELETE FROM friends WHERE user_id = $1 AND friend_id = $2', [req.session.user.id, friendId]);
+    res.redirect('/profile?success=' + encodeURIComponent('Friend removed.'));
+  } catch (err) {
+    console.error('[profile friends/remove]', err);
+    res.redirect('/profile?error=' + encodeURIComponent('Something went wrong.'));
   }
 });
 
