@@ -339,8 +339,11 @@ router.get('/how-it-works', (req, res) => {
   res.render('how-it-works', { PICKS_PER_PLAYER, SCORES_THAT_COUNT, MIN_CUT_MAKERS, TEAM_COUNTING_SCORES });
 });
 
-// GET /hall-of-fame
-router.get('/hall-of-fame', async (req, res) => {
+// Old URL — redirect anyone with a bookmark/old link
+router.get('/hall-of-fame', (req, res) => res.redirect('/winners-club'));
+
+// GET /winners-club
+router.get('/winners-club', async (req, res) => {
   try {
     // Golf Draft/LMS store the winner's own username in winner_username, so a
     // simple string match works. Golf Scorecard team-format games instead store
