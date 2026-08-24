@@ -192,23 +192,27 @@ router.post('/reset-password/:token', async (req, res) => {
 
 router.get('/register', (req, res) => {
   if (req.session.user) return res.redirect('/');
-  res.render('register', { error: null, username: '' });
+  res.render('register', { error: null, username: '', email: '' });
 });
 
 router.post('/register', async (req, res) => {
   const { username, password, confirmPassword } = req.body;
+  const email = req.body.email?.trim().toLowerCase() || '';
 
-  if (!username || !password || !confirmPassword) {
-    return res.render('register', { error: 'Please fill in all fields.', username: username || '' });
+  if (!username || !password || !confirmPassword || !email) {
+    return res.render('register', { error: 'Please fill in all fields.', username: username || '', email });
   }
   if (username.trim().length < 2 || username.trim().length > 50) {
-    return res.render('register', { error: 'Username must be between 2 and 50 characters.', username });
+    return res.render('register', { error: 'Username must be between 2 and 50 characters.', username, email });
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.render('register', { error: 'Please enter a valid email address.', username, email });
   }
   if (password.length < 6) {
-    return res.render('register', { error: 'Password must be at least 6 characters.', username });
+    return res.render('register', { error: 'Password must be at least 6 characters.', username, email });
   }
   if (password !== confirmPassword) {
-    return res.render('register', { error: 'Passwords do not match.', username });
+    return res.render('register', { error: 'Passwords do not match.', username, email });
   }
 
   const client = await pool.connect();
@@ -217,8 +221,8 @@ router.post('/register', async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const { rows } = await client.query(
-      'INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, username',
-      [username.trim(), passwordHash]
+      'INSERT INTO users (username, password_hash, email) VALUES ($1, $2, $3) RETURNING id, username',
+      [username.trim(), passwordHash, email]
     );
     const userId   = rows[0].id;
 
@@ -235,10 +239,13 @@ router.post('/register', async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     if (err.code === '23505') {
-      return res.render('register', { error: 'That username is already taken.', username });
+      const message = err.constraint === 'users_email_key'
+        ? 'That email address is already registered.'
+        : 'That username is already taken.';
+      return res.render('register', { error: message, username, email });
     }
     console.error(err);
-    res.render('register', { error: 'Something went wrong. Please try again.', username });
+    res.render('register', { error: 'Something went wrong. Please try again.', username, email });
   } finally {
     client.release();
   }
