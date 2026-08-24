@@ -98,6 +98,12 @@ header {
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.18);
 }
 
+.logo-img {
+  height: 34px;
+  width: auto;
+  display: block;
+}
+
 .logo-sub {
   font-size: .68rem;
   font-weight: 600;
