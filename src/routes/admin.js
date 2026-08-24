@@ -6,6 +6,7 @@ const { generateTempPassword } = require('../utils');
 const { computeGolfDraftWinner } = require('../services/golfWinner');
 const { sendTestEmail, isConfigured: isEmailConfigured } = require('../services/email');
 const { getCurrentGameweekFixtures } = require('../services/football');
+const { refreshFixtureCache } = require('./lms');
 const net = require('net');
 
 const ESPN_SCOREBOARD = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
@@ -533,6 +534,105 @@ router.get('/lms-state-debug/:gameId', requireAdmin, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── POST /admin/lms-fix-game10-history — ONE-TIME repair for game 10.
+// A stale-deadline bug caused two back-to-back bogus rollovers that hard-deleted
+// the real week 1 picks (lms_picks/lms_weeks get wiped on every rollover by
+// design). This reconstructs that real week 1 from the actual ESPN results
+// (captured before the wipe) plus the host's own records of who picked what,
+// removes the two bogus rollover entries, resets the prize back to its
+// pre-bug value, and reseeds week 2 with the real upcoming fixtures. Delete
+// this route once it's been run — it's tailored to this one incident, not a
+// reusable tool.
+router.post('/lms-fix-game10-history', requireAdmin, async (req, res) => {
+  const gameId = 10;
+
+  // Real week 1 fixtures/results, exactly as ESPN had them before the window
+  // moved on and this became unrecoverable from a live fetch.
+  const week1Fixtures = [
+    {"id":"401879301","isDraw":false,"league":"eng.1","kickoff":"2026-08-21T19:00Z","awayTeam":{"id":"388","name":"Coventry City","score":0,"shortName":"COV"},"homeTeam":{"id":"359","name":"Arsenal","score":3,"shortName":"ARS"},"winnerId":"359","completed":true,"postponed":false,"leagueName":"Premier League"},
+    {"id":"401879322","isDraw":false,"league":"eng.1","kickoff":"2026-08-22T11:30Z","awayTeam":{"id":"360","name":"Manchester United","score":0,"shortName":"MAN"},"homeTeam":{"id":"306","name":"Hull City","score":2,"shortName":"HUL"},"winnerId":"306","completed":true,"postponed":false,"leagueName":"Premier League"},
+    {"id":"401880328","isDraw":true,"league":"eng.2","kickoff":"2026-08-22T11:30Z","awayTeam":{"id":"333","name":"Bristol City","score":2,"shortName":"BRC"},"homeTeam":{"id":"392","name":"Birmingham City","score":2,"shortName":"BIR"},"winnerId":null,"completed":true,"postponed":false,"leagueName":"Championship"},
+    {"id":"401880325","isDraw":false,"league":"eng.2","kickoff":"2026-08-22T11:30Z","awayTeam":{"id":"385","name":"Portsmouth","score":3,"shortName":"POR"},"homeTeam":{"id":"314","name":"Lincoln City","score":1,"shortName":"LCN"},"winnerId":"385","completed":true,"postponed":false,"leagueName":"Championship"},
+    {"id":"401880324","isDraw":false,"league":"eng.2","kickoff":"2026-08-22T11:30Z","awayTeam":{"id":"381","name":"Norwich City","score":0,"shortName":"NOR"},"homeTeam":{"id":"391","name":"Millwall","score":3,"shortName":"MIL"},"winnerId":"391","completed":true,"postponed":false,"leagueName":"Championship"},
+    {"id":"401879300","isDraw":false,"league":"eng.1","kickoff":"2026-08-22T14:00Z","awayTeam":{"id":"384","name":"Crystal Palace","score":0,"shortName":"CRY"},"homeTeam":{"id":"368","name":"Everton","score":2,"shortName":"EVE"},"winnerId":"368","completed":true,"postponed":false,"leagueName":"Premier League"},
+    {"id":"401879299","isDraw":false,"league":"eng.1","kickoff":"2026-08-22T14:00Z","awayTeam":{"id":"366","name":"Sunderland","score":1,"shortName":"SUN"},"homeTeam":{"id":"373","name":"Ipswich Town","score":2,"shortName":"IPS"},"winnerId":"373","completed":true,"postponed":false,"leagueName":"Premier League"},
+    {"id":"401879298","isDraw":false,"league":"eng.1","kickoff":"2026-08-22T14:00Z","awayTeam":{"id":"357","name":"Leeds United","score":1,"shortName":"LEE"},"homeTeam":{"id":"393","name":"Nottingham Forest","score":0,"shortName":"NFO"},"winnerId":"357","completed":true,"postponed":false,"leagueName":"Premier League"},
+    {"id":"401880327","isDraw":false,"league":"eng.2","kickoff":"2026-08-22T14:00Z","awayTeam":{"id":"369","name":"Middlesbrough","score":1,"shortName":"MID"},"homeTeam":{"id":"365","name":"Blackburn Rovers","score":2,"shortName":"BLK"},"winnerId":"365","completed":true,"postponed":false,"leagueName":"Championship"},
+    {"id":"401880326","isDraw":true,"league":"eng.2","kickoff":"2026-08-22T14:00Z","awayTeam":{"id":"347","name":"Cardiff City","score":2,"shortName":"CAR"},"homeTeam":{"id":"374","name":"Derby County","score":2,"shortName":"DER"},"winnerId":null,"completed":true,"postponed":false,"leagueName":"Championship"},
+    {"id":"401880323","isDraw":false,"league":"eng.2","kickoff":"2026-08-22T14:00Z","awayTeam":{"id":"380","name":"Wolverhampton Wanderers","score":3,"shortName":"WOL"},"homeTeam":{"id":"394","name":"Preston North End","score":1,"shortName":"PNE"},"winnerId":"380","completed":true,"postponed":false,"leagueName":"Championship"},
+    {"id":"401880322","isDraw":true,"league":"eng.2","kickoff":"2026-08-22T14:00Z","awayTeam":{"id":"358","name":"Bolton Wanderers","score":0,"shortName":"BOL"},"homeTeam":{"id":"334","name":"Queens Park Rangers","score":0,"shortName":"QPR"},"winnerId":null,"completed":true,"postponed":false,"leagueName":"Championship"},
+    {"id":"401880321","isDraw":false,"league":"eng.2","kickoff":"2026-08-22T14:00Z","awayTeam":{"id":"336","name":"Stoke City","score":1,"shortName":"STK"},"homeTeam":{"id":"376","name":"Southampton","score":3,"shortName":"SOU"},"winnerId":"376","completed":true,"postponed":false,"leagueName":"Championship"},
+    {"id":"401880320","isDraw":true,"league":"eng.2","kickoff":"2026-08-22T14:00Z","awayTeam":{"id":"398","name":"Sheffield United","score":0,"shortName":"SHU"},"homeTeam":{"id":"318","name":"Swansea City","score":0,"shortName":"SWA"},"winnerId":null,"completed":true,"postponed":false,"leagueName":"Championship"},
+    {"id":"401880318","isDraw":false,"league":"eng.2","kickoff":"2026-08-22T14:00Z","awayTeam":{"id":"372","name":"Charlton Athletic","score":2,"shortName":"CHA"},"homeTeam":{"id":"371","name":"West Ham United","score":1,"shortName":"WHU"},"winnerId":"372","completed":true,"postponed":false,"leagueName":"Championship"},
+    {"id":"401880317","isDraw":true,"league":"eng.2","kickoff":"2026-08-22T14:00Z","awayTeam":{"id":"395","name":"Watford","score":1,"shortName":"WAT"},"homeTeam":{"id":"352","name":"Wrexham","score":1,"shortName":"WXM"},"winnerId":null,"completed":true,"postponed":false,"leagueName":"Championship"},
+    {"id":"401879321","isDraw":false,"league":"eng.1","kickoff":"2026-08-22T16:30Z","awayTeam":{"id":"367","name":"Tottenham Hotspur","score":0,"shortName":"TOT"},"homeTeam":{"id":"337","name":"Brentford","score":3,"shortName":"BRE"},"winnerId":"337","completed":true,"postponed":false,"leagueName":"Premier League"},
+    {"id":"401880319","isDraw":false,"league":"eng.2","kickoff":"2026-08-23T11:00Z","awayTeam":{"id":"379","name":"Burnley","score":1,"shortName":"BUR"},"homeTeam":{"id":"383","name":"West Bromwich Albion","score":3,"shortName":"WBA"},"winnerId":"383","completed":true,"postponed":false,"leagueName":"Championship"},
+    {"id":"401879297","isDraw":false,"league":"eng.1","kickoff":"2026-08-23T13:00Z","awayTeam":{"id":"362","name":"Aston Villa","score":0,"shortName":"AVL"},"homeTeam":{"id":"331","name":"Brighton & Hove Albion","score":4,"shortName":"BHA"},"winnerId":"331","completed":true,"postponed":false,"leagueName":"Premier League"},
+    {"id":"401879320","isDraw":false,"league":"eng.1","kickoff":"2026-08-23T13:00Z","awayTeam":{"id":"349","name":"AFC Bournemouth","score":1,"shortName":"BOU"},"homeTeam":{"id":"382","name":"Manchester City","score":2,"shortName":"MNC"},"winnerId":"382","completed":true,"postponed":false,"leagueName":"Premier League"},
+    {"id":"401879319","isDraw":true,"league":"eng.1","kickoff":"2026-08-23T15:30Z","awayTeam":{"id":"364","name":"Liverpool","score":2,"shortName":"LIV"},"homeTeam":{"id":"361","name":"Newcastle United","score":2,"shortName":"NEW"},"winnerId":null,"completed":true,"postponed":false,"leagueName":"Premier League"},
+    {"id":"401879318","isDraw":false,"league":"eng.1","kickoff":"2026-08-24T19:00Z","awayTeam":{"id":"363","name":"Chelsea","score":3,"shortName":"CHE"},"homeTeam":{"id":"370","name":"Fulham","score":2,"shortName":"FUL"},"winnerId":"363","completed":true,"postponed":false,"leagueName":"Premier League"},
+  ];
+
+  // Who picked what in the real week 1, reconstructed from the host's records
+  // and cross-checked against the fixtures above (Arsenal/Man City won,
+  // Man United/West Ham lost — matches exactly).
+  const picks = [
+    { username: 'Preece',     team_id: '382', team_name: 'Manchester City',   result: 'win'  },
+    { username: 'Cmac7',      team_id: '359', team_name: 'Arsenal',           result: 'win'  },
+    { username: 'TylerBrunt', team_id: '359', team_name: 'Arsenal',           result: 'win'  },
+    { username: 'olishingerz',team_id: '360', team_name: 'Manchester United', result: 'loss' },
+    { username: 'Coleman',    team_id: '371', team_name: 'West Ham United',   result: 'loss' },
+    { username: 'JHoops',     team_id: '360', team_name: 'Manchester United', result: 'loss' },
+    { username: 'Blakey',     team_id: '371', team_name: 'West Ham United',   result: 'loss' },
+    { username: 'BigWilly95', team_id: '371', team_name: 'West Ham United',   result: 'loss' },
+    { username: 'Char',       team_id: '371', team_name: 'West Ham United',   result: 'loss' },
+  ];
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      'UPDATE games SET prize_individual = 10, lms_current_week = 2 WHERE id = $1',
+      [gameId]
+    );
+    await client.query('DELETE FROM lms_winners WHERE game_id = $1', [gameId]);
+    await client.query('DELETE FROM lms_picks WHERE game_id = $1', [gameId]);
+    await client.query('DELETE FROM lms_weeks WHERE game_id = $1', [gameId]);
+    await client.query(
+      `INSERT INTO lms_weeks (game_id, week_number, fixtures_cache, deadline, results_locked, skipped)
+       VALUES ($1, 1, $2, $3, TRUE, FALSE)`,
+      [gameId, JSON.stringify(week1Fixtures), '2026-08-21T18:00:00.000Z']
+    );
+
+    for (const p of picks) {
+      const { rows } = await client.query(
+        'SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [p.username]
+      );
+      if (rows.length === 0) throw new Error(`User not found: ${p.username}`);
+      await client.query(
+        `INSERT INTO lms_picks (game_id, user_id, week_number, team_id, team_name, result)
+         VALUES ($1,$2,1,$3,$4,$5)`,
+        [gameId, rows[0].id, p.team_id, p.team_name, p.result]
+      );
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+
+  try {
+    await refreshFixtureCache(gameId, 2);
+  } catch (err) {
+    return res.json({ ok: true, warning: 'Week 1 restored, but refreshing week 2 fixtures failed: ' + err.message });
+  }
+
+  res.json({ ok: true, message: 'Game 10 restored: week 1 picks/results reinstated, prize reset to £10, bogus rollovers removed, week 2 seeded with real upcoming fixtures.' });
 });
 
 module.exports = router;
