@@ -11,6 +11,7 @@ const homeRoutes    = require('./routes/home');
 const gamesRoutes   = require('./routes/games');
 const profileRoutes = require('./routes/profile');
 const adminRoutes   = require('./routes/admin');
+const contactRoutes = require('./routes/contact');
 const { scrapeAllGames } = require('./services/scraper');
 const { sendLmsDeadlineEmails } = require('./services/email');
 const { getCurrentGameweekFixtures, processResults } = require('./services/football');
@@ -136,6 +137,7 @@ app.use('/auth', authRoutes);
 app.use('/game', gamesRoutes);
 app.use('/profile', profileRoutes);
 app.use('/admin', adminRoutes);
+app.use('/contact', contactRoutes);
 
 // Manual scrape trigger (protected by API key)
 app.post('/api/scrape', async (req, res) => {

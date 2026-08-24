@@ -27,7 +27,7 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-async function callBrevo({ to, subject, html }) {
+async function callBrevo({ to, subject, html, replyTo }) {
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
@@ -40,6 +40,7 @@ async function callBrevo({ to, subject, html }) {
       to: [{ email: to }],
       subject,
       htmlContent: html,
+      ...(replyTo ? { replyTo } : {}),
     }),
   });
   if (!res.ok) {
@@ -48,13 +49,13 @@ async function callBrevo({ to, subject, html }) {
   }
 }
 
-async function sendEmail({ to, subject, html }) {
+async function sendEmail({ to, subject, html, replyTo }) {
   if (!BREVO_API_KEY) {
     console.log(`[email] No BREVO_API_KEY configured — would have sent "${subject}" to ${to}`);
     return;
   }
   try {
-    await callBrevo({ to, subject, html });
+    await callBrevo({ to, subject, html, replyTo });
     console.log(`[email] Sent "${subject}" to ${to}`);
   } catch (err) {
     console.warn(`[email] Failed to send "${subject}" to ${to}:`, err.message);
@@ -132,6 +133,27 @@ async function sendPasswordResetEmail(user, resetUrl) {
   });
 }
 
+const SUPPORT_ADDRESS = process.env.SUPPORT_EMAIL || 'support@pickmates.co.uk';
+
+/**
+ * Send a contact-form / bug-report submission to the support inbox, with the
+ * submitter set as reply-to so replying from the inbox goes straight to them.
+ * @param {{ name: string, email: string, category: string, message: string }} submission
+ */
+async function sendContactEmail({ name, email, category, message }) {
+  await sendEmail({
+    to:      SUPPORT_ADDRESS,
+    subject: `[PickMates ${category}] from ${name}`,
+    html: `
+      <p><strong>From:</strong> ${escapeHtml(name)} (${escapeHtml(email)})</p>
+      <p><strong>Type:</strong> ${escapeHtml(category)}</p>
+      <p><strong>Message:</strong></p>
+      <p style="white-space:pre-wrap">${escapeHtml(message)}</p>
+    `,
+    replyTo: { email, name },
+  });
+}
+
 // Sends without swallowing the error, so a caller (the admin test-email route)
 // can show the real API failure reason instead of the generic silent-log
 // behaviour every other email in this file uses.
@@ -145,6 +167,6 @@ async function sendTestEmail(to) {
 }
 
 module.exports = {
-  sendDraftTurnEmail, sendLmsDeadlineEmails, sendPasswordResetEmail, sendTestEmail,
+  sendDraftTurnEmail, sendLmsDeadlineEmails, sendPasswordResetEmail, sendTestEmail, sendContactEmail,
   isConfigured: () => !!BREVO_API_KEY,
 };
