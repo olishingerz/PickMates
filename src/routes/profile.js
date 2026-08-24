@@ -60,15 +60,18 @@ router.get('/', requireAuth, async (req, res) => {
       LEFT JOIN scorecard_teams st ON st.id = gp.scorecard_team_id
       WHERE u.id = $1
     `, [id]),
-    // Golf Draft (prize_team/prize_individual, paid entirely to the single
-    // winner) and LMS (lms_winners.prize_amount — a per-win snapshot, since
-    // games.prize_individual is a live pot that mutates on rollover and isn't
-    // a reliable history) winnings.
+    // Golf Draft: prize_team/prize_individual are PER-PLAYER rates (see
+    // game.ejs's own "rate * participant count" pot display) — the winner
+    // actually receives rate × number of players in that game, not the raw
+    // stored rate. LMS uses lms_winners.prize_amount instead, a per-win
+    // snapshot of the real payout, since games.prize_individual is a live pot
+    // that mutates on rollover and isn't a reliable history.
     pool.query(`
       SELECT
-        (SELECT COALESCE(SUM(CASE WHEN g.winner_username = u.username THEN g.prize_team ELSE 0 END)
-                        + SUM(CASE WHEN g.winner_individual_username = u.username THEN g.prize_individual ELSE 0 END), 0)
+        (SELECT COALESCE(SUM(CASE WHEN g.winner_username = u.username THEN g.prize_team * pc.cnt ELSE 0 END)
+                        + SUM(CASE WHEN g.winner_individual_username = u.username THEN g.prize_individual * pc.cnt ELSE 0 END), 0)
          FROM games g
+         JOIN (SELECT game_id, COUNT(*) AS cnt FROM game_participants GROUP BY game_id) pc ON pc.game_id = g.id
          WHERE g.game_type = 'golf_draft' AND g.tournament_complete = TRUE
            AND (g.winner_username = u.username OR g.winner_individual_username = u.username)) AS golf_winnings,
         (SELECT COALESCE(SUM(prize_amount), 0) FROM lms_winners WHERE user_id = u.id) AS lms_winnings

@@ -313,10 +313,14 @@ async function processGameResults(gameId) {
 
   if (data.standings.length > 0 && alive.length === 1) {
     const winner = alive[0];
+    // prize_individual is a per-player entry fee (same convention as the
+    // "Prize pot" display, which multiplies it by player count) — the actual
+    // payout is that rate times everyone who entered this round, not the raw rate.
+    const payout = (parseFloat(game[0]?.prize_individual) || 0) * data.standings.length;
     await pool.query(
       `INSERT INTO lms_winners (game_id, user_id, username, is_rollover, final_week, prize_amount)
        VALUES ($1,$2,$3,FALSE,$4,$5)`,
-      [gameId, winner.user_id, winner.username, week, game[0]?.prize_individual || 0]
+      [gameId, winner.user_id, winner.username, week, payout]
     );
     if (continuous) {
       await restartRound(gameId);
