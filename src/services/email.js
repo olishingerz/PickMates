@@ -1,26 +1,19 @@
-const nodemailer = require('nodemailer');
-
-const FROM_ADDRESS = process.env.EMAIL_FROM || 'PickMates <no-reply@pickmates.app>';
+// Brevo's HTTPS API (not raw SMTP) — Railway blocks outbound SMTP on every
+// port regardless of destination (confirmed via a raw TCP connectivity test:
+// Brevo on 587/465/2525 and even Gmail's SMTP all failed to connect, while
+// plain HTTPS worked instantly), so email has to go out over HTTPS instead.
 const APP_URL       = process.env.APP_URL    || 'https://pickmates.up.railway.app';
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const FROM_RAW       = process.env.EMAIL_FROM || 'PickMates <no-reply@pickmates.app>';
 
-// Only initialise a transporter if SMTP is configured — avoids crashing in dev.
-// Standard SMTP settings, set as env vars (Railway → Variables):
-//   SMTP_HOST, SMTP_PORT, SMTP_SECURE ("true" for port 465, "false" for 587/STARTTLS),
-//   SMTP_USER, SMTP_PASS
-// Short timeouts so a blocked/unreachable SMTP host fails fast with a real
-// error (e.g. ETIMEDOUT) instead of hanging on nodemailer's default 2-minute
-// connection timeout, which just looks like a frozen request.
-const transporter = process.env.SMTP_HOST
-  ? nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT) || 587,
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 10000,
-    })
-  : null;
+// EMAIL_FROM is a "Name <email>" string (as used by most SMTP libraries) —
+// Brevo's API wants sender name/email as separate fields.
+function parseSender(raw) {
+  const match = raw.match(/^(.*)<(.+)>$/);
+  if (match) return { name: match[1].trim() || undefined, email: match[2].trim() };
+  return { email: raw.trim() };
+}
+const SENDER = parseSender(FROM_RAW);
 
 // Game names and usernames are user-chosen and get interpolated straight into
 // these HTML emails — escape them so a malicious game name can't inject markup
@@ -34,13 +27,34 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+async function callBrevo({ to, subject, html }) {
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': BREVO_API_KEY,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: SENDER,
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Brevo API ${res.status}: ${body.slice(0, 300)}`);
+  }
+}
+
 async function sendEmail({ to, subject, html }) {
-  if (!transporter) {
-    console.log(`[email] No SMTP_HOST configured — would have sent "${subject}" to ${to}`);
+  if (!BREVO_API_KEY) {
+    console.log(`[email] No BREVO_API_KEY configured — would have sent "${subject}" to ${to}`);
     return;
   }
   try {
-    await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
+    await callBrevo({ to, subject, html });
     console.log(`[email] Sent "${subject}" to ${to}`);
   } catch (err) {
     console.warn(`[email] Failed to send "${subject}" to ${to}:`, err.message);
@@ -119,19 +133,18 @@ async function sendPasswordResetEmail(user, resetUrl) {
 }
 
 // Sends without swallowing the error, so a caller (the admin test-email route)
-// can show the real SMTP failure reason instead of the generic silent-log
+// can show the real API failure reason instead of the generic silent-log
 // behaviour every other email in this file uses.
 async function sendTestEmail(to) {
-  if (!transporter) throw new Error('SMTP is not configured — SMTP_HOST is not set.');
-  await transporter.sendMail({
-    from: FROM_ADDRESS,
+  if (!BREVO_API_KEY) throw new Error('Brevo API is not configured — BREVO_API_KEY is not set.');
+  await callBrevo({
     to,
-    subject: '✅ PickMates SMTP test',
-    html: '<p>If you\'re reading this, SMTP is working.</p>',
+    subject: '✅ PickMates email test',
+    html: '<p>If you\'re reading this, the Brevo API is working.</p>',
   });
 }
 
 module.exports = {
   sendDraftTurnEmail, sendLmsDeadlineEmails, sendPasswordResetEmail, sendTestEmail,
-  isConfigured: () => !!transporter,
+  isConfigured: () => !!BREVO_API_KEY,
 };

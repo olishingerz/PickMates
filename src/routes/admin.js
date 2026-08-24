@@ -268,9 +268,9 @@ router.get('/network-test', requireAdmin, async (req, res) => {
   res.json(results);
 });
 
-// ── POST /admin/test-email — send a real test email via the configured SMTP
-// transport and report the actual success/failure, unlike the real password-
-// reset flow which always shows a generic message regardless of outcome ────
+// ── POST /admin/test-email — send a real test email via the Brevo API and
+// report the actual success/failure, unlike the real password-reset flow
+// which always shows a generic message regardless of outcome ──────────────
 router.post('/test-email', requireAdmin, async (req, res) => {
   const to = req.body.to?.trim();
   if (!to) return res.redirect('/admin?error=' + encodeURIComponent('Enter an email address to test.'));
@@ -279,7 +279,7 @@ router.post('/test-email', requireAdmin, async (req, res) => {
     res.redirect('/admin?success=' + encodeURIComponent(`Test email sent to ${to} — check the inbox (and spam folder).`));
   } catch (err) {
     console.error('[admin test-email]', err);
-    res.redirect('/admin?error=' + encodeURIComponent(`SMTP failed: ${err.message}`));
+    res.redirect('/admin?error=' + encodeURIComponent(`Email failed: ${err.message}`));
   }
 });
 

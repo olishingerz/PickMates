@@ -45,7 +45,7 @@
     <div class="card" style="margin-bottom:2rem">
       <h2 class="section-title">Email</h2>
       <p class="admin-hint" style="margin-bottom:.6rem">
-        SMTP: <strong style="color:<%= emailConfigured ? 'var(--green)' : '#ef4444' %>"><%= emailConfigured ? 'Configured' : 'Not configured (SMTP_HOST missing)' %></strong>
+        Brevo API: <strong style="color:<%= emailConfigured ? 'var(--green)' : '#ef4444' %>"><%= emailConfigured ? 'Configured' : 'Not configured (BREVO_API_KEY missing)' %></strong>
       </p>
       <form action="/admin/test-email" method="POST" style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
