@@ -65,7 +65,7 @@ header {
   max-width: 980px;
   margin: 0 auto;
   padding: 0 1rem;
-  height: 62px;
+  height: 80px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -99,7 +99,7 @@ header {
 }
 
 .logo-img {
-  height: 34px;
+  height: 68px;
   width: auto;
   display: block;
 }
