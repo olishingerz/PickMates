@@ -112,9 +112,19 @@
             <input type="email" id="email" name="email"
                    value="<%= profileUser.email || '' %>" autocomplete="email"
                    placeholder="you@example.com" />
-            <small>Used to notify you when it's your turn in a draft or before an LMS deadline. Never shared.</small>
+            <small>Never shared. Needed for password resets and either notification below.</small>
           </div>
-          <button type="submit" class="btn btn-sm">Save email</button>
+          <div class="form-group" style="display:flex;flex-direction:column;gap:.4rem">
+            <label style="display:flex;align-items:center;gap:.5rem;font-size:.9rem;cursor:pointer">
+              <input type="checkbox" name="notify_draft_turn" value="1" <%= profileUser.notify_draft_turn ? 'checked' : '' %> />
+              Email me when it's my turn in a draft
+            </label>
+            <label style="display:flex;align-items:center;gap:.5rem;font-size:.9rem;cursor:pointer">
+              <input type="checkbox" name="notify_lms_deadline" value="1" <%= profileUser.notify_lms_deadline ? 'checked' : '' %> />
+              Email me a reminder before an LMS pick deadline
+            </label>
+          </div>
+          <button type="submit" class="btn btn-sm">Save</button>
         </form>
       </div>
 

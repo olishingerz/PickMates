@@ -360,6 +360,19 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- Per-notification-type opt-out — default TRUE so existing users (for whom
+-- having an email at all has always implied notifications) keep getting them.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='users' AND column_name='notify_draft_turn') THEN
+    ALTER TABLE users ADD COLUMN notify_draft_turn BOOLEAN DEFAULT TRUE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='users' AND column_name='notify_lms_deadline') THEN
+    ALTER TABLE users ADD COLUMN notify_lms_deadline BOOLEAN DEFAULT TRUE;
+  END IF;
+END $$;
+
 -- Password reset tokens — store only a hash (sha256, hex) of the token that
 -- goes out by email, never the raw value, so a DB leak alone can't be used to
 -- reset an account.

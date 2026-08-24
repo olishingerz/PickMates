@@ -21,7 +21,7 @@ function requireAuth(req, res, next) {
 router.get('/', requireAuth, async (req, res) => {
   const id = req.session.user.id;
   const [profileRes, golfRes, lmsRes, scorecardRes, winningsRes, scorecardWinningsRes] = await Promise.all([
-    pool.query('SELECT username, avatar, email FROM users WHERE id = $1', [id]),
+    pool.query('SELECT username, avatar, email, notify_draft_turn, notify_lms_deadline FROM users WHERE id = $1', [id]),
     pool.query(`
       SELECT
         COUNT(DISTINCT gp.game_id) FILTER (WHERE g.game_type = 'golf_draft')::int        AS golf_played,
@@ -179,12 +179,17 @@ router.post('/password', requireAuth, async (req, res) => {
 // POST /profile/email
 router.post('/email', requireAuth, async (req, res) => {
   const email = req.body.email?.trim().toLowerCase() || null;
+  const notifyDraftTurn   = req.body.notify_draft_turn === '1';
+  const notifyLmsDeadline = req.body.notify_lms_deadline === '1';
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.redirect('/profile?error=' + encodeURIComponent('Please enter a valid email address.'));
   }
   try {
-    await pool.query('UPDATE users SET email = $1 WHERE id = $2', [email || null, req.session.user.id]);
-    res.redirect('/profile?success=' + encodeURIComponent(email ? 'Email saved — you\'ll now get pick notifications.' : 'Email removed.'));
+    await pool.query(
+      'UPDATE users SET email = $1, notify_draft_turn = $2, notify_lms_deadline = $3 WHERE id = $4',
+      [email || null, notifyDraftTurn, notifyLmsDeadline, req.session.user.id]
+    );
+    res.redirect('/profile?success=' + encodeURIComponent(email ? 'Email preferences saved.' : 'Email removed.'));
   } catch (err) {
     if (err.code === '23505') {
       return res.redirect('/profile?error=' + encodeURIComponent('That email is already used by another account.'));

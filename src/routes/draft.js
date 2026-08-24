@@ -289,7 +289,7 @@ router.post('/', requireAuth, async (req, res) => {
       const nextPos  = snakeOrder[newIndex];
       const nextUser = participants.find(p => p.draft_position === nextPos);
       if (nextUser) {
-        pool.query('SELECT email FROM users WHERE id = $1', [nextUser.id])
+        pool.query('SELECT email FROM users WHERE id = $1 AND notify_draft_turn = TRUE', [nextUser.id])
           .then(r => {
             if (r.rows[0]?.email) {
               sendDraftTurnEmail(
