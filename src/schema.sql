@@ -360,6 +360,20 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- Password reset tokens — store only a hash (sha256, hex) of the token that
+-- goes out by email, never the raw value, so a DB leak alone can't be used to
+-- reset an account.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='users' AND column_name='reset_token_hash') THEN
+    ALTER TABLE users ADD COLUMN reset_token_hash VARCHAR(64);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='users' AND column_name='reset_token_expires') THEN
+    ALTER TABLE users ADD COLUMN reset_token_expires TIMESTAMP WITH TIME ZONE;
+  END IF;
+END $$;
+
 -- ── Round-by-round rank history ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS game_rank_history (
   id          SERIAL PRIMARY KEY,

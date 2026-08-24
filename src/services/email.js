@@ -1,11 +1,20 @@
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM_ADDRESS   = process.env.EMAIL_FROM || 'PickMates <no-reply@pickmates.app>';
-const APP_URL        = process.env.APP_URL    || 'https://pickmates.up.railway.app';
+const FROM_ADDRESS = process.env.EMAIL_FROM || 'PickMates <no-reply@pickmates.app>';
+const APP_URL       = process.env.APP_URL    || 'https://pickmates.up.railway.app';
 
-// Only initialise Resend if an API key is configured — avoids crashing in dev
-const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+// Only initialise a transporter if SMTP is configured — avoids crashing in dev.
+// Standard SMTP settings, set as env vars (Railway → Variables):
+//   SMTP_HOST, SMTP_PORT, SMTP_SECURE ("true" for port 465, "false" for 587/STARTTLS),
+//   SMTP_USER, SMTP_PASS
+const transporter = process.env.SMTP_HOST
+  ? nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT) || 587,
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    })
+  : null;
 
 // Game names and usernames are user-chosen and get interpolated straight into
 // these HTML emails — escape them so a malicious game name can't inject markup
@@ -20,12 +29,12 @@ function escapeHtml(str) {
 }
 
 async function sendEmail({ to, subject, html }) {
-  if (!resend) {
-    console.log(`[email] No RESEND_API_KEY — would have sent "${subject}" to ${to}`);
+  if (!transporter) {
+    console.log(`[email] No SMTP_HOST configured — would have sent "${subject}" to ${to}`);
     return;
   }
   try {
-    await resend.emails.send({ from: FROM_ADDRESS, to, subject, html });
+    await transporter.sendMail({ from: FROM_ADDRESS, to, subject, html });
     console.log(`[email] Sent "${subject}" to ${to}`);
   } catch (err) {
     console.warn(`[email] Failed to send "${subject}" to ${to}:`, err.message);
@@ -83,4 +92,24 @@ async function sendLmsDeadlineEmails(players, game, weekNumber, deadline) {
   }
 }
 
-module.exports = { sendDraftTurnEmail, sendLmsDeadlineEmails };
+/**
+ * Send a password reset link. The token in resetUrl is the raw (unhashed)
+ * value — only its sha256 hash is ever stored in the database.
+ * @param {{ email: string, username: string }} user
+ * @param {string} resetUrl
+ */
+async function sendPasswordResetEmail(user, resetUrl) {
+  if (!user.email) return;
+  await sendEmail({
+    to:      user.email,
+    subject: '🔑 Reset your PickMates password',
+    html: `
+      <p>Hi ${escapeHtml(user.username)},</p>
+      <p>We received a request to reset your PickMates password. This link expires in 1 hour.</p>
+      <p><a href="${resetUrl}" style="background:#006747;color:#fff;padding:.5rem 1rem;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">Reset password →</a></p>
+      <p style="color:#666;font-size:.85em">If you didn't request this, you can safely ignore this email — your password won't change.</p>
+    `,
+  });
+}
+
+module.exports = { sendDraftTurnEmail, sendLmsDeadlineEmails, sendPasswordResetEmail };

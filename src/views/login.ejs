@@ -28,6 +28,9 @@
         <% if (error) { %>
           <div class="alert alert-error"><%= error %></div>
         <% } %>
+        <% if (success) { %>
+          <div class="alert alert-success"><%= success %></div>
+        <% } %>
 
         <form action="/auth/login" method="POST">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
@@ -42,6 +45,8 @@
           </div>
           <button type="submit" class="btn btn-block">Log in</button>
         </form>
+
+        <p class="auth-link"><a href="/auth/forgot-password">Forgot password?</a></p>
 
         <p class="auth-link">Don't have an account? <a href="/auth/register">Register</a></p>
       </div>
