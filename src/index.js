@@ -32,6 +32,18 @@ app.set('views', path.join(__dirname, 'views'));
 // sees every request as plain HTTP and a `secure` cookie would never get set.
 if (isProduction) app.set('trust proxy', 1);
 
+// Force HTTPS — Railway issues a valid cert for the custom domain, but
+// without this, a request that happens to arrive over plain http:// (a typed
+// URL with no scheme, an old bookmark, the bare apex domain, etc.) just gets
+// served insecurely instead of upgraded, which is what was showing as
+// "connection is not secure" despite the certificate itself being valid.
+if (isProduction) {
+  app.use((req, res, next) => {
+    if (req.secure) return next();
+    res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
+  });
+}
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
