@@ -106,7 +106,7 @@ async function getGameweekWindow(leagueCodes) {
 }
 
 // Fixtures for the current gameweek (by date clustering) plus a suggested pick
-// deadline of the earliest kickoff in that window.
+// deadline of an hour before the earliest kickoff in that window.
 async function getCurrentGameweekFixtures(leagueCodes) {
   const window = await getGameweekWindow(leagueCodes);
   if (!window) return { fixtures: [], suggestedDeadline: null };
@@ -115,7 +115,7 @@ async function getCurrentGameweekFixtures(leagueCodes) {
   const fixtures = await fetchFixtures(leagueCodes, datesParam);
 
   const kickoffs = fixtures.map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
-  const suggestedDeadline = kickoffs.length ? new Date(Math.min(...kickoffs)) : null;
+  const suggestedDeadline = kickoffs.length ? new Date(Math.min(...kickoffs) - 60 * 60 * 1000) : null;
 
   return { fixtures, suggestedDeadline };
 }

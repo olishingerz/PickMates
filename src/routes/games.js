@@ -106,7 +106,7 @@ router.get('/:gameId', async (req, res) => {
         const cached = data.weekObj?.fixtures_cache;
         if (cached?.length > 0) {
           const kickoffs = cached.map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
-          if (kickoffs.length) suggestedDeadline = new Date(Math.min(...kickoffs));
+          if (kickoffs.length) suggestedDeadline = new Date(Math.min(...kickoffs) - 60 * 60 * 1000);
         }
       }
 
