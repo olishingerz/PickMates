@@ -3,6 +3,7 @@ const bcrypt  = require('bcrypt');
 const { pool } = require('../db');
 const { ROLE_OPTIONS, getGameCreationRoles, setGameCreationRoles } = require('../services/settings');
 const { generateTempPassword } = require('../utils');
+const { computeGolfDraftWinner } = require('../services/golfWinner');
 
 const ESPN_SCOREBOARD = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
 async function fetchJSON(url) {
@@ -356,6 +357,38 @@ router.get('/scorecard-debug/:gameId', requireAdmin, async (req, res) => {
       [gameId]
     );
     res.json({ game: gameRows[0] || null, teams, participants });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /admin/golf-draft-debug/:gameId — compares the stored winner_username
+// against a fresh live recomputation, to diagnose a reported "should have won
+// the team pot" discrepancy against real data ──────────────────────────────
+router.get('/golf-draft-debug/:gameId', requireAdmin, async (req, res) => {
+  const gameId = parseInt(req.params.gameId);
+  try {
+    const { rows: gameRows } = await pool.query(
+      `SELECT id, name, game_type, tournament_complete, prize_team, prize_individual,
+              winner_username, winner_individual_username
+       FROM games WHERE id = $1`,
+      [gameId]
+    );
+    const { rows: rawRows } = await pool.query(`
+      SELECT u.username, gp.user_id,
+             ARRAY_AGG(l.score_to_par ORDER BY l.score_to_par ASC) FILTER (WHERE l.score_to_par IS NOT NULL) AS scores,
+             COUNT(CASE WHEN l.made_cut = TRUE THEN 1 END)::int AS cut_makers,
+             ARRAY_AGG(p.player_name) AS picks
+      FROM game_participants gp
+      JOIN users u ON u.id = gp.user_id
+      LEFT JOIN picks p ON p.user_id = gp.user_id AND p.game_id = gp.game_id
+      LEFT JOIN leaderboard l ON l.game_id = gp.game_id
+                              AND LOWER(TRIM(l.player_name)) = LOWER(TRIM(p.player_name))
+      WHERE gp.game_id = $1
+      GROUP BY u.username, gp.user_id
+    `, [gameId]);
+    const liveComputed = await computeGolfDraftWinner(pool, gameId);
+    res.json({ game: gameRows[0] || null, liveComputed, perPlayer: rawRows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
