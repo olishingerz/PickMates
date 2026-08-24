@@ -36,9 +36,18 @@
     </div>
   </div>
 <% } else { %>
-  <a href="/how-it-works" class="btn btn-sm btn-ghost">How it Works</a>
-  <a href="/auth/login" class="btn btn-sm btn-ghost">Log in</a>
-  <a href="/auth/register" class="btn btn-sm">Register</a>
+  <div class="nav-dropdown" id="nav-dropdown">
+    <button class="nav-dropdown-trigger" id="nav-dropdown-btn" type="button">
+      <span>☰</span> Menu
+      <span class="dropdown-caret">▾</span>
+    </button>
+    <div class="nav-dropdown-menu" id="nav-dropdown-menu">
+      <a href="/how-it-works" class="nav-dropdown-item">📖 How it Works</a>
+      <div class="nav-dropdown-divider"></div>
+      <a href="/auth/login" class="nav-dropdown-item">Log in</a>
+      <a href="/auth/register" class="nav-dropdown-item">Register</a>
+    </div>
+  </div>
 <% } %>
 <script>
   (function() {
