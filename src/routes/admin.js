@@ -225,22 +225,6 @@ router.post('/unimpersonate', async (req, res) => {
 });
 
 // ── POST /admin/set-team-name ─────────────────────────────────────────────────
-// ── POST /admin/set-completed-at — backfill/correct when a game actually finished ──
-router.post('/set-completed-at', requireAdmin, async (req, res) => {
-  const gameId = parseInt(req.body.game_id);
-  if (!gameId) return res.redirect('/admin?error=' + encodeURIComponent('Invalid game.'));
-  try {
-    await pool.query(
-      'UPDATE games SET completed_at = $1 WHERE id = $2',
-      [req.body.completed_at || null, gameId]
-    );
-    res.redirect('/admin?success=' + encodeURIComponent(`Completed date for game ${gameId} updated.`));
-  } catch (err) {
-    console.error('[admin set-completed-at]', err);
-    res.redirect('/admin?error=' + encodeURIComponent('Could not update completed date.'));
-  }
-});
-
 router.post('/set-team-name', requireAdmin, async (req, res) => {
   const gameId   = parseInt(req.body.game_id);
   const username = req.body.username?.trim();
