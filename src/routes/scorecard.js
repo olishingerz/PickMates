@@ -1,7 +1,5 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
 const { pool } = require('../db');
-const { generateTempPassword } = require('../utils');
 
 const router = express.Router({ mergeParams: true });
 
@@ -217,6 +215,8 @@ async function renderLobby(req, res, gameId) {
 
     // Suggestions for the host's "add player" search box — only relevant pre-start
     let suggestedUsernames = [];
+    // Host's friends not already in this game — quick-add shortcuts
+    let friendsToAdd = [];
     if (manageFlag && !data.game.is_started) {
       const { rows } = await pool.query(
         `SELECT username FROM users
@@ -225,6 +225,17 @@ async function renderLobby(req, res, gameId) {
         [gameId]
       );
       suggestedUsernames = rows.map(r => r.username);
+
+      const { rows: friendRows } = await pool.query(
+        `SELECT u.id, u.username, u.avatar
+         FROM friends f
+         JOIN users u ON u.id = f.friend_id
+         WHERE f.user_id = $1
+           AND u.id NOT IN (SELECT user_id FROM game_participants WHERE game_id = $2)
+         ORDER BY u.username ASC`,
+        [req.session.user.id, gameId]
+      );
+      friendsToAdd = friendRows;
     }
 
     res.render('scorecard-lobby', {
@@ -232,6 +243,7 @@ async function renderLobby(req, res, gameId) {
       isHost: hostFlag,
       canManage: manageFlag,
       suggestedUsernames,
+      friendsToAdd,
       error:   req.query.error   || null,
       success: req.query.success || null,
     });
@@ -348,21 +360,15 @@ router.post('/add-player', requireAuth, async (req, res) => {
       }
     }
 
-    // Create the account if it doesn't already exist
-    let userId;
-    let tempPassword = null;
-    const { rows: existingUser } = await client.query('SELECT id FROM users WHERE username = $1', [username]);
-    if (existingUser.length > 0) {
-      userId = existingUser[0].id;
-    } else {
-      tempPassword = generateTempPassword('golf');
-      const passwordHash = await bcrypt.hash(tempPassword, 10);
-      const { rows } = await client.query(
-        'INSERT INTO users (username, password_hash, must_change_password) VALUES ($1, $2, TRUE) RETURNING id',
-        [username, passwordHash]
-      );
-      userId = rows[0].id;
+    // Must be an existing, registered account — no longer auto-created
+    const { rows: existingUser } = await client.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [username]);
+    if (existingUser.length === 0) {
+      await client.query('ROLLBACK');
+      return res.redirect(base + '?error=' + encodeURIComponent(
+        `No account found for "${username}" — they need to register first, or add them as a friend once they have an account.`
+      ));
     }
+    const userId = existingUser[0].id;
 
     // Check not already in this game
     const { rows: alreadyIn } = await client.query(
@@ -380,14 +386,11 @@ router.post('/add-player', requireAuth, async (req, res) => {
     );
     await client.query('COMMIT');
 
-    const msg = tempPassword
-      ? `${username} added to the game. Temp password (only needed if they want to log in themselves): ${tempPassword}`
-      : `${username} added to the game.`;
-    res.redirect(base + '?success=' + encodeURIComponent(msg));
+    res.redirect(base + '?success=' + encodeURIComponent(`${username} added to the game.`));
   } catch (err) {
     await client.query('ROLLBACK');
     if (err.code === '23505') {
-      return res.redirect(base + '?error=' + encodeURIComponent(`"${username}" is already taken.`));
+      return res.redirect(base + '?error=' + encodeURIComponent(`${username} is already in this game.`));
     }
     console.error('[scorecard add-player]', err);
     res.redirect(base + '?error=' + encodeURIComponent('Failed to add player.'));

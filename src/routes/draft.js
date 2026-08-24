@@ -1,8 +1,6 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
 const { pool } = require('../db');
 const { PICKS_PER_PLAYER } = require('../constants');
-const { generateTempPassword } = require('../utils');
 const { fetchTournamentList, scrapeLeaderboard } = require('../services/scraper');
 const { sendDraftTurnEmail } = require('../services/email');
 const { refreshFixtureCache } = require('./lms');
@@ -202,11 +200,28 @@ router.get('/', requireAuth, async (req, res) => {
       lmsWinners = rows;
     }
 
+    // Host's friends not already in this game — quick-add shortcuts, only
+    // relevant pre-start (same guard the manual "add user" form uses).
+    let friendsToAdd = [];
+    if (manageFlag && !data.state.is_started) {
+      const { rows } = await pool.query(
+        `SELECT u.id, u.username, u.avatar
+         FROM friends f
+         JOIN users u ON u.id = f.friend_id
+         WHERE f.user_id = $1
+           AND u.id NOT IN (SELECT user_id FROM game_participants WHERE game_id = $2)
+         ORDER BY u.username ASC`,
+        [req.session.user.id, gameId]
+      );
+      friendsToAdd = rows;
+    }
+
     res.render('draft', {
       ...data,
       isHost:    hostFlag,
       canManage: manageFlag,
       lmsWinners,
+      friendsToAdd,
       error:   req.query.error   || null,
       success: req.query.success || null,
     });
@@ -520,24 +535,18 @@ router.post('/add-user', requireAuth, async (req, res) => {
       return res.redirect(base + '?error=' + encodeURIComponent('Cannot add players after the draft has started.'));
     }
 
-    // Create user account if they don't already exist
-    let userId;
-    let tempPassword = null;
+    // Must be an existing, registered account — no longer auto-created
     const { rows: existing } = await client.query(
-      'SELECT id FROM users WHERE username = $1',
+      'SELECT id FROM users WHERE LOWER(username) = LOWER($1)',
       [username]
     );
-    if (existing.length > 0) {
-      userId = existing[0].id;
-    } else {
-      tempPassword = generateTempPassword('golf');
-      const passwordHash = await bcrypt.hash(tempPassword, 10);
-      const { rows } = await client.query(
-        'INSERT INTO users (username, password_hash, must_change_password) VALUES ($1, $2, TRUE) RETURNING id',
-        [username, passwordHash]
-      );
-      userId = rows[0].id;
+    if (existing.length === 0) {
+      await client.query('ROLLBACK');
+      return res.redirect(base + '?error=' + encodeURIComponent(
+        `No account found for "${username}" — they need to register first, or add them as a friend once they have an account.`
+      ));
     }
+    const userId = existing[0].id;
 
     // Check not already in this game
     const { rows: alreadyIn } = await client.query(
@@ -561,14 +570,11 @@ router.post('/add-user', requireAuth, async (req, res) => {
     );
     await client.query('COMMIT');
 
-    const msg = tempPassword
-      ? `${username} added at position #${draftPosition}. Temp password: ${tempPassword}`
-      : `${username} added at position #${draftPosition}.`;
-    res.redirect(base + '?success=' + encodeURIComponent(msg));
+    res.redirect(base + '?success=' + encodeURIComponent(`${username} added at position #${draftPosition}.`));
   } catch (err) {
     await client.query('ROLLBACK');
     if (err.code === '23505') {
-      return res.redirect(base + '?error=' + encodeURIComponent(`"${username}" is already taken.`));
+      return res.redirect(base + '?error=' + encodeURIComponent(`${username} is already in this game.`));
     }
     console.error('[add-user]', err);
     res.redirect(base + '?error=' + encodeURIComponent('Failed to add player.'));
