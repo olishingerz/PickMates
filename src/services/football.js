@@ -73,12 +73,9 @@ async function fetchFixtures(leagueCodes, datesParam) {
 // ESPN's soccer API has no explicit "gameweek" number — it only exposes a flat
 // calendar of match dates per league. A round is inferred by clustering dates that
 // fall close together, treating a gap of 4+ days as the boundary to the next round.
-// Each league's calendar is clustered independently (their rounds aren't always
-// aligned — e.g. the Championship season starts a week before the Premier League),
-// then the "current" window is the union of each league's own next round.
-function clusterCurrentWindow(calendarDates) {
+function clusterDates(calendarDates) {
   const sorted = [...new Set(calendarDates)].sort();
-  if (sorted.length === 0) return null;
+  if (sorted.length === 0) return [];
   const GAP_MS = 4 * 24 * 60 * 60 * 1000;
   const clusters = [[sorted[0]]];
   for (let i = 1; i < sorted.length; i++) {
@@ -87,9 +84,7 @@ function clusterCurrentWindow(calendarDates) {
     if (cur - prev >= GAP_MS) clusters.push([]);
     clusters[clusters.length - 1].push(sorted[i]);
   }
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const activeCluster = clusters.find(c => c[c.length - 1] >= todayStr) || clusters[clusters.length - 1];
-  return { start: activeCluster[0], end: activeCluster[activeCluster.length - 1] };
+  return clusters.map(c => ({ start: c[0], end: c[c.length - 1] }));
 }
 
 // Premier League is treated as the anchor league when it's selected — its calendar
@@ -104,7 +99,25 @@ async function getGameweekWindow(leagueCodes) {
   try {
     const data = await fetchJSON(`${ESPN_SOCCER}/${anchorCode}/scoreboard`);
     const calendar = (data.leagues?.[0]?.calendar || []).map(d => d.slice(0, 10));
-    return clusterCurrentWindow(calendar);
+    const clusters = clusterDates(calendar);
+    if (clusters.length === 0) return null;
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const fallback = clusters[clusters.length - 1];
+    const candidates = clusters.filter(c => c.end >= todayStr);
+
+    // A cluster's last date being "today or later" isn't enough on its own —
+    // if that round's final match kicked off earlier today and has since
+    // finished, the round is over even though the date string still matches.
+    // Probe each date-eligible candidate in order and take the first one that
+    // still has an unplayed (or not-yet-started) fixture.
+    for (const candidate of (candidates.length ? candidates : [fallback])) {
+      const datesParam = `${candidate.start.replace(/-/g, '')}-${candidate.end.replace(/-/g, '')}`;
+      const fixtures = await fetchFixtures([anchorCode], datesParam);
+      const stillLive = fixtures.length === 0 || fixtures.some(f => !f.completed && !f.postponed);
+      if (stillLive) return candidate;
+    }
+    return candidates[candidates.length - 1] || fallback;
   } catch (err) {
     console.warn(`[football] calendar fetch failed for ${anchorCode}:`, err.message);
     return null;
