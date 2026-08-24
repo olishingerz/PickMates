@@ -545,7 +545,7 @@ router.get('/lms-state-debug/:gameId', requireAdmin, async (req, res) => {
 // pre-bug value, and reseeds week 2 with the real upcoming fixtures. Delete
 // this route once it's been run — it's tailored to this one incident, not a
 // reusable tool.
-router.post('/lms-fix-game10-history', requireAdmin, async (req, res) => {
+router.get('/lms-fix-game10-history', requireAdmin, async (req, res) => {
   const gameId = 10;
 
   // Real week 1 fixtures/results, exactly as ESPN had them before the window
