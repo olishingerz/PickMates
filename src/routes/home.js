@@ -93,7 +93,7 @@ router.get('/', async (req, res) => {
 // GET /games/create — create game page
 router.get('/games/create', async (req, res) => {
   const user = req.session.user;
-  if (!user) return res.redirect('/auth/login');
+  if (!user) return res.redirect('/auth/login?next=' + encodeURIComponent('/games/create'));
   if (!canCreateGames(user, await getGameCreationRoles())) {
     return res.redirect('/?error=' + encodeURIComponent('You don\'t have permission to create games.'));
   }
