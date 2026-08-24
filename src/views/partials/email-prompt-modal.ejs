@@ -1,0 +1,25 @@
+<div id="email-prompt-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem">
+  <div class="card" style="max-width:400px;width:100%">
+    <h2 class="section-title">Add your email?</h2>
+    <p class="muted" style="margin-bottom:1rem;font-size:.9rem">
+      Add an email address so you can reset your password if you ever forget it.
+      It also lets you turn on optional email reminders — when it's your turn in a draft, or before an LMS pick deadline — from your profile page anytime.
+    </p>
+    <form action="/profile/email" method="POST">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <div class="form-group">
+        <label for="email-prompt-input">Email address</label>
+        <input type="email" id="email-prompt-input" name="email" autofocus autocomplete="email" placeholder="you@example.com" />
+      </div>
+      <div style="display:flex;gap:.5rem">
+        <button type="submit" class="btn btn-sm">Save email</button>
+        <button type="button" class="btn btn-sm btn-ghost" id="email-prompt-dismiss">Maybe later</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+  document.getElementById('email-prompt-dismiss').addEventListener('click', () => {
+    document.getElementById('email-prompt-overlay').remove();
+  });
+</script>

@@ -60,6 +60,9 @@ router.post('/login', async (req, res) => {
     }
     loginAttempts.delete(rateLimitKey);
     req.session.user = { id: user.id, username: user.username, isAdmin: user.is_admin, isPaid: user.is_paid || false };
+    // One-shot email prompt — only for accounts with no email that have never
+    // been shown it before; consumed and marked shown on the very next page load.
+    req.session.showEmailPrompt = !user.email && !user.email_prompt_shown;
     if (user.must_change_password) return res.redirect('/auth/change-password');
     res.redirect(next.startsWith('/') ? next : '/');
   } catch (err) {

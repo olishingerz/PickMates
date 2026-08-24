@@ -56,6 +56,15 @@ app.use(async (req, res, next) => {
   } catch (_) {
     res.locals.canCreateGames = req.session.user?.isAdmin || false;
   }
+  // Consume the one-shot "add your email" prompt set at login — shown on
+  // this single page load only, and marked shown in the DB immediately so it
+  // can never appear again even if the user never revisits this page.
+  res.locals.showEmailPrompt = false;
+  if (req.session.showEmailPrompt) {
+    res.locals.showEmailPrompt = true;
+    req.session.showEmailPrompt = false;
+    pool.query('UPDATE users SET email_prompt_shown = TRUE WHERE id = $1', [req.session.user.id]).catch(() => {});
+  }
   if (req.session.user) {
     // Sync avatar/paid/admin status on first request of the session
     if (req.session.user.avatar === undefined) {

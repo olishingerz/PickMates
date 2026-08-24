@@ -360,6 +360,15 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- One-shot "add your email" prompt for existing accounts with none set —
+-- shown at most once ever per user, right after their next login.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='users' AND column_name='email_prompt_shown') THEN
+    ALTER TABLE users ADD COLUMN email_prompt_shown BOOLEAN DEFAULT FALSE;
+  END IF;
+END $$;
+
 -- Per-notification-type opt-in/opt-out, toggled from the profile page.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
