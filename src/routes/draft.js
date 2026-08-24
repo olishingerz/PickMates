@@ -631,6 +631,26 @@ router.post('/toggle-paid', requireAuth, async (req, res) => {
   }
 });
 
+// POST /game/:gameId/draft/mark-all-paid — host: mark every current participant as paid
+router.post('/mark-all-paid', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  const base   = `/game/${gameId}/draft`;
+  if (!await canManage(req, gameId)) return res.redirect(base);
+
+  try {
+    const { rowCount } = await pool.query(
+      'UPDATE game_participants SET has_paid = TRUE WHERE game_id = $1 AND has_paid = FALSE',
+      [gameId]
+    );
+    res.redirect(base + '?success=' + encodeURIComponent(
+      rowCount > 0 ? `Marked ${rowCount} player${rowCount !== 1 ? 's' : ''} as paid.` : 'Everyone was already marked paid.'
+    ));
+  } catch (err) {
+    console.error('[mark-all-paid]', err);
+    res.redirect(base + '?error=' + encodeURIComponent('Failed to update paid status.'));
+  }
+});
+
 // POST /game/:gameId/draft/toggle-co-host — true host/admin only: promote/demote a co-host
 router.post('/toggle-co-host', requireAuth, async (req, res) => {
   const gameId = getGameId(req);

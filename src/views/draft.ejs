@@ -101,6 +101,12 @@
     <div class="card">
       <h2 class="section-title"><%= participants.length %> Player<%= participants.length !== 1 ? 's' : '' %> Registered</h2>
       <% if (user && canManage && participants.length > 0 && state.game_type === 'last_man_standing') { %>
+        <% if (participants.some(p => !p.has_paid)) { %>
+          <form action="/game/<%= gameId %>/draft/mark-all-paid" method="POST" style="margin-bottom:.6rem">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <button type="submit" class="btn btn-sm">✅ Mark everyone paid</button>
+          </form>
+        <% } %>
         <div class="leaderboard-table-wrap">
           <table class="leaderboard-table">
             <thead>
@@ -118,9 +124,11 @@
                     <form action="/game/<%= gameId %>/draft/toggle-paid" method="POST" style="display:inline">
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                       <input type="hidden" name="user_id" value="<%= p.id %>" />
-                      <button type="submit" class="btn btn-sm" style="padding:.2rem .55rem;font-size:.78rem;<%= p.has_paid ? 'background:var(--green);color:#fff' : 'background:var(--card-border);color:var(--text)' %>">
-                        <%= p.has_paid ? '✓ Paid' : 'Not paid' %>
-                      </button>
+                      <label style="display:inline-flex;align-items:center;gap:.4rem;cursor:pointer;font-size:.85rem">
+                        <input type="checkbox" <%= p.has_paid ? 'checked' : '' %>
+                               onchange="this.form.submit()" style="width:18px;height:18px;cursor:pointer" />
+                        <%= p.has_paid ? 'Paid' : 'Not paid' %>
+                      </label>
                     </form>
                   </td>
                   <td>

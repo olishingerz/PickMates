@@ -148,7 +148,6 @@
             <tr>
               <th>Player</th>
               <th>Status</th>
-              <% if (game.prize_individual > 0) { %><th>💰</th><% } %>
               <% for (let w = 1; w <= currentWeek; w++) { %>
                 <th>Wk <%= w %></th>
               <% } %>
@@ -178,15 +177,14 @@
                   </span>
                 </td>
                 <td>
-                  <% if (!s.eliminated) { %>
+                  <% if (game.prize_individual > 0 && !s.has_paid && !s.eliminated) { %>
+                    <span class="status-badge status-draft">Not Paid</span>
+                  <% } else if (!s.eliminated) { %>
                     <span class="status-badge status-live">Alive</span>
                   <% } else { %>
                     <span class="status-badge status-done">Out W<%= s.eliminatedWeek %></span>
                   <% } %>
                 </td>
-                <% if (game.prize_individual > 0) { %>
-                  <td style="text-align:center"><%= s.has_paid ? '✓' : '' %></td>
-                <% } %>
                 <% for (let w = 1; w <= currentWeek; w++) { %>
                   <%
                     const pick = s.picks.find(p => p.week_number === w);
