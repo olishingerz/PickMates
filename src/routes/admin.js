@@ -329,4 +329,36 @@ router.get('/espn-debug/:gameId', requireAdmin, async (req, res) => {
   }
 });
 
+// ── GET /admin/scorecard-debug/:gameId — raw data behind the scorecard prize
+// calc (game row, teams, participants) so a real reported discrepancy in
+// profile winnings can be diagnosed against actual data instead of guesswork ──
+router.get('/scorecard-debug/:gameId', requireAdmin, async (req, res) => {
+  const gameId = parseInt(req.params.gameId);
+  try {
+    const { rows: gameRows } = await pool.query(
+      `SELECT id, name, game_type, scorecard_format, scorecard_entry_fee,
+              tournament_complete, winner_username, winner_individual_username
+       FROM games WHERE id = $1`,
+      [gameId]
+    );
+    const { rows: teams } = await pool.query(
+      'SELECT id, name FROM scorecard_teams WHERE game_id = $1 ORDER BY id',
+      [gameId]
+    );
+    const { rows: participants } = await pool.query(
+      `SELECT gp.id AS participant_id, u.id AS user_id, u.username,
+              gp.scorecard_team_id, st.name AS team_name
+       FROM game_participants gp
+       JOIN users u ON u.id = gp.user_id
+       LEFT JOIN scorecard_teams st ON st.id = gp.scorecard_team_id
+       WHERE gp.game_id = $1
+       ORDER BY st.name NULLS LAST, u.username`,
+      [gameId]
+    );
+    res.json({ game: gameRows[0] || null, teams, participants });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
