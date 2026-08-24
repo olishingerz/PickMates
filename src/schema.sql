@@ -360,16 +360,37 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- Per-notification-type opt-out — default TRUE so existing users (for whom
--- having an email at all has always implied notifications) keep getting them.
+-- Per-notification-type opt-in/opt-out, toggled from the profile page.
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                  WHERE table_name='users' AND column_name='notify_draft_turn') THEN
-    ALTER TABLE users ADD COLUMN notify_draft_turn BOOLEAN DEFAULT TRUE;
+    ALTER TABLE users ADD COLUMN notify_draft_turn BOOLEAN DEFAULT FALSE;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                  WHERE table_name='users' AND column_name='notify_lms_deadline') THEN
-    ALTER TABLE users ADD COLUMN notify_lms_deadline BOOLEAN DEFAULT TRUE;
+    ALTER TABLE users ADD COLUMN notify_lms_deadline BOOLEAN DEFAULT FALSE;
+  END IF;
+END $$;
+-- Both used to default TRUE for anyone with an email set — now opt-in instead,
+-- so new accounts get FALSE going forward...
+ALTER TABLE users ALTER COLUMN notify_draft_turn   SET DEFAULT FALSE;
+ALTER TABLE users ALTER COLUMN notify_lms_deadline SET DEFAULT FALSE;
+
+-- Tracks one-off data migrations that can't be made idempotent just by their
+-- own WHERE clause (e.g. flipping a default where a user might deliberately
+-- choose the old value again afterward, which a plain re-runnable UPDATE
+-- would keep undoing on every deploy).
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  name        VARCHAR(100) PRIMARY KEY,
+  applied_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ...and existing users get switched off once here, rather than staying
+-- opted in from the old default.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE name = 'notify_default_off_2026') THEN
+    UPDATE users SET notify_draft_turn = FALSE, notify_lms_deadline = FALSE;
+    INSERT INTO schema_migrations (name) VALUES ('notify_default_off_2026');
   END IF;
 END $$;
 
