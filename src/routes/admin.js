@@ -506,4 +506,33 @@ router.get('/lms-fixtures-debug/:gameId', requireAdmin, async (req, res) => {
   }
 });
 
+// ── GET /admin/lms-state-debug/:gameId — read-only snapshot of an LMS game's
+// current state (game row, remaining weeks/winners rows) — for diagnosing
+// something like an unexpected rollover after the fact, since lms_weeks/
+// lms_picks for a concluded round are hard-deleted by resetToLobby/restartRound.
+router.get('/lms-state-debug/:gameId', requireAdmin, async (req, res) => {
+  const gameId = parseInt(req.params.gameId);
+  try {
+    const { rows: gameRows } = await pool.query(
+      `SELECT id, name, game_type, is_started, is_complete, lms_current_week,
+              lms_continuous, prize_individual, host_user_id
+       FROM games WHERE id = $1`,
+      [gameId]
+    );
+    const game = gameRows[0];
+    if (!game) return res.status(404).json({ error: 'Game not found' });
+    if (game.game_type !== 'last_man_standing') return res.status(400).json({ error: 'Not an LMS game' });
+
+    const [weeksRes, winnersRes, picksRes] = await Promise.all([
+      pool.query('SELECT * FROM lms_weeks WHERE game_id = $1 ORDER BY week_number', [gameId]),
+      pool.query('SELECT * FROM lms_winners WHERE game_id = $1 ORDER BY id', [gameId]),
+      pool.query('SELECT week_number, count(*) FROM lms_picks WHERE game_id = $1 GROUP BY week_number ORDER BY week_number', [gameId]),
+    ]);
+
+    res.json({ game, weeks: weeksRes.rows, winners: winnersRes.rows, picksByWeek: picksRes.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
