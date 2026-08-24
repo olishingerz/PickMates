@@ -53,6 +53,7 @@
             <th>Players</th>
             <th>Status</th>
             <th>Created</th>
+            <th>Completed</th>
           </tr>
         </thead>
         <tbody>
@@ -76,6 +77,16 @@
               <td><span style="font-size:.78rem;font-weight:600;color:<%= statusColour %>"><%= status %></span></td>
               <td class="muted" style="font-size:.82rem;white-space:nowrap">
                 <%= new Date(g.created_at).toLocaleDateString('en-GB', { timeZone:'Europe/London', day:'numeric', month:'short', year:'numeric' }) %>
+              </td>
+              <td style="white-space:nowrap">
+                <form action="/admin/set-completed-at" method="POST" style="display:flex;gap:.3rem;align-items:center">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <input type="hidden" name="game_id" value="<%= g.id %>" />
+                  <input type="date" name="completed_at"
+                         value="<%= g.completed_at ? new Date(g.completed_at).toISOString().slice(0,10) : '' %>"
+                         style="font-size:.78rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:4px;width:130px" />
+                  <button type="submit" class="btn btn-sm" style="padding:.15rem .4rem;font-size:.72rem">Save</button>
+                </form>
               </td>
             </tr>
           <% }) %>
