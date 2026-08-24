@@ -4,10 +4,19 @@
   if (g.tournament_complete)  { statusLabel = 'Complete';    statusClass = 'status-done'; }
   else if (g.is_started)      { statusLabel = 'In Progress'; statusClass = 'status-live'; }
 
-  const eventDateRaw = g.tournament_start_date || g.created_at;
-  const eventDate = eventDateRaw
-    ? new Date(eventDateRaw).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-    : null;
+  // Complete games show when they actually finished (not when they were
+  // created); live (in-progress) games show no date at all; lobby games still
+  // show the scheduled start (or creation) date so hosts can see how old it is.
+  let eventDate = null;
+  let eventDateRaw = null;
+  if (g.tournament_complete) {
+    eventDateRaw = g.completed_at || g.tournament_end_date || g.created_at;
+  } else if (!g.is_started) {
+    eventDateRaw = g.tournament_start_date || g.created_at;
+  }
+  if (eventDateRaw) {
+    eventDate = new Date(eventDateRaw).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
 %>
 <div class="card game-card" onclick="location.href='/game/<%= g.id %>'"
      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='/game/<%= g.id %>'}"

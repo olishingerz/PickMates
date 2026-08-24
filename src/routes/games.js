@@ -327,7 +327,7 @@ router.post('/:gameId/uncomplete', async (req, res) => {
   if (!isHost) return res.redirect(`/game/${gameId}`);
   try {
     await pool.query(
-      'UPDATE games SET tournament_complete = FALSE, winner_username = NULL, winner_individual_username = NULL WHERE id = $1',
+      'UPDATE games SET tournament_complete = FALSE, completed_at = NULL, winner_username = NULL, winner_individual_username = NULL WHERE id = $1',
       [gameId]
     );
     res.redirect(`/game/${gameId}?success=` + encodeURIComponent('Tournament unmarked — scores will resume updating.'));
@@ -345,7 +345,7 @@ router.post('/:gameId/complete', async (req, res) => {
   const isHost = user?.isAdmin || user?.id === rows[0]?.host_user_id;
   if (!isHost) return res.redirect(`/game/${req.params.gameId}`);
   try {
-    await pool.query('UPDATE games SET tournament_complete = TRUE WHERE id = $1', [gameId]);
+    await pool.query('UPDATE games SET tournament_complete = TRUE, completed_at = COALESCE(completed_at, NOW()) WHERE id = $1', [gameId]);
     await saveWinner(gameId).catch(e => console.warn('[saveWinner]', e.message));
     res.redirect(`/game/${gameId}`);
   } catch (err) {

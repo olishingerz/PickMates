@@ -345,7 +345,7 @@ async function scrapeLeaderboard(gameId) {
     const hasR4 = players.some(p => p.r4 !== null);
     if (eventCompleted && hasR4) {
       const { rowCount } = await client.query(
-        'UPDATE games SET tournament_complete = TRUE WHERE id = $1 AND tournament_complete = FALSE',
+        'UPDATE games SET tournament_complete = TRUE, completed_at = NOW() WHERE id = $1 AND tournament_complete = FALSE',
         [gameId]
       );
       if (rowCount > 0) {

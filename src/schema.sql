@@ -188,6 +188,13 @@ DO $$ BEGIN
                  WHERE table_name='games' AND column_name='tournament_end_date') THEN
     ALTER TABLE games ADD COLUMN tournament_end_date TIMESTAMP WITH TIME ZONE;
   END IF;
+  -- When tournament_complete actually flipped to TRUE — distinct from
+  -- tournament_end_date, which is the real-world event's schedule date (from
+  -- ESPN for golf_draft) and is NULL for manually-completed LMS/scorecard games.
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='games' AND column_name='completed_at') THEN
+    ALTER TABLE games ADD COLUMN completed_at TIMESTAMP WITH TIME ZONE;
+  END IF;
   -- Prize amounts per player (entry fee split)
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                  WHERE table_name='games' AND column_name='prize_team') THEN
