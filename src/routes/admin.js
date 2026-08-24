@@ -5,6 +5,7 @@ const { ROLE_OPTIONS, getGameCreationRoles, setGameCreationRoles } = require('..
 const { generateTempPassword } = require('../utils');
 const { computeGolfDraftWinner } = require('../services/golfWinner');
 const { sendTestEmail, isConfigured: isEmailConfigured } = require('../services/email');
+const { getCurrentGameweekFixtures } = require('../services/football');
 const net = require('net');
 
 const ESPN_SCOREBOARD = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
@@ -465,6 +466,41 @@ router.get('/golf-draft-debug/:gameId', requireAdmin, async (req, res) => {
     `, [gameId]);
     const liveComputed = await computeGolfDraftWinner(pool, gameId);
     res.json({ game: gameRows[0] || null, liveComputed, perPlayer: rawRows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /admin/lms-fixtures-debug/:gameId — raw ESPN fixture data (including
+// each match's status.type.name) for an LMS game's current gameweek window.
+// Postponed-fixture detection relies on ESPN's status.type.name being
+// "STATUS_POSTPONED"/"STATUS_CANCELED" — not verified against a live
+// postponed match when this was built, so worth checking here the next time
+// a real postponement happens.
+router.get('/lms-fixtures-debug/:gameId', requireAdmin, async (req, res) => {
+  const gameId = parseInt(req.params.gameId);
+  try {
+    const { rows: gameRows } = await pool.query(
+      'SELECT id, name, game_type, lms_leagues, lms_current_week FROM games WHERE id = $1',
+      [gameId]
+    );
+    const game = gameRows[0];
+    if (!game) return res.status(404).json({ error: 'Game not found' });
+    if (game.game_type !== 'last_man_standing') return res.status(400).json({ error: 'Not an LMS game' });
+
+    const leagues = (game.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean);
+    const { fixtures } = await getCurrentGameweekFixtures(leagues);
+    const effectiveFixtures = fixtures.filter(f => !f.postponed).length;
+
+    res.json({
+      game,
+      effectiveFixtures,
+      wouldSkipWeek: fixtures.length > 0 && effectiveFixtures <= 5,
+      fixtures: fixtures.map(f => ({
+        home: f.homeTeam.name, away: f.awayTeam.name, kickoff: f.kickoff,
+        completed: f.completed, postponed: f.postponed,
+      })),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -36,6 +36,11 @@ async function fetchFixtures(leagueCodes, datesParam) {
       const away = comp.competitors?.find(c => c.homeAway === 'away');
       if (!home || !away) continue;
 
+      const statusName = comp.status?.type?.name || '';
+      // ESPN's convention for a match that won't go ahead as scheduled — not
+      // verified against a live postponed fixture (none was in progress when
+      // this was written), based on the standard ESPN status.type.name enum.
+      const postponed  = statusName === 'STATUS_POSTPONED' || statusName === 'STATUS_CANCELED';
       const completed  = comp.status?.type?.completed === true;
       const homeScore  = parseInt(home.score) || 0;
       const awayScore  = parseInt(away.score) || 0;
@@ -52,6 +57,7 @@ async function fetchFixtures(leagueCodes, datesParam) {
         leagueName: LEAGUE_NAMES[code] || code,
         kickoff:   event.date,
         completed,
+        postponed,
         homeTeam:  { id: home.team.id, name: home.team.displayName, shortName: home.team.abbreviation, score: homeScore },
         awayTeam:  { id: away.team.id, name: away.team.displayName, shortName: away.team.abbreviation, score: awayScore },
         winnerId,
@@ -124,13 +130,21 @@ async function getCurrentGameweekFixtures(leagueCodes) {
 // `fixtures` must be the properly gameweek-scoped list (from getCurrentGameweekFixtures),
 // not a raw fetchFixtures() call, which defaults to ESPN's ambiguous "today" view and can
 // miss matches from other days in the same gameweek. Only fixtures that have actually
-// finished (completed: true) contribute a result — everything else is left as-is, so this
-// can be called repeatedly as individual matches finish without waiting for the whole
-// gameweek to wrap up.
+// finished (completed: true) or been postponed contribute a result — everything else is
+// left as-is, so this can be called repeatedly as individual matches finish without
+// waiting for the whole gameweek to wrap up.
 async function processResults(pool, gameId, weekNumber, fixtures) {
   // Build a map from team_id → result
   const teamResults = {};
   for (const f of fixtures) {
+    if (f.postponed) {
+      // A postponed fixture means both teams' pickers automatically survive
+      // this week and can't pick that team again (the pick row already marks
+      // it used) — not a win, loss, or draw.
+      teamResults[f.homeTeam.id] = 'postponed';
+      teamResults[f.awayTeam.id] = 'postponed';
+      continue;
+    }
     if (!f.completed) continue;
     if (f.isDraw) {
       teamResults[f.homeTeam.id] = 'draw';

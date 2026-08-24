@@ -344,6 +344,16 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- A round with 5 or fewer surviving (non-postponed) fixtures is voided —
+-- locked so it's never retried, but excluded from elimination entirely, so
+-- nobody goes out based on it even if their own pick's result came through.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='lms_weeks' AND column_name='skipped') THEN
+    ALTER TABLE lms_weeks ADD COLUMN skipped BOOLEAN DEFAULT FALSE;
+  END IF;
+END $$;
+
 -- Add display_name to users if missing
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
@@ -414,6 +424,16 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                  WHERE table_name='users' AND column_name='reset_token_expires') THEN
     ALTER TABLE users ADD COLUMN reset_token_expires TIMESTAMP WITH TIME ZONE;
+  END IF;
+END $$;
+
+-- Free-text payment details (bank transfer, PayPal, etc.) a host can share
+-- with players who haven't paid yet — shown on the LMS page, never anywhere
+-- else, and only to the players who still owe money.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='users' AND column_name='payment_details') THEN
+    ALTER TABLE users ADD COLUMN payment_details TEXT;
   END IF;
 END $$;
 

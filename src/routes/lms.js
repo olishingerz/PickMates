@@ -67,7 +67,10 @@ function computeLmsStandings(participants, allPicks, weeks, currentWeek, weekObj
     let eliminatedWeek = null;
     let eliminatedReason = null; // 'no_pick' | 'loss' | 'draw'
 
-    for (const w of weeks.filter(w => w.results_locked)) {
+    // Skipped weeks (round shrunk to 5 or fewer fixtures after postponements)
+    // don't count toward elimination at all — picks made in them still count
+    // as "used" via the picks array itself, they just can't eliminate anyone.
+    for (const w of weeks.filter(w => w.results_locked && !w.skipped)) {
       const pick = picks.find(pk => pk.week_number === w.week_number);
       if (!pick || pick.result === 'loss' || pick.result === 'draw') {
         eliminated       = true;
@@ -110,7 +113,8 @@ async function getLmsData(gameId, userId) {
   const [gameRes, participantsRes, weeksRes, picksRes] = await Promise.all([
     pool.query(`
       SELECT g.id, g.name, g.lms_leagues, g.lms_current_week, g.is_complete, g.is_started, g.tournament_complete,
-             g.host_user_id, g.invite_code, g.prize_individual, g.lms_continuous, hu.username AS host_username
+             g.host_user_id, g.invite_code, g.prize_individual, g.lms_continuous, hu.username AS host_username,
+             hu.payment_details AS host_payment_details
       FROM games g
       LEFT JOIN users hu ON hu.id = g.host_user_id
       WHERE g.id = $1
@@ -298,13 +302,31 @@ async function processGameResults(gameId) {
   const { fixtures } = await getCurrentGameweekFixtures(leagues);
   const { updated } = await processResults(pool, gameId, week, fixtures);
 
+  // Official LMS rule: a round that's shrunk to 5 or fewer surviving fixtures
+  // (heavy postponements — e.g. FA Cup quarter-final weekend) doesn't count at
+  // all. Lock it (so it's never retried) but mark it skipped so nobody is
+  // eliminated based on it, and move straight to the next week automatically
+  // — picks made this week still count as used, per the "picks stay used"
+  // rule, they just don't affect anyone's alive/eliminated status.
+  const effectiveFixtures = fixtures.filter(f => !f.postponed).length;
+  const weekSkipped = fixtures.length > 0 && effectiveFixtures <= 5;
+
   // Lock results for this week
   await pool.query(
-    `INSERT INTO lms_weeks (game_id, week_number, results_locked)
-     VALUES ($1,$2,TRUE)
-     ON CONFLICT (game_id, week_number) DO UPDATE SET results_locked=TRUE`,
-    [gameId, week]
+    `INSERT INTO lms_weeks (game_id, week_number, results_locked, skipped)
+     VALUES ($1,$2,TRUE,$3)
+     ON CONFLICT (game_id, week_number) DO UPDATE SET results_locked=TRUE, skipped=$3`,
+    [gameId, week, weekSkipped]
   );
+
+  if (weekSkipped) {
+    const nextWeek = week + 1;
+    await pool.query('UPDATE games SET lms_current_week=$1 WHERE id=$2', [nextWeek, gameId]);
+    try { await refreshFixtureCache(gameId, nextWeek); }
+    catch (err) { console.warn(`[lms] fixture cache refresh failed after skipping week for game ${gameId}:`, err.message); }
+    return { week, updated, concluded: null, continuous, skipped: true,
+      message: `Week ${week} skipped — only ${effectiveFixtures} fixture${effectiveFixtures !== 1 ? 's' : ''} survived postponements. Nobody's eliminated; advanced to week ${nextWeek}.` };
+  }
 
   // Check whether this result locks the game: exactly one survivor wins,
   // zero survivors is a rollover (prize carries over, doubled).

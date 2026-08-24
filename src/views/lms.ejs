@@ -50,6 +50,16 @@
       <% if (game.prize_individual > 0) { %>
         <p class="muted" style="margin-top:.2rem;font-size:.85rem">Prize pot: <strong>£<%= game.prize_individual * total %></strong> <span class="muted" style="font-size:.78rem">(£<%= game.prize_individual %> × <%= total %> player<%= total !== 1 ? 's' : '' %>)</span></p>
       <% } %>
+      <% if (game.prize_individual > 0 && myStanding && !myStanding.has_paid) { %>
+        <div class="alert alert-error" style="margin-top:.6rem">
+          💰 You haven't paid your £<%= game.prize_individual %> entry fee yet.
+          <% if (game.host_payment_details) { %>
+            <div style="margin-top:.4rem;white-space:pre-wrap;font-size:.88rem"><strong>Pay <%= game.host_username %>:</strong> <%= game.host_payment_details %></div>
+          <% } else { %>
+            <div style="margin-top:.4rem;font-size:.88rem">Ask <%= game.host_username %> how to pay.</div>
+          <% } %>
+        </div>
+      <% } %>
       <% if (game.lms_continuous) { %>
         <p class="muted" style="margin-top:.2rem;font-size:.78rem">🔁 Auto-restarts a new round when this one ends</p>
       <% } %>
@@ -149,7 +159,8 @@
               <th>Player</th>
               <th>Status</th>
               <% for (let w = 1; w <= currentWeek; w++) { %>
-                <th>Wk <%= w %></th>
+                <% const wkSkipped = weeks.find(wk => wk.week_number === w)?.skipped; %>
+                <th title="<%= wkSkipped ? 'Round skipped — too few fixtures survived postponements, nobody eliminated' : '' %>">Wk <%= w %><%= wkSkipped ? ' ⏭' : '' %></th>
               <% } %>
             </tr>
           </thead>
@@ -204,6 +215,8 @@
                         <span class="lms-pick loss"><%= pick.team_name %> ✗</span>
                       <% } else if (pick.result === 'draw') { %>
                         <span class="lms-pick draw"><%= pick.team_name %> ═</span>
+                      <% } else if (pick.result === 'postponed') { %>
+                        <span class="lms-pick win" title="Fixture postponed — through automatically, team can't be picked again"><%= pick.team_name %> ⏸</span>
                       <% } else { %>
                         <span class="lms-pick pending"><%= pick.team_name %></span>
                       <% } %>

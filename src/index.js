@@ -226,8 +226,11 @@ async function start() {
           const { updated } = await processResults(pool, game.id, game.lms_current_week, fixtures);
           if (updated > 0) console.log(`[cron] LMS game ${game.id}: graded ${updated} pick(s) this cycle`);
 
-          // Only lock the week / check for a winner once everything's finished
-          const allFinished = fixtures.every(f => f.completed);
+          // Only lock the week / check for a winner once every fixture has
+          // either finished or been postponed — a postponed fixture's
+          // `completed` stays false forever, so without the `postponed` check
+          // here a single postponement would stall this game's grading indefinitely.
+          const allFinished = fixtures.every(f => f.completed || f.postponed);
           if (!allFinished) continue;
 
           console.log(`[cron] LMS game ${game.id}: gameweek finished, finalizing week ${game.lms_current_week}…`);

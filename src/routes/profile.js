@@ -21,7 +21,7 @@ function requireAuth(req, res, next) {
 router.get('/', requireAuth, async (req, res) => {
   const id = req.session.user.id;
   const [profileRes, golfRes, lmsRes, scorecardRes, winningsRes, scorecardWinningsRes, friendsRes] = await Promise.all([
-    pool.query('SELECT username, avatar, email, notify_draft_turn, notify_lms_deadline FROM users WHERE id = $1', [id]),
+    pool.query('SELECT username, avatar, email, notify_draft_turn, notify_lms_deadline, payment_details FROM users WHERE id = $1', [id]),
     pool.query(`
       SELECT
         COUNT(DISTINCT gp.game_id) FILTER (WHERE g.game_type = 'golf_draft')::int        AS golf_played,
@@ -228,6 +228,21 @@ router.post('/avatar', requireAuth, upload.single('avatar'), async (req, res) =>
     }
     console.error(err);
     res.redirect('/profile?error=' + encodeURIComponent('Upload failed — max size is 2 MB.'));
+  }
+});
+
+// POST /profile/payment-details
+router.post('/payment-details', requireAuth, async (req, res) => {
+  const details = req.body.payment_details?.trim() || null;
+  if (details && details.length > 1000) {
+    return res.redirect('/profile?error=' + encodeURIComponent('Payment details are too long (1000 characters max).'));
+  }
+  try {
+    await pool.query('UPDATE users SET payment_details = $1 WHERE id = $2', [details, req.session.user.id]);
+    res.redirect('/profile?success=' + encodeURIComponent(details ? 'Payment details saved.' : 'Payment details removed.'));
+  } catch (err) {
+    console.error('[profile payment-details]', err);
+    res.redirect('/profile?error=' + encodeURIComponent('Something went wrong.'));
   }
 });
 

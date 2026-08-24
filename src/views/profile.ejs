@@ -128,6 +128,22 @@
         </form>
       </div>
 
+      <!-- ── Payment details ─────────────────────────────────────────────── -->
+      <div class="card">
+        <h2 class="section-title">Payment details</h2>
+        <form action="/profile/payment-details" method="POST">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <div class="form-group">
+            <label for="payment_details">How players can pay you</label>
+            <textarea id="payment_details" name="payment_details" rows="3" maxlength="1000"
+                      placeholder="e.g. bank transfer — sort code 12-34-56, account 12345678, or a PayPal/Venmo link"
+                      style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;width:100%;font-family:inherit;resize:vertical"><%= profileUser.payment_details || '' %></textarea>
+            <small>Shown to players in Last Man Standing games you host who haven't paid yet. Never shown anywhere else.</small>
+          </div>
+          <button type="submit" class="btn btn-sm">Save</button>
+        </form>
+      </div>
+
       <!-- ── Friends ─────────────────────────────────────────────────────── -->
       <div class="card">
         <h2 class="section-title">Friends</h2>
