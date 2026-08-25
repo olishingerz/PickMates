@@ -970,6 +970,7 @@ a.nav-user:hover { color: var(--green); }
   text-align: center;
   width: 100%;
 }
+.lms-team-logo { display: block; width: 28px; height: 28px; margin: 0 auto .3rem; object-fit: contain; }
 .lms-team-btn:hover:not([disabled]) { border-color: var(--green); background: var(--green-light); }
 .lms-team-btn.selected { border-color: var(--green); background: var(--green-light); color: var(--green-dark); }
 .lms-team-btn.lms-team-used, .lms-team-btn[disabled] { opacity: .4; cursor: not-allowed; }

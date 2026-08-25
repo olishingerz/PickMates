@@ -78,6 +78,7 @@
                         class="lms-team-btn <%= !f.homeAvailable ? 'lms-team-used' : '' %>"
                         data-id="<%= f.homeTeam.id %>" data-name="<%= f.homeTeam.name %>"
                         <%= !f.homeAvailable ? 'disabled' : '' %>>
+                  <% if (f.homeTeam.logo) { %><img src="<%= f.homeTeam.logo %>" alt="" class="lms-team-logo" /><% } %>
                   <%= f.homeTeam.name %>
                   <% if (!f.homeAvailable) { %><span class="muted" style="font-size:.75rem;display:block">Already used</span><% } %>
                 </button>
@@ -94,6 +95,7 @@
                         class="lms-team-btn <%= !f.awayAvailable ? 'lms-team-used' : '' %>"
                         data-id="<%= f.awayTeam.id %>" data-name="<%= f.awayTeam.name %>"
                         <%= !f.awayAvailable ? 'disabled' : '' %>>
+                  <% if (f.awayTeam.logo) { %><img src="<%= f.awayTeam.logo %>" alt="" class="lms-team-logo" /><% } %>
                   <%= f.awayTeam.name %>
                   <% if (!f.awayAvailable) { %><span class="muted" style="font-size:.75rem;display:block">Already used</span><% } %>
                 </button>

@@ -58,8 +58,8 @@ async function fetchFixtures(leagueCodes, datesParam) {
         kickoff:   event.date,
         completed,
         postponed,
-        homeTeam:  { id: home.team.id, name: home.team.displayName, shortName: home.team.abbreviation, score: homeScore },
-        awayTeam:  { id: away.team.id, name: away.team.displayName, shortName: away.team.abbreviation, score: awayScore },
+        homeTeam:  { id: home.team.id, name: home.team.displayName, shortName: home.team.abbreviation, score: homeScore, logo: home.team.logo || null },
+        awayTeam:  { id: away.team.id, name: away.team.displayName, shortName: away.team.abbreviation, score: awayScore, logo: away.team.logo || null },
         winnerId,
         isDraw:    completed && homeScore === awayScore,
       });
