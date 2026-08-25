@@ -65,7 +65,12 @@
     %>
 
     <!-- ── Live games ─────────────────────────────────────────────────────── -->
-    <h2 class="section-title">Live Games <span class="muted" style="font-size:.85rem;font-weight:400">(<%= liveGames.length %>)</span></h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem">
+      <h2 class="section-title" style="margin-bottom:0">Live Games <span class="muted" style="font-size:.85rem;font-weight:400">(<%= liveGames.length %>)</span></h2>
+      <% if (user && canCreateGames) { %>
+        <a href="/games/create" class="btn btn-sm" style="font-size:.85rem">＋ Create New Game</a>
+      <% } %>
+    </div>
     <% if (liveGames.length === 0) { %>
       <div class="card empty-state">
         <span class="empty-state-icon">⛳</span>
@@ -90,12 +95,6 @@
             <%- include('partials/game-card', { g, user, LEAGUE_NAMES, PICKS_PER_PLAYER }) %>
           </div>
         <% }) %>
-      </div>
-    <% } %>
-
-    <% if (user && canCreateGames) { %>
-      <div style="margin-top:1.5rem;text-align:center">
-        <a href="/games/create" class="btn" style="font-size:.95rem;padding:.55rem 1.4rem">＋ Create New Game</a>
       </div>
     <% } %>
 
