@@ -80,6 +80,7 @@
                 style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap"
                 onsubmit="return confirm('Set your team name to \'' + this.team_name.value.trim() + '\'? You won\'t be able to change it again.')">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <input type="hidden" name="participant_id" value="<%= myParticipant.participant_id %>" />
             <input type="text" name="team_name" placeholder="Team name" maxlength="25" required
                    autocomplete="off"
                    class="team-name-input"
@@ -113,17 +114,18 @@
               <tr>
                 <th>Player</th>
                 <th>Paid</th>
+                <% if (!state.is_started) { %><th>Entries</th><% } %>
                 <th>Remove</th>
               </tr>
             </thead>
             <tbody>
               <% participants.forEach(p => { %>
                 <tr>
-                  <td><%= p.username %></td>
+                  <td><%= p.team_name || p.username %></td>
                   <td>
                     <form action="/game/<%= gameId %>/draft/toggle-paid" method="POST" style="display:inline">
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                      <input type="hidden" name="user_id" value="<%= p.id %>" />
+                      <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
                       <label style="display:inline-flex;align-items:center;gap:.4rem;cursor:pointer;font-size:.85rem">
                         <input type="checkbox" <%= p.has_paid ? 'checked' : '' %>
                                onchange="this.form.submit()" style="width:18px;height:18px;cursor:pointer" />
@@ -131,12 +133,21 @@
                       </label>
                     </form>
                   </td>
+                  <% if (!state.is_started) { %>
+                    <td>
+                      <form action="/game/<%= gameId %>/draft/add-entry" method="POST" style="display:inline">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                        <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
+                        <button type="submit" class="btn btn-sm btn-ghost" style="padding:.15rem .4rem;font-size:.78rem">+ Entry</button>
+                      </form>
+                    </td>
+                  <% } %>
                   <td>
                     <form action="/game/<%= gameId %>/draft/remove-user" method="POST" style="display:inline">
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                      <input type="hidden" name="user_id" value="<%= p.id %>" />
+                      <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
                       <button type="submit" class="btn btn-sm btn-danger" style="padding:.15rem .45rem;font-size:.8rem"
-                              onclick="return confirm('Remove <%= p.username.replace(/'/g, "\\'") %> from this game?')">✕</button>
+                              onclick="return confirm('Remove <%= (p.team_name || p.username).replace(/'/g, "\\'") %> from this game?')">✕</button>
                     </form>
                   </td>
                 </tr>
@@ -157,7 +168,7 @@
                 <span class="reg-name"><%= p.username %></span>
                 <button type="submit"
                         formaction="/game/<%= gameId %>/draft/remove-user"
-                        name="user_id" value="<%= p.id %>"
+                        name="participant_id" value="<%= p.participant_id %>"
                         class="btn btn-sm btn-danger"
                         style="margin-left:auto;padding:.15rem .45rem;font-size:.8rem"
                         onclick="return confirm('Remove <%= p.username.replace(/'/g, "\\'") %> from this game?')">✕</button>
@@ -235,7 +246,7 @@
           <% participants.forEach((p, i) => { %>
             <div class="reg-player" style="border-left: 4px solid <%= colours[i % colours.length] %>">
               <span class="reg-pos">#<%= p.draft_position %></span>
-              <span class="reg-name"><%= p.username %></span>
+              <span class="reg-name"><%= p.team_name || p.username %></span>
             </div>
           <% }) %>
         </div>
@@ -294,7 +305,15 @@
             <p class="label-small">Co-hosts</p>
             <p class="admin-hint" style="margin-bottom:.4rem">Co-hosts can manage everything here except deleting the game.</p>
             <div style="display:flex;flex-direction:column;gap:.3rem">
-              <% participants.filter(p => p.id !== state.host_user_id).forEach(p => { %>
+              <%
+                // Dedupe by user id — an LMS player with multiple entries
+                // shouldn't appear (and be independently toggleable) more than
+                // once here, since co-host is a per-account permission.
+                const coHostCandidates = [...new Map(
+                  participants.filter(p => p.id !== state.host_user_id).map(p => [p.id, p])
+                ).values()];
+              %>
+              <% coHostCandidates.forEach(p => { %>
                 <form action="/game/<%= gameId %>/draft/toggle-co-host" method="POST" style="display:flex;align-items:center;gap:.5rem">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                   <input type="hidden" name="user_id" value="<%= p.id %>" />

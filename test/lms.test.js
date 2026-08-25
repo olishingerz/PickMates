@@ -3,11 +3,11 @@ const assert = require('node:assert/strict');
 const { computeLmsStandings } = require('../src/routes/lms');
 
 test('locked week: pick that lost eliminates the player', () => {
-  const participants = [{ user_id: 1, username: 'alice' }, { user_id: 2, username: 'bob' }];
+  const participants = [{ user_id: 1, participant_id: 1, username: 'alice' }, { user_id: 2, participant_id: 2, username: 'bob' }];
   const weeks = [{ week_number: 1, results_locked: true, deadline: null }];
   const allPicks = [
-    { user_id: 1, week_number: 1, result: 'win' },
-    { user_id: 2, week_number: 1, result: 'loss' },
+    { participant_id: 1, week_number: 1, result: 'win' },
+    { participant_id: 2, week_number: 1, result: 'loss' },
   ];
   const standings = computeLmsStandings(participants, allPicks, weeks, 1, weeks[0]);
 
@@ -19,7 +19,7 @@ test('locked week: pick that lost eliminates the player', () => {
 });
 
 test('locked week: no pick submitted eliminates the player', () => {
-  const participants = [{ user_id: 2, username: 'bob' }];
+  const participants = [{ user_id: 2, participant_id: 2, username: 'bob' }];
   const weeks = [{ week_number: 1, results_locked: true, deadline: null }];
   const standings = computeLmsStandings(participants, [], weeks, 1, weeks[0]);
 
@@ -29,9 +29,9 @@ test('locked week: no pick submitted eliminates the player', () => {
 });
 
 test('unlocked current week: own match already graded as a loss eliminates immediately (regression for the bug where status stayed "alive" until the whole round locked)', () => {
-  const participants = [{ user_id: 1, username: 'alice' }];
+  const participants = [{ user_id: 1, participant_id: 1, username: 'alice' }];
   const weeks = [{ week_number: 2, results_locked: false, deadline: new Date(Date.now() + 86400000) }];
-  const allPicks = [{ user_id: 1, week_number: 2, result: 'loss' }];
+  const allPicks = [{ participant_id: 1, week_number: 2, result: 'loss' }];
   const standings = computeLmsStandings(participants, allPicks, weeks, 2, weeks[0]);
 
   const alice = standings[0];
@@ -41,16 +41,16 @@ test('unlocked current week: own match already graded as a loss eliminates immed
 });
 
 test('unlocked current week: pick still pending (match not finished) keeps player alive', () => {
-  const participants = [{ user_id: 1, username: 'alice' }];
+  const participants = [{ user_id: 1, participant_id: 1, username: 'alice' }];
   const weeks = [{ week_number: 2, results_locked: false, deadline: new Date(Date.now() + 86400000) }];
-  const allPicks = [{ user_id: 1, week_number: 2, result: 'pending' }];
+  const allPicks = [{ participant_id: 1, week_number: 2, result: 'pending' }];
   const standings = computeLmsStandings(participants, allPicks, weeks, 2, weeks[0]);
 
   assert.equal(standings[0].eliminated, false);
 });
 
 test('unlocked current week: deadline passed with no pick eliminates the player', () => {
-  const participants = [{ user_id: 1, username: 'alice' }];
+  const participants = [{ user_id: 1, participant_id: 1, username: 'alice' }];
   const weeks = [{ week_number: 2, results_locked: false, deadline: new Date(Date.now() - 1000) }];
   const standings = computeLmsStandings(participants, [], weeks, 2, weeks[0]);
 
@@ -60,31 +60,31 @@ test('unlocked current week: deadline passed with no pick eliminates the player'
 });
 
 test('survivor of a locked week who has not yet picked the new unlocked week stays alive', () => {
-  const participants = [{ user_id: 1, username: 'alice' }];
+  const participants = [{ user_id: 1, participant_id: 1, username: 'alice' }];
   const weeks = [
     { week_number: 1, results_locked: true, deadline: null },
     { week_number: 2, results_locked: false, deadline: new Date(Date.now() + 86400000) },
   ];
-  const allPicks = [{ user_id: 1, week_number: 1, result: 'win' }];
+  const allPicks = [{ participant_id: 1, week_number: 1, result: 'win' }];
   const standings = computeLmsStandings(participants, allPicks, weeks, 2, weeks[1]);
 
   assert.equal(standings[0].eliminated, false);
 });
 
 test('locked week: a postponed fixture survives automatically (not a win, loss, or draw)', () => {
-  const participants = [{ user_id: 1, username: 'alice' }];
+  const participants = [{ user_id: 1, participant_id: 1, username: 'alice' }];
   const weeks = [{ week_number: 1, results_locked: true, deadline: null }];
-  const allPicks = [{ user_id: 1, week_number: 1, result: 'postponed' }];
+  const allPicks = [{ participant_id: 1, week_number: 1, result: 'postponed' }];
   const standings = computeLmsStandings(participants, allPicks, weeks, 1, weeks[0]);
 
   assert.equal(standings[0].eliminated, false);
 });
 
 test('skipped week (round shrunk to <=5 fixtures): nobody is eliminated even with a genuine loss recorded', () => {
-  const participants = [{ user_id: 1, username: 'alice' }, { user_id: 2, username: 'bob' }];
+  const participants = [{ user_id: 1, participant_id: 1, username: 'alice' }, { user_id: 2, participant_id: 2, username: 'bob' }];
   const weeks = [{ week_number: 1, results_locked: true, skipped: true, deadline: null }];
   const allPicks = [
-    { user_id: 1, week_number: 1, result: 'loss' },
+    { participant_id: 1, week_number: 1, result: 'loss' },
     // bob didn't even pick — also shouldn't be eliminated for it in a skipped week
   ];
   const standings = computeLmsStandings(participants, allPicks, weeks, 1, weeks[0]);
@@ -94,18 +94,56 @@ test('skipped week (round shrunk to <=5 fixtures): nobody is eliminated even wit
 });
 
 test('skipped week does not block elimination in a later, non-skipped week', () => {
-  const participants = [{ user_id: 1, username: 'alice' }];
+  const participants = [{ user_id: 1, participant_id: 1, username: 'alice' }];
   const weeks = [
     { week_number: 1, results_locked: true, skipped: true, deadline: null },
     { week_number: 2, results_locked: true, skipped: false, deadline: null },
   ];
   const allPicks = [
-    { user_id: 1, week_number: 1, result: 'loss' },
-    { user_id: 1, week_number: 2, result: 'loss' },
+    { participant_id: 1, week_number: 1, result: 'loss' },
+    { participant_id: 1, week_number: 2, result: 'loss' },
   ];
   const standings = computeLmsStandings(participants, allPicks, weeks, 2, weeks[1]);
 
   const alice = standings[0];
   assert.equal(alice.eliminated, true);
   assert.equal(alice.eliminatedWeek, 2);
+});
+
+test('multiple entries for the same user_id: one entry losing does not eliminate the other', () => {
+  const participants = [
+    { user_id: 1, participant_id: 10, username: 'alice', team_name: 'alice #1' },
+    { user_id: 1, participant_id: 11, username: 'alice', team_name: 'alice #2' },
+  ];
+  const weeks = [{ week_number: 1, results_locked: true, deadline: null }];
+  const allPicks = [
+    { participant_id: 10, week_number: 1, result: 'loss' },
+    { participant_id: 11, week_number: 1, result: 'win' },
+  ];
+  const standings = computeLmsStandings(participants, allPicks, weeks, 1, weeks[0]);
+
+  const entry1 = standings.find(s => s.participant_id === 10);
+  const entry2 = standings.find(s => s.participant_id === 11);
+  assert.equal(entry1.eliminated, true);
+  assert.equal(entry1.eliminatedReason, 'loss');
+  assert.equal(entry2.eliminated, false);
+});
+
+test('multiple entries for the same user_id: one entry has picked this week, the other has not', () => {
+  const participants = [
+    { user_id: 1, participant_id: 10, username: 'alice' },
+    { user_id: 1, participant_id: 11, username: 'alice' },
+  ];
+  const weeks = [{ week_number: 2, results_locked: false, deadline: new Date(Date.now() + 86400000) }];
+  const allPicks = [
+    { participant_id: 10, week_number: 2, result: 'pending' },
+  ];
+  const standings = computeLmsStandings(participants, allPicks, weeks, 2, weeks[0]);
+
+  const entry1 = standings.find(s => s.participant_id === 10);
+  const entry2 = standings.find(s => s.participant_id === 11);
+  assert.notEqual(entry1.myCurrentPick, null);
+  assert.equal(entry2.myCurrentPick, null);
+  assert.equal(entry1.eliminated, false);
+  assert.equal(entry2.eliminated, false);
 });

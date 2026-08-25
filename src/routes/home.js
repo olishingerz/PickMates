@@ -43,10 +43,13 @@ async function getHomeData(userId) {
         .map(async g => {
           try {
             const data = await getLmsData(g.id, userId);
-            const mine = data.standings.find(s => s.user_id === userId);
-            g.userHasPicked  = !!mine?.myCurrentPick;
-            g.userEliminated = !!mine?.eliminated;
-            if (mine && !mine.eliminated && !mine.myCurrentPick && data.weekObj?.deadline) {
+            // A viewer can hold more than one entry — the compact card's
+            // "Make pick" button should stay visible until every entry has
+            // either picked or been eliminated.
+            const mine = data.myEntries;
+            g.userHasPicked  = mine.length > 0 && mine.every(e => !!e.myCurrentPick || e.eliminated);
+            g.userEliminated = mine.length > 0 && mine.every(e => e.eliminated);
+            if (mine.some(e => !e.eliminated && !e.myCurrentPick) && data.weekObj?.deadline) {
               g.pickDeadline = data.weekObj.deadline;
             }
           } catch (e) {

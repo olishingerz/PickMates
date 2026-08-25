@@ -34,109 +34,126 @@
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
     <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
 
-    <% if (myCurrentPick) { %>
-      <div class="card" style="background:#f0fdf4;border:1px solid var(--green)">
-        <strong>Your pick for week <%= currentWeek %>: <%= myCurrentPick.team_name %></strong>
-        <p class="muted" style="margin-top:.3rem;font-size:.85rem">Pick submitted — awaiting result.</p>
-      </div>
-    <% } else if (fixtures.length === 0) { %>
+    <% if (fixtures.length === 0) { %>
       <div class="card empty-state">
         <p>No fixtures available right now. ESPN may not have published this week's schedule yet — check back closer to the weekend.</p>
       </div>
     <% } else { %>
-      <!-- Teams already used -->
-      <% if (usedTeamIds.size > 0) { %>
-        <div class="card" style="margin-bottom:1rem">
-          <p class="label-small" style="margin-bottom:.4rem">Teams you've already used</p>
-          <div class="pill-list">
-            <% const myPicks = allPicks.filter(p => p.user_id === user.id); %>
-            <% myPicks.sort((a,b)=>a.week_number-b.week_number).forEach(p => { %>
-              <span class="pill" style="opacity:.6;text-decoration:line-through"><%= p.team_name %> (W<%= p.week_number %>)</span>
-            <% }) %>
+      <% const multiEntry = entries.length > 1; %>
+      <% entries.forEach((entry, i) => { %>
+        <% if (multiEntry) { %>
+          <h2 class="section-title" style="margin-top: <%= i === 0 ? '0' : '1.5rem' %>"><%= entry.team_name || entry.username %></h2>
+        <% } %>
+
+        <% if (entry.myCurrentPick) { %>
+          <div class="card" style="background:#f0fdf4;border:1px solid var(--green)">
+            <strong>Your pick for week <%= currentWeek %>: <%= entry.myCurrentPick.team_name %></strong>
+            <p class="muted" style="margin-top:.3rem;font-size:.85rem">Pick submitted — awaiting result.</p>
           </div>
-        </div>
-      <% } %>
+        <% } else if (entry.eliminated) { %>
+          <div class="card" style="background:#fef2f2;border:1px solid #ef4444">
+            <p style="margin:0">This entry was eliminated in week <%= entry.eliminatedWeek %>.</p>
+          </div>
+        <% } else { %>
+          <!-- Teams already used -->
+          <% if (entry.usedTeamIds.size > 0) { %>
+            <div class="card" style="margin-bottom:1rem">
+              <p class="label-small" style="margin-bottom:.4rem">Teams you've already used<% if (multiEntry) { %> on this entry<% } %></p>
+              <div class="pill-list">
+                <% entry.picks.slice().sort((a,b)=>a.week_number-b.week_number).forEach(p => { %>
+                  <span class="pill" style="opacity:.6;text-decoration:line-through"><%= p.team_name %> (W<%= p.week_number %>)</span>
+                <% }) %>
+              </div>
+            </div>
+          <% } %>
 
-      <form action="/game/<%= game.id %>/lms/picks" method="POST" id="pick-form">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-        <input type="hidden" name="team_id"   id="pick-team-id"   value="" />
-        <input type="hidden" name="team_name" id="pick-team-name" value="" />
+          <form action="/game/<%= game.id %>/lms/picks" method="POST" id="pick-form-<%= i %>" class="lms-pick-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <input type="hidden" name="participant_id" value="<%= entry.participant_id %>" />
+            <input type="hidden" name="team_id"   class="pick-team-id"   value="" />
+            <input type="hidden" name="team_name" class="pick-team-name" value="" />
 
-        <% const leagueGroups = {}; %>
-        <% fixtures.forEach(f => { %>
-          <% if (!leagueGroups[f.league]) leagueGroups[f.league] = []; %>
-          <% leagueGroups[f.league].push(f); %>
-        <% }) %>
+            <% const leagueGroups = {}; %>
+            <% entry.availableFixtures.forEach(f => { %>
+              <% if (!leagueGroups[f.league]) leagueGroups[f.league] = []; %>
+              <% leagueGroups[f.league].push(f); %>
+            <% }) %>
 
-        <% Object.entries(leagueGroups).forEach(([league, matches]) => { %>
-          <h2 class="section-title"><%= LEAGUE_NAMES[league] || league %></h2>
-          <div class="card" style="margin-bottom:1rem">
-            <% matches.forEach(f => { %>
-              <div class="lms-fixture">
-                <!-- Home team -->
-                <button type="button"
-                        class="lms-team-btn <%= !f.homeAvailable ? 'lms-team-used' : '' %>"
-                        data-id="<%= f.homeTeam.id %>" data-name="<%= f.homeTeam.name %>"
-                        <%= !f.homeAvailable ? 'disabled' : '' %>>
-                  <% if (f.homeTeam.logo) { %><img src="<%= f.homeTeam.logo %>" alt="" class="lms-team-logo" /><% } %>
-                  <%= f.homeTeam.name %>
-                  <% if (!f.homeAvailable) { %><span class="muted" style="font-size:.75rem;display:block">Already used</span><% } %>
-                </button>
+            <% Object.entries(leagueGroups).forEach(([league, matches]) => { %>
+              <h3 class="section-title"><%= LEAGUE_NAMES[league] || league %></h3>
+              <div class="card" style="margin-bottom:1rem">
+                <% matches.forEach(f => { %>
+                  <div class="lms-fixture">
+                    <!-- Home team -->
+                    <button type="button"
+                            class="lms-team-btn <%= !f.homeAvailable ? 'lms-team-used' : '' %>"
+                            data-id="<%= f.homeTeam.id %>" data-name="<%= f.homeTeam.name %>"
+                            <%= !f.homeAvailable ? 'disabled' : '' %>>
+                      <% if (f.homeTeam.logo) { %><img src="<%= f.homeTeam.logo %>" alt="" class="lms-team-logo" /><% } %>
+                      <%= f.homeTeam.name %>
+                      <% if (!f.homeAvailable) { %><span class="muted" style="font-size:.75rem;display:block">Already used</span><% } %>
+                    </button>
 
-                <div class="lms-fixture-vs">
-                  <span class="muted">vs</span>
-                  <span class="muted" style="font-size:.75rem;display:block">
-                    <%= new Date(f.kickoff).toLocaleString('en-GB', { timeZone:'Europe/London', weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %>
-                  </span>
-                </div>
+                    <div class="lms-fixture-vs">
+                      <span class="muted">vs</span>
+                      <span class="muted" style="font-size:.75rem;display:block">
+                        <%= new Date(f.kickoff).toLocaleString('en-GB', { timeZone:'Europe/London', weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %>
+                      </span>
+                    </div>
 
-                <!-- Away team -->
-                <button type="button"
-                        class="lms-team-btn <%= !f.awayAvailable ? 'lms-team-used' : '' %>"
-                        data-id="<%= f.awayTeam.id %>" data-name="<%= f.awayTeam.name %>"
-                        <%= !f.awayAvailable ? 'disabled' : '' %>>
-                  <% if (f.awayTeam.logo) { %><img src="<%= f.awayTeam.logo %>" alt="" class="lms-team-logo" /><% } %>
-                  <%= f.awayTeam.name %>
-                  <% if (!f.awayAvailable) { %><span class="muted" style="font-size:.75rem;display:block">Already used</span><% } %>
-                </button>
+                    <!-- Away team -->
+                    <button type="button"
+                            class="lms-team-btn <%= !f.awayAvailable ? 'lms-team-used' : '' %>"
+                            data-id="<%= f.awayTeam.id %>" data-name="<%= f.awayTeam.name %>"
+                            <%= !f.awayAvailable ? 'disabled' : '' %>>
+                      <% if (f.awayTeam.logo) { %><img src="<%= f.awayTeam.logo %>" alt="" class="lms-team-logo" /><% } %>
+                      <%= f.awayTeam.name %>
+                      <% if (!f.awayAvailable) { %><span class="muted" style="font-size:.75rem;display:block">Already used</span><% } %>
+                    </button>
+                  </div>
+                <% }) %>
               </div>
             <% }) %>
-          </div>
-        <% }) %>
 
-        <div class="pick-confirm-bar" id="pick-confirm-bar" style="display:none">
-          <span>Selected: <strong id="pick-confirm-name"></strong></span>
-          <button type="submit" class="btn">Confirm pick</button>
-          <button type="button" class="btn btn-ghost" style="color:var(--text)" onclick="clearSelection()">Clear</button>
-        </div>
-      </form>
+            <div class="pick-confirm-bar" style="display:none">
+              <span>Selected: <strong class="pick-confirm-name"></strong></span>
+              <button type="submit" class="btn">Confirm pick</button>
+              <button type="button" class="btn btn-ghost" style="color:var(--text)" onclick="this.closest('form').dispatchEvent(new CustomEvent('clear-selection'))">Clear</button>
+            </div>
+          </form>
+        <% } %>
+      <% }) %>
 
       <script>
-        const teamId   = document.getElementById('pick-team-id');
-        const teamName = document.getElementById('pick-team-name');
-        const confirmBar  = document.getElementById('pick-confirm-bar');
-        const confirmName = document.getElementById('pick-confirm-name');
+        document.querySelectorAll('.lms-pick-form').forEach(form => {
+          const teamId      = form.querySelector('.pick-team-id');
+          const teamName    = form.querySelector('.pick-team-name');
+          const confirmBar  = form.querySelector('.pick-confirm-bar');
+          const confirmName = form.querySelector('.pick-confirm-name');
 
-        document.querySelectorAll('.lms-team-btn:not([disabled])').forEach(btn => {
-          btn.addEventListener('click', () => {
-            document.querySelectorAll('.lms-team-btn').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-            teamId.value   = btn.dataset.id;
-            teamName.value = btn.dataset.name;
-            confirmName.textContent = btn.dataset.name;
-            confirmBar.style.display = 'flex';
+          function clearSelection() {
+            form.querySelectorAll('.lms-team-btn').forEach(b => b.classList.remove('selected'));
+            teamId.value = '';
+            teamName.value = '';
+            confirmBar.style.display = 'none';
+          }
+
+          form.querySelectorAll('.lms-team-btn:not([disabled])').forEach(btn => {
+            btn.addEventListener('click', () => {
+              form.querySelectorAll('.lms-team-btn').forEach(b => b.classList.remove('selected'));
+              btn.classList.add('selected');
+              teamId.value   = btn.dataset.id;
+              teamName.value = btn.dataset.name;
+              confirmName.textContent = btn.dataset.name;
+              confirmBar.style.display = 'flex';
+            });
           });
-        });
 
-        function clearSelection() {
-          document.querySelectorAll('.lms-team-btn').forEach(b => b.classList.remove('selected'));
-          teamId.value = '';
-          teamName.value = '';
-          confirmBar.style.display = 'none';
-        }
+          form.addEventListener('clear-selection', clearSelection);
 
-        document.getElementById('pick-form').addEventListener('submit', e => {
-          if (!teamId.value) { e.preventDefault(); alert('Please select a team first.'); }
+          form.addEventListener('submit', e => {
+            if (!teamId.value) { e.preventDefault(); alert('Please select a team first.'); }
+          });
         });
       </script>
     <% } %>

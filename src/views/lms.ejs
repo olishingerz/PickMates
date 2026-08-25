@@ -20,11 +20,11 @@
     <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
 
     <%
-      const alreadyJoined  = user && standings.some(s => s.user_id === user.id);
-      const myStanding     = standings.find(s => user && s.user_id === user.id);
-      const canPick        = game.is_started && alreadyJoined && myStanding && !myStanding.eliminated
-                             && !myStanding.myCurrentPick
-                             && !weekObj?.results_locked;
+      // A user can hold more than one entry (game_participants row) in this
+      // game — each entry picks, survives, or is eliminated independently.
+      const myEntries      = user ? standings.filter(s => s.user_id === user.id) : [];
+      const alreadyJoined  = myEntries.length > 0;
+      const entryCanPick   = e => game.is_started && !e.eliminated && !e.myCurrentPick && !weekObj?.results_locked;
 
       // Picks are hidden until every alive player has submitted for the current week
       const aliveStandings   = standings.filter(s => !s.eliminated);
@@ -50,9 +50,9 @@
       <% if (game.prize_individual > 0) { %>
         <p class="muted" style="margin-top:.2rem;font-size:.85rem">Prize pot: <strong>£<%= game.prize_individual * total %></strong> <span class="muted" style="font-size:.78rem">(£<%= game.prize_individual %> × <%= total %> player<%= total !== 1 ? 's' : '' %>)</span></p>
       <% } %>
-      <% if (game.prize_individual > 0 && myStanding && !myStanding.has_paid) { %>
+      <% if (game.prize_individual > 0 && myEntries.some(e => !e.has_paid)) { %>
         <div class="alert alert-error" style="margin-top:.6rem">
-          💰 You haven't paid your £<%= game.prize_individual %> entry fee yet.
+          💰 You haven't paid your £<%= game.prize_individual %> entry fee yet<% if (myEntries.length > 1) { %> for one or more entries<% } %>.
           <% if (game.host_payment_details) { %>
             <div style="margin-top:.4rem;white-space:pre-wrap;font-size:.88rem"><strong>Pay <%= game.host_username %>:</strong> <%= game.host_payment_details %></div>
           <% } else { %>
@@ -111,39 +111,45 @@
       <div class="card" style="background:#f8fafc;border:1px solid var(--border)">
         <p style="margin:0">⏳ The host hasn't started the game yet — check back once it begins.</p>
       </div>
-    <% } else if (canPick) { %>
-      <% const deadlineSoon = weekObj?.deadline && (new Date(weekObj.deadline).getTime() - Date.now()) <= 6 * 60 * 60 * 1000; %>
-      <% if (deadlineSoon) { %>
-        <div class="deadline-banner">
-          <span>⏳ You haven't picked yet this week — pick before the deadline or you're <strong>OUT!</strong></span>
-          <span class="countdown-timer" data-deadline="<%= new Date(weekObj.deadline).toISOString() %>">…</span>
-        </div>
-      <% } %>
-      <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;background:#fffbeb;border:1px solid #f59e0b">
-        <div>
-          <strong>Week <%= currentWeek %> — make your pick!</strong>
-          <% if (weekObj?.deadline) { %>
-            <span class="muted" style="font-size:.85rem;display:block;margin-top:.2rem">Deadline: <%= new Date(weekObj.deadline).toLocaleString('en-GB', { timeZone:'Europe/London', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %></span>
-          <% } else if (canManage) { %>
-            <span class="muted" style="font-size:.85rem;display:block;margin-top:.2rem">No deadline set yet — add one in Host Controls below.</span>
-          <% } else { %>
-            <span class="muted" style="font-size:.85rem;display:block;margin-top:.2rem">No deadline set yet.</span>
+    <% } else if (alreadyJoined && game.is_started) { %>
+      <% const multiEntry = myEntries.length > 1; %>
+      <% myEntries.forEach(entry => { %>
+        <% if (entryCanPick(entry)) { %>
+          <% const deadlineSoon = weekObj?.deadline && (new Date(weekObj.deadline).getTime() - Date.now()) <= 6 * 60 * 60 * 1000; %>
+          <% if (deadlineSoon) { %>
+            <div class="deadline-banner">
+              <span>⏳ <% if (multiEntry) { %><strong><%= entry.team_name || entry.username %></strong>: <% } %>You haven't picked yet this week — pick before the deadline or you're <strong>OUT!</strong></span>
+              <span class="countdown-timer" data-deadline="<%= new Date(weekObj.deadline).toISOString() %>">…</span>
+            </div>
           <% } %>
-        </div>
-        <a href="/game/<%= game.id %>/lms/picks" class="btn" style="background:#f59e0b;color:#1a1a1a">Make your pick</a>
-      </div>
-    <% } else if (alreadyJoined && myStanding?.myCurrentPick && !weekObj?.results_locked) { %>
-      <div class="card" style="background:#f0fdf4;border:1px solid var(--green)">
-        Week <%= currentWeek %> pick: <strong><%= myStanding.myCurrentPick.team_name %></strong> — awaiting result.
-      </div>
-    <% } else if (alreadyJoined && myStanding?.eliminated) { %>
-      <div class="card" style="background:#fef2f2;border:1px solid #ef4444">
-        <% if (myStanding.eliminatedReason === 'no_pick') { %>
-          💀 <strong>UR OUTTT!</strong> You didn't pick before the week <%= myStanding.eliminatedWeek %> deadline.
-        <% } else { %>
-          You were eliminated in week <%= myStanding.eliminatedWeek %>. Better luck next time!
+          <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;background:#fffbeb;border:1px solid #f59e0b;margin-bottom:.6rem">
+            <div>
+              <strong><% if (multiEntry) { %><%= entry.team_name || entry.username %> — <% } %>Week <%= currentWeek %> — make your pick!</strong>
+              <% if (weekObj?.deadline) { %>
+                <span class="muted" style="font-size:.85rem;display:block;margin-top:.2rem">Deadline: <%= new Date(weekObj.deadline).toLocaleString('en-GB', { timeZone:'Europe/London', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %></span>
+              <% } else if (canManage) { %>
+                <span class="muted" style="font-size:.85rem;display:block;margin-top:.2rem">No deadline set yet — add one in Host Controls below.</span>
+              <% } else { %>
+                <span class="muted" style="font-size:.85rem;display:block;margin-top:.2rem">No deadline set yet.</span>
+              <% } %>
+            </div>
+            <a href="/game/<%= game.id %>/lms/picks" class="btn" style="background:#f59e0b;color:#1a1a1a">Make your pick</a>
+          </div>
+        <% } else if (entry.myCurrentPick && !weekObj?.results_locked) { %>
+          <div class="card" style="background:#f0fdf4;border:1px solid var(--green);margin-bottom:.6rem">
+            <% if (multiEntry) { %><strong><%= entry.team_name || entry.username %></strong>: <% } %>Week <%= currentWeek %> pick: <strong><%= entry.myCurrentPick.team_name %></strong> — awaiting result.
+          </div>
+        <% } else if (entry.eliminated) { %>
+          <div class="card" style="background:#fef2f2;border:1px solid #ef4444;margin-bottom:.6rem">
+            <% if (multiEntry) { %><strong><%= entry.team_name || entry.username %></strong>: <% } %>
+            <% if (entry.eliminatedReason === 'no_pick') { %>
+              💀 <strong>UR OUTTT!</strong> <% if (!multiEntry) { %>You didn't pick<% } else { %>Didn't pick<% } %> before the week <%= entry.eliminatedWeek %> deadline.
+            <% } else { %>
+              <% if (!multiEntry) { %>You were<% } else { %>Was<% } %> eliminated in week <%= entry.eliminatedWeek %>. Better luck next time!
+            <% } %>
+          </div>
         <% } %>
-      </div>
+      <% }) %>
     <% } %>
 
     <!-- ── Standings ────────────────────────────────────────────────── -->
@@ -267,7 +273,15 @@
             <div>
               <p class="label-small" style="margin-bottom:.3rem">Co-hosts</p>
               <div style="display:flex;flex-direction:column;gap:.3rem">
-                <% participants.filter(p => p.user_id !== game.host_user_id).forEach(p => { %>
+                <%
+                  // Dedupe by user_id — a player with multiple entries shouldn't
+                  // appear (and be independently toggleable) more than once here,
+                  // since co-host is a per-account permission, not per-entry.
+                  const coHostCandidates = [...new Map(
+                    participants.filter(p => p.user_id !== game.host_user_id).map(p => [p.user_id, p])
+                  ).values()];
+                %>
+                <% coHostCandidates.forEach(p => { %>
                   <form action="/game/<%= game.id %>/draft/toggle-co-host" method="POST" style="display:flex;align-items:center;gap:.4rem">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                     <input type="hidden" name="user_id" value="<%= p.user_id %>" />

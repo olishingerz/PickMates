@@ -650,6 +650,53 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- Allow a user to hold more than one LMS entry in the same game (extra
+-- "lives" for players who want more chances to win) — golf_draft/golf_scorecard
+-- are unaffected since their own add-player/join routes already reject a
+-- duplicate user_id at the app level before this constraint would ever fire.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'game_participants_game_id_user_id_key') THEN
+    ALTER TABLE game_participants DROP CONSTRAINT game_participants_game_id_user_id_key;
+  END IF;
+END $$;
+
+-- Each lms_picks row needs to belong to one specific entry (game_participants
+-- row), not just a user — a user with two entries in the same game needs each
+-- entry's picks tracked independently.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='lms_picks' AND column_name='participant_id') THEN
+    ALTER TABLE lms_picks ADD COLUMN participant_id INTEGER REFERENCES game_participants(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+
+-- One-time backfill: every existing pick predates the participant_id column,
+-- but today every player has exactly one entry per game, so game_id+user_id
+-- unambiguously identifies the right game_participants row to backfill from.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE name = 'lms_picks_participant_id_backfill') THEN
+    UPDATE lms_picks lp
+    SET participant_id = gp.id
+    FROM game_participants gp
+    WHERE gp.game_id = lp.game_id AND gp.user_id = lp.user_id AND lp.participant_id IS NULL;
+    INSERT INTO schema_migrations (name) VALUES ('lms_picks_participant_id_backfill');
+  END IF;
+END $$;
+
+-- Once backfilled, participant_id becomes the real identity of a pick — swap
+-- the uniqueness key from (game_id,user_id,week_number) to (participant_id,week_number)
+-- so two entries owned by the same user_id can each pick independently per week.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE name = 'lms_picks_participant_id_not_null') THEN
+    ALTER TABLE lms_picks ALTER COLUMN participant_id SET NOT NULL;
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'lms_picks_game_id_user_id_week_number_key') THEN
+      ALTER TABLE lms_picks DROP CONSTRAINT lms_picks_game_id_user_id_week_number_key;
+    END IF;
+    ALTER TABLE lms_picks ADD CONSTRAINT lms_picks_participant_week UNIQUE(participant_id, week_number);
+    INSERT INTO schema_migrations (name) VALUES ('lms_picks_participant_id_not_null');
+  END IF;
+END $$;
+
 -- ── One-time data fixes ───────────────────────────────────────────────────────
 -- Fix ESPN name mismatches for Masters 2026 (Samuel Stevens / Nicolas Echavarria)
 UPDATE picks SET player_name = 'Sam Stevens'

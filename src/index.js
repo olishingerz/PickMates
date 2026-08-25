@@ -184,7 +184,7 @@ async function start() {
           WHERE gp.game_id = $1 AND u.email IS NOT NULL AND u.notify_lms_deadline = TRUE
             AND NOT EXISTS (
               SELECT 1 FROM lms_picks lp
-              WHERE lp.game_id = $1 AND lp.user_id = gp.user_id
+              WHERE lp.participant_id = gp.id
                 AND lp.week_number = $2 AND lp.result != 'loss'
             )
         `, [week.game_id, week.week_number]);

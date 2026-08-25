@@ -24,8 +24,12 @@ async function isHost(req, gameId) {
 async function canManage(req, gameId) {
   if (await isHost(req, gameId)) return true;
   if (!req.session.user) return false;
+  // A user can hold multiple LMS entries (game_participants rows) in the same
+  // game — aggregate rather than reading an arbitrary row, since a freshly
+  // added extra entry defaults to is_co_host=FALSE regardless of the user's
+  // existing co-host status on their other entry.
   const { rows } = await pool.query(
-    'SELECT is_co_host FROM game_participants WHERE game_id = $1 AND user_id = $2',
+    'SELECT bool_or(is_co_host) AS is_co_host FROM game_participants WHERE game_id = $1 AND user_id = $2',
     [gameId, req.session.user.id]
   );
   return rows[0]?.is_co_host === true;
@@ -62,7 +66,11 @@ async function refreshFixtureCache(gameId, week) {
 // whole gameweek round locked) can be unit tested without a database.
 function computeLmsStandings(participants, allPicks, weeks, currentWeek, weekObj) {
   return participants.map(p => {
-    const picks = allPicks.filter(pk => pk.user_id === p.user_id);
+    // Keyed on participant_id, not user_id — a user can hold more than one
+    // entry (game_participants row) in the same game, each with its own
+    // independent picks. Matching on user_id alone would merge two entries'
+    // picks together.
+    const picks = allPicks.filter(pk => pk.participant_id === p.participant_id);
     let eliminated     = false;
     let eliminatedWeek = null;
     let eliminatedReason = null; // 'no_pick' | 'loss' | 'draw'
@@ -120,7 +128,8 @@ async function getLmsData(gameId, userId) {
       WHERE g.id = $1
     `, [gameId]),
     pool.query(`
-      SELECT u.id AS user_id, u.username, u.avatar, gp.draft_position, gp.team_name, gp.is_co_host, gp.has_paid
+      SELECT gp.id AS participant_id, u.id AS user_id, u.username, u.avatar,
+             gp.draft_position, gp.team_name, gp.is_co_host, gp.has_paid
       FROM game_participants gp
       JOIN users u ON u.id = gp.user_id
       WHERE gp.game_id = $1
@@ -146,14 +155,16 @@ async function getLmsData(gameId, userId) {
   // Build per-participant pick history and alive status
   const standings = computeLmsStandings(participants, allPicks, weeks, currentWeek, weekObj);
 
-  // Teams already picked by current user across all weeks
-  const myPicks  = allPicks.filter(pk => pk.user_id === userId);
-  const usedTeamIds = new Set(myPicks.map(pk => pk.team_id));
-  const myCurrentPick = myPicks.find(pk => pk.week_number === currentWeek) || null;
+  // Every game_participants row this caller owns in this game — 1 for the
+  // common case, 2+ once they hold extra entries. Each carries its own used-
+  // teams set and current pick, independent of any other entry they own.
+  const myEntries = standings
+    .filter(s => s.user_id === userId)
+    .map(s => ({ ...s, usedTeamIds: new Set(s.picks.map(pk => pk.team_id)) }));
 
   const leagues = (game?.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean);
 
-  return { game, participants, weeks, allPicks, standings, currentWeek, weekObj, leagues, usedTeamIds, myCurrentPick };
+  return { game, participants, weeks, allPicks, standings, currentWeek, weekObj, leagues, myEntries };
 }
 
 // GET /game/:gameId/lms/picks — pick submission form
@@ -175,16 +186,21 @@ router.get('/picks', requireAuth, async (req, res) => {
       catch (err) { console.warn('[lms picks] fixture fetch failed:', err.message); }
     }
 
-    // Filter out teams already used by this player
-    const availableFixtures = fixtures.map(f => ({
-      ...f,
-      homeAvailable: !data.usedTeamIds.has(f.homeTeam.id),
-      awayAvailable: !data.usedTeamIds.has(f.awayTeam.id),
+    // Filter out teams already used, independently per entry — a player with
+    // 2+ entries gets one pick section per entry below.
+    const entries = data.myEntries.map(entry => ({
+      ...entry,
+      availableFixtures: fixtures.map(f => ({
+        ...f,
+        homeAvailable: !entry.usedTeamIds.has(f.homeTeam.id),
+        awayAvailable: !entry.usedTeamIds.has(f.awayTeam.id),
+      })),
     }));
 
     res.render('lms-picks', {
       ...data,
-      fixtures: availableFixtures,
+      fixtures,
+      entries,
       isHost: hostFlag,
       LEAGUE_NAMES,
       error:   req.query.error   || null,
@@ -203,7 +219,8 @@ router.post('/picks', requireAuth, async (req, res) => {
   const base   = `/game/${gameId}/lms/picks`;
 
   const { team_id, team_name } = req.body;
-  if (!team_id || !team_name) {
+  const participantId = parseInt(req.body.participant_id);
+  if (!participantId || !team_id || !team_name) {
     return res.redirect(base + '?error=' + encodeURIComponent('Please select a team.'));
   }
 
@@ -216,9 +233,21 @@ router.post('/picks', requireAuth, async (req, res) => {
       return res.redirect(base + '?error=' + encodeURIComponent("The host hasn't started the game yet."));
     }
 
+    // The entry must be one of this logged-in user's own game_participants
+    // rows — never trust participant_id beyond this lookup.
+    const entry = data.myEntries.find(e => e.participant_id === participantId);
+    if (!entry) {
+      return res.redirect(base + '?error=' + encodeURIComponent('That entry does not belong to you.'));
+    }
+
     // Check not already picked this week
-    if (data.myCurrentPick) {
-      return res.redirect(base + '?error=' + encodeURIComponent('You have already picked this week.'));
+    if (entry.myCurrentPick) {
+      return res.redirect(base + '?error=' + encodeURIComponent('You have already picked this week for that entry.'));
+    }
+
+    // Check that entry isn't already eliminated
+    if (entry.eliminated) {
+      return res.redirect(base + '?error=' + encodeURIComponent('That entry has already been eliminated.'));
     }
 
     // Check deadline
@@ -231,14 +260,14 @@ router.post('/picks', requireAuth, async (req, res) => {
       return res.redirect(base + '?error=' + encodeURIComponent('Results for this week are already locked.'));
     }
 
-    // Check not already used this team
-    if (data.usedTeamIds.has(team_id)) {
-      return res.redirect(base + '?error=' + encodeURIComponent(`You have already used ${team_name}.`));
+    // Check not already used this team on that entry
+    if (entry.usedTeamIds.has(team_id)) {
+      return res.redirect(base + '?error=' + encodeURIComponent(`You have already used ${team_name} on that entry.`));
     }
 
     await pool.query(
-      'INSERT INTO lms_picks (game_id, user_id, week_number, team_id, team_name) VALUES ($1,$2,$3,$4,$5)',
-      [gameId, userId, data.currentWeek, team_id, team_name]
+      'INSERT INTO lms_picks (game_id, user_id, participant_id, week_number, team_id, team_name) VALUES ($1,$2,$3,$4,$5,$6)',
+      [gameId, userId, participantId, data.currentWeek, team_id, team_name]
     );
     res.redirect(`/game/${gameId}?success=` + encodeURIComponent(`Pick submitted: ${team_name}`));
   } catch (err) {

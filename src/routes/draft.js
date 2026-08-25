@@ -39,8 +39,12 @@ async function isHost(req, gameId) {
 async function canManage(req, gameId) {
   if (await isHost(req, gameId)) return true;
   if (!req.session.user) return false;
+  // Aggregate rather than reading an arbitrary row — a user can hold multiple
+  // LMS entries (game_participants rows) in the same game, and a freshly
+  // added extra entry defaults to is_co_host=FALSE regardless of the user's
+  // existing co-host status on their other entry.
   const { rows } = await pool.query(
-    'SELECT is_co_host FROM game_participants WHERE game_id = $1 AND user_id = $2',
+    'SELECT bool_or(is_co_host) AS is_co_host FROM game_participants WHERE game_id = $1 AND user_id = $2',
     [gameId, req.session.user.id]
   );
   return rows[0]?.is_co_host === true;
@@ -49,7 +53,7 @@ async function canManage(req, gameId) {
 async function getDraftData(userId, gameId) {
   const [participantsRes, picksRes, stateRes, lbRes] = await Promise.all([
     pool.query(`
-      SELECT u.id, u.username, gp.draft_position, gp.team_name, gp.has_paid, gp.is_co_host
+      SELECT u.id, u.username, gp.id AS participant_id, gp.draft_position, gp.team_name, gp.has_paid, gp.is_co_host
       FROM game_participants gp
       JOIN users u ON u.id = gp.user_id
       WHERE gp.game_id = $1
@@ -583,28 +587,95 @@ router.post('/add-user', requireAuth, async (req, res) => {
   }
 });
 
-// POST /game/:gameId/draft/remove-user — host: remove a player from the game pre-draft
+// POST /game/:gameId/draft/add-entry — host: give an already-joined LMS player
+// a second (or third…) independent entry in this game, for players who want
+// extra chances to win. Pre-start only, same as joining at all.
+router.post('/add-entry', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  const base   = `/game/${gameId}/draft`;
+  if (!await canManage(req, gameId)) return res.redirect(base);
+
+  const participantId = parseInt(req.body.participant_id);
+  if (!participantId) return res.redirect(base + '?error=' + encodeURIComponent('Invalid player.'));
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: stateRows } = await client.query('SELECT is_started, game_type FROM games WHERE id = $1', [gameId]);
+    if (stateRows[0]?.game_type !== 'last_man_standing') {
+      await client.query('ROLLBACK');
+      return res.redirect(base + '?error=' + encodeURIComponent('Extra entries are only available for Last Man Standing.'));
+    }
+    if (stateRows[0]?.is_started) {
+      await client.query('ROLLBACK');
+      return res.redirect(base + '?error=' + encodeURIComponent('Cannot add entries after the game has started.'));
+    }
+
+    const { rows: target } = await client.query(
+      'SELECT gp.user_id, u.username FROM game_participants gp JOIN users u ON u.id = gp.user_id WHERE gp.id = $1 AND gp.game_id = $2',
+      [participantId, gameId]
+    );
+    if (!target[0]) {
+      await client.query('ROLLBACK');
+      return res.redirect(base + '?error=' + encodeURIComponent('Player not found in this game.'));
+    }
+    const { user_id: userId, username } = target[0];
+
+    const { rows: countRows } = await client.query(
+      'SELECT COUNT(*) AS cnt FROM game_participants WHERE game_id = $1 AND user_id = $2',
+      [gameId, userId]
+    );
+    const entryNumber = parseInt(countRows[0].cnt) + 1;
+
+    const { rows: posRows } = await client.query('SELECT COUNT(*) AS cnt FROM game_participants WHERE game_id = $1', [gameId]);
+    const draftPosition = parseInt(posRows[0].cnt) + 1;
+
+    await client.query(
+      'INSERT INTO game_participants (game_id, user_id, draft_position, team_name) VALUES ($1,$2,$3,$4)',
+      [gameId, userId, draftPosition, `${username} #${entryNumber}`]
+    );
+    await client.query('COMMIT');
+    res.redirect(base + '?success=' + encodeURIComponent(`Added a second entry for ${username}.`));
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[add-entry]', err);
+    res.redirect(base + '?error=' + encodeURIComponent('Failed to add entry.'));
+  } finally {
+    client.release();
+  }
+});
+
+// POST /game/:gameId/draft/remove-user — host: remove a player (or one of their
+// entries) from the game pre-draft. Scoped by participant_id, not user_id — a
+// user can hold multiple entries in an LMS game, and removing one must not
+// remove the others.
 router.post('/remove-user', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base   = `/game/${gameId}/draft`;
   if (!await canManage(req, gameId)) return res.redirect(base);
 
-  const userId = parseInt(req.body.user_id);
-  if (!userId) return res.redirect(base + '?error=' + encodeURIComponent('Invalid user.'));
+  const participantId = parseInt(req.body.participant_id);
+  if (!participantId) return res.redirect(base + '?error=' + encodeURIComponent('Invalid player.'));
 
   try {
     const { rows: stateRows } = await pool.query('SELECT is_started, host_user_id FROM games WHERE id = $1', [gameId]);
     if (stateRows[0]?.is_started) {
       return res.redirect(base + '?error=' + encodeURIComponent('Cannot remove players after the draft has started.'));
     }
-    if (stateRows[0]?.host_user_id === userId) {
+
+    const { rows: participantRows } = await pool.query(
+      'SELECT user_id FROM game_participants WHERE id = $1 AND game_id = $2',
+      [participantId, gameId]
+    );
+    if (!participantRows[0]) {
+      return res.redirect(base + '?error=' + encodeURIComponent('Player not found.'));
+    }
+    if (stateRows[0]?.host_user_id === participantRows[0].user_id) {
       return res.redirect(base + '?error=' + encodeURIComponent('Cannot remove the host from the game.'));
     }
 
-    await pool.query(
-      'DELETE FROM game_participants WHERE game_id = $1 AND user_id = $2',
-      [gameId, userId]
-    );
+    await pool.query('DELETE FROM game_participants WHERE id = $1', [participantId]);
     res.redirect(base + '?success=' + encodeURIComponent('Player removed from game.'));
   } catch (err) {
     console.error('[remove-user]', err);
@@ -612,22 +683,24 @@ router.post('/remove-user', requireAuth, async (req, res) => {
   }
 });
 
-// POST /game/:gameId/draft/toggle-paid — host: mark a player as paid/not paid
+// POST /game/:gameId/draft/toggle-paid — host: mark one entry as paid/not paid.
+// Scoped by participant_id — paying is per-entry, since each entry is its own
+// entry fee.
 router.post('/toggle-paid', requireAuth, async (req, res) => {
   const gameId = getGameId(req);
   const base   = `/game/${gameId}/draft`;
   if (!await canManage(req, gameId)) return res.redirect(base);
 
-  const userId = parseInt(req.body.user_id);
-  if (!userId) return res.redirect(base + '?error=' + encodeURIComponent('Invalid user.'));
+  const participantId = parseInt(req.body.participant_id);
+  if (!participantId) return res.redirect(base + '?error=' + encodeURIComponent('Invalid player.'));
 
   try {
     const { rows } = await pool.query(
       `UPDATE game_participants gp SET has_paid = NOT has_paid
        FROM users u
-       WHERE gp.game_id = $1 AND gp.user_id = $2 AND u.id = gp.user_id
+       WHERE gp.id = $1 AND gp.game_id = $2 AND u.id = gp.user_id
        RETURNING u.username, gp.has_paid`,
-      [gameId, userId]
+      [participantId, gameId]
     );
     if (!rows[0]) return res.redirect(base + '?error=' + encodeURIComponent('Player not found.'));
     res.redirect(base + '?success=' + encodeURIComponent(`${rows[0].username} is now ${rows[0].has_paid ? 'paid' : 'not paid'}.`));
@@ -808,12 +881,19 @@ router.post('/tournaments', requireAuth, async (req, res) => {
   }
 });
 
-// POST /game/:gameId/draft/team-name — player: set their own team name (once only)
+// POST /game/:gameId/draft/team-name — player: set their own team name (once only).
+// Scoped by participant_id, not user_id — a user with multiple entries needs to
+// name each one separately, and an unscoped UPDATE would overwrite every entry's
+// name at once (destroying an extra entry's auto-generated "#2" label).
 router.post('/team-name', requireAuth, async (req, res) => {
   const gameId  = getGameId(req);
   const userId  = req.session.user.id;
   const rawName = req.body.team_name?.trim() || null;
+  const participantId = parseInt(req.body.participant_id);
 
+  if (!participantId) {
+    return res.redirect(`/game/${gameId}/draft?error=` + encodeURIComponent('Invalid entry.'));
+  }
   if (!rawName) {
     return res.redirect(`/game/${gameId}/draft?error=` + encodeURIComponent('Team name cannot be empty.'));
   }
@@ -822,18 +902,21 @@ router.post('/team-name', requireAuth, async (req, res) => {
   }
 
   try {
-    // Only allow setting if not already set
+    // Only allow setting if not already set, and only on the caller's own entry
     const { rows } = await pool.query(
-      'SELECT team_name FROM game_participants WHERE game_id = $1 AND user_id = $2',
-      [gameId, userId]
+      'SELECT team_name FROM game_participants WHERE id = $1 AND game_id = $2 AND user_id = $3',
+      [participantId, gameId, userId]
     );
-    if (rows[0]?.team_name) {
+    if (!rows[0]) {
+      return res.redirect(`/game/${gameId}/draft?error=` + encodeURIComponent('Entry not found.'));
+    }
+    if (rows[0].team_name) {
       return res.redirect(`/game/${gameId}/draft?error=` + encodeURIComponent('Team name already set — it can only be chosen once.'));
     }
 
     await pool.query(
-      'UPDATE game_participants SET team_name = $1 WHERE game_id = $2 AND user_id = $3',
-      [rawName, gameId, userId]
+      'UPDATE game_participants SET team_name = $1 WHERE id = $2',
+      [rawName, participantId]
     );
     res.redirect(`/game/${gameId}/draft?success=` + encodeURIComponent(`Team name set to "${rawName}"!`));
   } catch (err) {
