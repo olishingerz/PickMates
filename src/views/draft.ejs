@@ -138,7 +138,7 @@
                       <form action="/game/<%= gameId %>/draft/add-entry" method="POST" style="display:inline">
                         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                         <input type="hidden" name="participant_id" value="<%= p.participant_id %>" />
-                        <button type="submit" class="btn btn-sm btn-ghost" style="padding:.15rem .4rem;font-size:.78rem">+ Entry</button>
+                        <button type="submit" class="btn btn-sm btn-outline" style="padding:.15rem .4rem;font-size:.78rem">+ Entry</button>
                       </form>
                     </td>
                   <% } %>
