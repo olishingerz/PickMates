@@ -507,6 +507,29 @@ router.get('/lms-fixtures-debug/:gameId', requireAdmin, async (req, res) => {
   }
 });
 
+// ── GET /admin/lms-refresh-fixtures/:gameId — re-fetch the current week's
+// fixture cache from ESPN and overwrite lms_weeks.fixtures_cache (deadline is
+// untouched, per refreshFixtureCache's COALESCE). Useful whenever the cached
+// fixture shape has gone stale relative to what the app now expects — e.g.
+// after adding a new field (team logos) that a cache written by older code
+// won't have — without waiting for the game's next natural transition.
+router.get('/lms-refresh-fixtures/:gameId', requireAdmin, async (req, res) => {
+  const gameId = parseInt(req.params.gameId);
+  try {
+    const { rows } = await pool.query(
+      'SELECT lms_current_week, game_type FROM games WHERE id = $1', [gameId]
+    );
+    const game = rows[0];
+    if (!game) return res.status(404).json({ error: 'Game not found' });
+    if (game.game_type !== 'last_man_standing') return res.status(400).json({ error: 'Not an LMS game' });
+
+    const fixtures = await refreshFixtureCache(gameId, game.lms_current_week || 1);
+    res.json({ ok: true, week: game.lms_current_week || 1, fixtureCount: fixtures.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── GET /admin/lms-state-debug/:gameId — read-only snapshot of an LMS game's
 // current state (game row, remaining weeks/winners rows) — for diagnosing
 // something like an unexpected rollover after the fact, since lms_weeks/
