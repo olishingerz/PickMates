@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= profileUser.username %> – PickMates</title>
+  <link rel="icon" href="/FavIcon.png" type="image/png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo"><img src="/Logo.png" alt="PickMates" class="logo-img" /> PickMates</a>
+      <nav><%- include('partials/nav') %></nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-header" style="display:flex;align-items:center;gap:.9rem">
+      <%- include('partials/player-avatar', { avatar: profileUser.avatar, username: profileUser.username, size: 56 }) %>
+      <div>
+        <h1 style="margin:0"><%= profileUser.username %></h1>
+      </div>
+    </div>
+
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+    <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+
+    <div class="card" style="margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+      <% if (isFriend) { %>
+        <span class="muted" style="font-size:.9rem">✓ Already in your friends list</span>
+      <% } else { %>
+        <span class="muted" style="font-size:.9rem">Quick-add them to your games without typing their username every time.</span>
+        <form action="/profile/friends/add" method="POST" style="margin:0">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <input type="hidden" name="username" value="<%= profileUser.username %>" />
+          <input type="hidden" name="redirect_to" value="/profile/<%= profileUser.username %>" />
+          <button type="submit" class="btn btn-sm">+ Add as friend</button>
+        </form>
+      <% } %>
+    </div>
+
+    <!-- ── Stats ──────────────────────────────────────────────────────────── -->
+    <div class="card" style="margin-bottom:1.2rem">
+      <h2 class="section-title">Stats</h2>
+
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:.5rem;padding:.7rem 1rem;background:var(--green-light);border-radius:var(--radius);margin-bottom:1.2rem">
+        <span class="label-small" style="color:var(--green-dark)">Total winnings</span>
+        <strong style="font-size:1.4rem;color:var(--green-dark)">£<%= Number.isInteger(totalWinnings) ? totalWinnings : totalWinnings.toFixed(2) %></strong>
+      </div>
+
+      <div class="stats-cols" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.2rem">
+        <div>
+          <p class="label-small" style="margin-bottom:.6rem">⛳ Golf Draft</p>
+          <div style="display:flex;flex-direction:column;gap:.4rem">
+            <div class="stat-row"><span class="muted">Games played</span><strong><%= golfStats.golf_played || 0 %></strong></div>
+            <div class="stat-row"><span class="muted">Team pot wins</span><strong><%= golfStats.team_wins || 0 %></strong></div>
+            <div class="stat-row"><span class="muted">Individual pot wins</span><strong><%= golfStats.indiv_wins || 0 %></strong></div>
+          </div>
+        </div>
+        <div>
+          <p class="label-small" style="margin-bottom:.6rem">🏆 Last Man Standing</p>
+          <div style="display:flex;flex-direction:column;gap:.4rem">
+            <div class="stat-row"><span class="muted">Games played</span><strong><%= lmsStats.lms_played || 0 %></strong></div>
+            <div class="stat-row"><span class="muted">Wins</span><strong><%= lmsStats.lms_wins || 0 %></strong></div>
+            <div class="stat-row"><span class="muted">Furthest week</span><strong><%= lmsStats.furthest_week || '—' %></strong></div>
+          </div>
+        </div>
+        <div>
+          <p class="label-small" style="margin-bottom:.6rem">⛳ Golf Scorecard</p>
+          <div style="display:flex;flex-direction:column;gap:.4rem">
+            <div class="stat-row"><span class="muted">Games played</span><strong><%= scorecardStats.scorecard_played || 0 %></strong></div>
+            <div class="stat-row"><span class="muted">Team wins</span><strong><%= scorecardStats.scorecard_wins || 0 %></strong></div>
+            <div class="stat-row"><span class="muted">Individual wins</span><strong><%= scorecardStats.scorecard_indiv_wins || 0 %></strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

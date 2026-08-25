@@ -169,7 +169,7 @@
                     <td title="<%= p.username %>">
                       <span style="display:inline-flex;align-items:center;gap:.4rem">
                         <%- include('partials/player-avatar', { avatar: p.avatar, username: p.username }) %>
-                        <%= p.username.length > 9 ? p.username.slice(0, 9) + '…' : p.username %>
+                        <a href="/profile/<%= p.username %>" style="color:inherit"><%= p.username.length > 9 ? p.username.slice(0, 9) + '…' : p.username %></a>
                       </span>
                     </td>
                     <% if (!isIndividual) { %><td><%= p.team_name || '—' %></td><% } %>
@@ -206,7 +206,7 @@
                     <td>#<%= c.hole_number %></td>
                     <td>
                       <% if (c.holder) { %>
-                        🎯 <strong><%= c.holder.username %></strong>
+                        🎯 <a href="/profile/<%= c.holder.username %>" style="color:inherit"><strong><%= c.holder.username %></strong></a>
                         <% if (c.holder.team_name) { %><span class="muted" style="font-size:.78rem"> (<%= c.holder.team_name %>)</span><% } %>
                       <% } else { %>
                         <span class="muted">Not set</span>

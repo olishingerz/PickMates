@@ -190,7 +190,7 @@
                       %>
                       <tr style="border-bottom:1px solid var(--border)">
                         <td style="padding:.4rem .6rem;font-weight:700"><%= entry.rank %></td>
-                        <td style="padding:.4rem .6rem"><%= name %></td>
+                        <td style="padding:.4rem .6rem"><a href="/profile/<%= name %>" style="color:inherit"><%= name %></a></td>
                         <td style="padding:.4rem .6rem;text-align:center;font-weight:600">
                           <%= entry.team_score !== null ? fmtScore(entry.team_score) : '—' %>
                         </td>
@@ -264,10 +264,10 @@
                     <% if (t.team_name) { %>
                       <span>
                         <strong><%= t.team_name.length > 22 ? t.team_name.slice(0, 22) + '…' : t.team_name %></strong>
-                        <br /><span class="muted" style="font-size:.75rem"><%= t.username %></span>
+                        <br /><a href="/profile/<%= t.username %>" class="muted" style="font-size:.75rem">@<%= t.username %></a>
                       </span>
                     <% } else { %>
-                      <strong><%= t.username.length > 22 ? t.username.slice(0, 22) + '…' : t.username %></strong>
+                      <a href="/profile/<%= t.username %>" style="color:inherit"><strong><%= t.username.length > 22 ? t.username.slice(0, 22) + '…' : t.username %></strong></a>
                     <% } %>
                   </span>
                 </td>
@@ -338,7 +338,7 @@
                 <td>
                   <span style="display:inline-flex;align-items:center;gap:.4rem">
                     <%- include('partials/player-avatar', { avatar: t.avatar, username: t.username }) %>
-                    <strong><%= t.username %></strong>
+                    <a href="/profile/<%= t.username %>" style="color:inherit"><strong><%= t.username %></strong></a>
                   </span>
                 </td>
                 <td><%= t.bestIndividualPlayer %></td>
@@ -371,10 +371,10 @@
                 <% if (t.team_name) { %>
                   <span>
                     <strong><%= t.team_name %></strong>
-                    <div class="muted" style="font-size:.75rem"><%= t.username %></div>
+                    <div class="muted" style="font-size:.75rem"><a href="/profile/<%= t.username %>" style="color:inherit">@<%= t.username %></a></div>
                   </span>
                 <% } else { %>
-                  <strong><%= t.username %></strong>
+                  <a href="/profile/<%= t.username %>" style="color:inherit"><strong><%= t.username %></strong></a>
                 <% } %>
               </span>
               <% if (t.teamScore !== null) { %>

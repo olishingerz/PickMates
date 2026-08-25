@@ -186,10 +186,10 @@
                     <% if (s.team_name) { %>
                       <span>
                         <strong><%= s.team_name.length > 22 ? s.team_name.slice(0, 22) + '…' : s.team_name %></strong>
-                        <br /><span class="muted" style="font-size:.75rem"><%= s.username %></span>
+                        <br /><a href="/profile/<%= s.username %>" class="muted" style="font-size:.75rem">@<%= s.username %></a>
                       </span>
                     <% } else { %>
-                      <strong><%= s.username %></strong>
+                      <a href="/profile/<%= s.username %>" style="color:inherit"><strong><%= s.username %></strong></a>
                     <% } %>
                   </span>
                 </td>

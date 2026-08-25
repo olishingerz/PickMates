@@ -18,10 +18,11 @@ function requireAuth(req, res, next) {
   next();
 }
 
-router.get('/', requireAuth, async (req, res) => {
-  const id = req.session.user.id;
-  const [profileRes, golfRes, lmsRes, scorecardRes, winningsRes, scorecardWinningsRes, friendsRes] = await Promise.all([
-    pool.query('SELECT username, avatar, email, notify_draft_turn, notify_lms_deadline, payment_details FROM users WHERE id = $1', [id]),
+// Shared by the owner's full profile and any other player's public stats
+// view — same per-game-type played/won counts and total winnings, just
+// parameterized by whichever user id is being looked at.
+async function getProfileStats(id) {
+  const [golfRes, lmsRes, scorecardRes, winningsRes, scorecardWinningsRes] = await Promise.all([
     pool.query(`
       SELECT
         COUNT(DISTINCT gp.game_id) FILTER (WHERE g.game_type = 'golf_draft')::int        AS golf_played,
@@ -99,13 +100,6 @@ router.get('/', requireAuth, async (req, res) => {
       WHERE g.game_type = 'golf_scorecard' AND g.tournament_complete = TRUE
         AND g.scorecard_entry_fee > 0
     `, [id]),
-    pool.query(`
-      SELECT u.id, u.username, u.avatar
-      FROM friends f
-      JOIN users u ON u.id = f.friend_id
-      WHERE f.user_id = $1
-      ORDER BY u.username ASC
-    `, [id]),
   ]);
 
   const scorecardWinnings = scorecardWinningsRes.rows.reduce((total, row) => {
@@ -127,13 +121,59 @@ router.get('/', requireAuth, async (req, res) => {
                        + (parseFloat(winningsRes.rows[0]?.lms_winnings) || 0)
                        + scorecardWinnings;
 
-  res.render('profile', {
-    profileUser: profileRes.rows[0],
+  return {
     golfStats:      golfRes.rows[0],
     lmsStats:       lmsRes.rows[0],
     scorecardStats: scorecardRes.rows[0],
     totalWinnings,
+  };
+}
+
+router.get('/', requireAuth, async (req, res) => {
+  const id = req.session.user.id;
+  const [profileRes, friendsRes, stats] = await Promise.all([
+    pool.query('SELECT username, avatar, email, notify_draft_turn, notify_lms_deadline, payment_details FROM users WHERE id = $1', [id]),
+    pool.query(`
+      SELECT u.id, u.username, u.avatar
+      FROM friends f
+      JOIN users u ON u.id = f.friend_id
+      WHERE f.user_id = $1
+      ORDER BY u.username ASC
+    `, [id]),
+    getProfileStats(id),
+  ]);
+
+  res.render('profile', {
+    profileUser: profileRes.rows[0],
+    ...stats,
     friends: friendsRes.rows,
+    error:   req.query.error   || null,
+    success: req.query.success || null,
+  });
+});
+
+// GET /profile/:username — another player's public stats page, reached by
+// clicking their name on a leaderboard. Avatar + the same per-game stats
+// card as the owner's profile, plus an add-friend button — never email,
+// payment details, or anything else editable on the owner's own profile.
+router.get('/:username', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT id, username, avatar FROM users WHERE LOWER(username) = LOWER($1)',
+    [req.params.username]
+  );
+  const targetUser = rows[0];
+  if (!targetUser) return res.redirect('/?error=' + encodeURIComponent('That player was not found.'));
+  if (targetUser.id === req.session.user.id) return res.redirect('/profile');
+
+  const [stats, friendRes] = await Promise.all([
+    getProfileStats(targetUser.id),
+    pool.query('SELECT 1 FROM friends WHERE user_id = $1 AND friend_id = $2', [req.session.user.id, targetUser.id]),
+  ]);
+
+  res.render('player-profile', {
+    profileUser: targetUser,
+    ...stats,
+    isFriend: friendRes.rows.length > 0,
     error:   req.query.error   || null,
     success: req.query.success || null,
   });
@@ -249,26 +289,32 @@ router.post('/payment-details', requireAuth, async (req, res) => {
 // POST /profile/friends/add
 router.post('/friends/add', requireAuth, async (req, res) => {
   const username = req.body.username?.trim();
+  // Only ever redirect back to an internal path (e.g. a player's public
+  // profile page) — never an absolute/protocol-relative URL.
+  const redirectTo = typeof req.body.redirect_to === 'string'
+    && req.body.redirect_to.startsWith('/') && !req.body.redirect_to.startsWith('//')
+    ? req.body.redirect_to : '/profile';
+
   if (!username) {
-    return res.redirect('/profile?error=' + encodeURIComponent('Enter a username.'));
+    return res.redirect(redirectTo + '?error=' + encodeURIComponent('Enter a username.'));
   }
   try {
     const { rows } = await pool.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [username]);
     if (!rows[0]) {
-      return res.redirect('/profile?error=' + encodeURIComponent(`No account found for "${username}".`));
+      return res.redirect(redirectTo + '?error=' + encodeURIComponent(`No account found for "${username}".`));
     }
     const friendId = rows[0].id;
     if (friendId === req.session.user.id) {
-      return res.redirect('/profile?error=' + encodeURIComponent("You can't add yourself as a friend."));
+      return res.redirect(redirectTo + '?error=' + encodeURIComponent("You can't add yourself as a friend."));
     }
     await pool.query(
       'INSERT INTO friends (user_id, friend_id) VALUES ($1, $2) ON CONFLICT (user_id, friend_id) DO NOTHING',
       [req.session.user.id, friendId]
     );
-    res.redirect('/profile?success=' + encodeURIComponent(`${username} added to your friends.`));
+    res.redirect(redirectTo + '?success=' + encodeURIComponent(`${username} added to your friends.`));
   } catch (err) {
     console.error('[profile friends/add]', err);
-    res.redirect('/profile?error=' + encodeURIComponent('Something went wrong.'));
+    res.redirect(redirectTo + '?error=' + encodeURIComponent('Something went wrong.'));
   }
 });
 
