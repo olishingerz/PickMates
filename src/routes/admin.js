@@ -500,6 +500,7 @@ router.get('/lms-fixtures-debug/:gameId', requireAdmin, async (req, res) => {
       fixtures: fixtures.map(f => ({
         home: f.homeTeam.name, away: f.awayTeam.name, kickoff: f.kickoff,
         completed: f.completed, postponed: f.postponed,
+        homeLogo: f.homeTeam.logo, awayLogo: f.awayTeam.logo,
       })),
     });
   } catch (err) {
