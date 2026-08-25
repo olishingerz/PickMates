@@ -671,8 +671,16 @@ router.post('/remove-user', requireAuth, async (req, res) => {
     if (!participantRows[0]) {
       return res.redirect(base + '?error=' + encodeURIComponent('Player not found.'));
     }
+    // Only block this if it would remove the host's last remaining entry —
+    // a host with multiple LMS entries can freely remove the extra ones.
     if (stateRows[0]?.host_user_id === participantRows[0].user_id) {
-      return res.redirect(base + '?error=' + encodeURIComponent('Cannot remove the host from the game.'));
+      const { rows: hostEntries } = await pool.query(
+        'SELECT COUNT(*) AS cnt FROM game_participants WHERE game_id = $1 AND user_id = $2',
+        [gameId, stateRows[0].host_user_id]
+      );
+      if (parseInt(hostEntries[0].cnt) <= 1) {
+        return res.redirect(base + '?error=' + encodeURIComponent("Cannot remove the host's only entry from the game."));
+      }
     }
 
     await pool.query('DELETE FROM game_participants WHERE id = $1', [participantId]);
