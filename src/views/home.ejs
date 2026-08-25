@@ -23,6 +23,37 @@
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
     <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
 
+    <!-- ── Recent activity ───────────────────────────────────────────────── -->
+    <% if (typeof activity !== 'undefined' && activity.length > 0) { %>
+      <%
+        function timeAgo(date) {
+          const diffMs  = Date.now() - new Date(date).getTime();
+          const diffMin = Math.floor(diffMs / 60000);
+          if (diffMin < 1)  return 'just now';
+          if (diffMin < 60) return `${diffMin}m ago`;
+          const diffHr = Math.floor(diffMin / 60);
+          if (diffHr < 24)  return `${diffHr}h ago`;
+          const diffDay = Math.floor(diffHr / 24);
+          if (diffDay < 7)  return `${diffDay}d ago`;
+          return new Date(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        }
+      %>
+      <div class="card activity-feed" style="margin-bottom:1.5rem">
+        <h2 class="section-title" style="margin-bottom:.6rem">Recent Activity</h2>
+        <div class="activity-list">
+          <% activity.forEach(a => { %>
+            <div class="activity-item">
+              <span class="activity-dot"></span>
+              <div>
+                <p class="activity-message"><%= a.message %></p>
+                <p class="activity-time"><%= timeAgo(a.created_at) %></p>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+    <% } %>
+
     <%
       const liveGames     = games.filter(g => !g.tournament_complete);
       const completeGames = games.filter(g => g.tournament_complete);
@@ -44,7 +75,7 @@
       <div class="games-grid">
         <% liveGames.forEach(g => { %>
           <div class="<%= accentClass(g.game_type) %>">
-            <%- include('partials/game-card', { g, user, LEAGUE_NAMES }) %>
+            <%- include('partials/game-card', { g, user, LEAGUE_NAMES, PICKS_PER_PLAYER }) %>
           </div>
         <% }) %>
       </div>
@@ -56,7 +87,7 @@
       <div class="games-grid">
         <% completeGames.forEach(g => { %>
           <div class="<%= accentClass(g.game_type) %>">
-            <%- include('partials/game-card', { g, user, LEAGUE_NAMES }) %>
+            <%- include('partials/game-card', { g, user, LEAGUE_NAMES, PICKS_PER_PLAYER }) %>
           </div>
         <% }) %>
       </div>

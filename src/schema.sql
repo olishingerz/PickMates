@@ -697,6 +697,18 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- Lightweight event log for the home dashboard's "Recent Activity" feed —
+-- a pre-rendered human-readable message per row rather than a structured
+-- per-event-type schema, since the feed only ever displays it as-is.
+CREATE TABLE IF NOT EXISTS activity_log (
+  id          SERIAL PRIMARY KEY,
+  game_id     INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  message     TEXT NOT NULL,
+  created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_activity_log_created ON activity_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_log_game     ON activity_log(game_id);
+
 -- ── One-time data fixes ───────────────────────────────────────────────────────
 -- Fix ESPN name mismatches for Masters 2026 (Samuel Stevens / Nicolas Echavarria)
 UPDATE picks SET player_name = 'Sam Stevens'

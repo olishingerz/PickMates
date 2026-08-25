@@ -6,6 +6,7 @@ const { PICKS_PER_PLAYER, SCORES_THAT_COUNT, MIN_CUT_MAKERS } = require('../cons
 const { getLmsData } = require('./lms');
 const { TEAM_COUNTING_SCORES } = require('./scorecard');
 const { getGameCreationRoles, canCreateGames } = require('../services/settings');
+const { logActivity } = require('../services/activity');
 
 const router = express.Router();
 
@@ -14,6 +15,7 @@ async function getHomeData(userId) {
       SELECT g.id, g.name, g.tournament_name, g.is_started, g.is_complete, g.tournament_complete, g.created_at,
              g.tournament_start_date, g.tournament_end_date, g.completed_at,
              g.game_type, g.host_user_id, g.is_public, g.lms_leagues, g.scorecard_course_name,
+             g.prize_team, g.prize_individual, g.scorecard_entry_fee, g.current_pick_index,
              COUNT(gp.id)::int AS participant_count,
              BOOL_OR(gp.user_id = $1) AS user_joined
       FROM games g
@@ -22,6 +24,26 @@ async function getHomeData(userId) {
       ORDER BY BOOL_OR(gp.user_id = $1) DESC NULLS LAST,
                COALESCE(g.completed_at, g.created_at) DESC
     `, [userId]);
+
+    // Participant avatars for the "people, not numbers" card display — small
+    // enough per game (a personal app, not hundreds of players) that fetching
+    // everyone and slicing to the first few client-side is simpler than a
+    // per-game-capped SQL query.
+    if (games.length > 0) {
+      const { rows: participantRows } = await pool.query(`
+        SELECT gp.game_id, u.username, u.avatar
+        FROM game_participants gp
+        JOIN users u ON u.id = gp.user_id
+        WHERE gp.game_id = ANY($1)
+        ORDER BY gp.id ASC
+      `, [games.map(g => g.id)]);
+      const avatarsByGame = new Map();
+      for (const row of participantRows) {
+        if (!avatarsByGame.has(row.game_id)) avatarsByGame.set(row.game_id, []);
+        avatarsByGame.get(row.game_id).push({ username: row.username, avatar: row.avatar });
+      }
+      for (const g of games) g.participants = avatarsByGame.get(g.id) || [];
+    }
 
     // Current standing (not the stale last_rank snapshot used for arrows on the game page)
     if (userId) {
@@ -37,7 +59,8 @@ async function getHomeData(userId) {
           }
         }));
 
-      // LMS pick deadline — only shown if the viewer still needs to pick this week
+      // LMS: viewer's pick status, plus the game's current-week deadline
+      // (shown to everyone as "next fixture", not just those still picking)
       await Promise.all(games
         .filter(g => g.user_joined && g.is_started && g.game_type === 'last_man_standing')
         .map(async g => {
@@ -52,11 +75,30 @@ async function getHomeData(userId) {
             if (mine.some(e => !e.eliminated && !e.myCurrentPick) && data.weekObj?.deadline) {
               g.pickDeadline = data.weekObj.deadline;
             }
+            g.nextDeadline = data.weekObj?.deadline || null;
+            g.aliveCount   = data.standings.filter(s => !s.eliminated).length;
+            g.entryCount   = data.standings.length;
           } catch (e) {
             console.warn(`[home] getLmsData failed for game ${g.id}:`, e.message);
           }
         }));
     }
+
+    // Recent activity across every game the viewer is in — powers the home
+    // dashboard's "Recent Activity" feed.
+    let activity = [];
+    if (userId) {
+      const { rows } = await pool.query(`
+        SELECT al.message, al.created_at, g.name AS game_name
+        FROM activity_log al
+        JOIN games g ON g.id = al.game_id
+        WHERE al.game_id IN (SELECT game_id FROM game_participants WHERE user_id = $1)
+        ORDER BY al.created_at DESC
+        LIMIT 20
+      `, [userId]);
+      activity = rows;
+    }
+
     const { rows: winners } = await pool.query(`
       SELECT g.id, g.name, g.game_type, g.tournament_name, g.scorecard_format,
              g.winner_username, wu.avatar AS winner_avatar,
@@ -74,23 +116,25 @@ async function getHomeData(userId) {
       LIMIT 20
     `);
 
-  return { games, winners };
+  return { games, winners, activity };
 }
 
 router.get('/', async (req, res) => {
   try {
     const userId = req.session.user?.id || null;
-    const { games, winners } = await getHomeData(userId);
+    const { games, winners, activity } = await getHomeData(userId);
     res.render('home', {
       games,
       winners,
+      activity,
       LEAGUE_NAMES,
+      PICKS_PER_PLAYER,
       error:   req.query.error   || null,
       success: req.query.success || null,
     });
   } catch (err) {
     console.error('[home]', err);
-    res.render('home', { games: [], winners: [], error: 'Could not load games.', success: null });
+    res.render('home', { games: [], winners: [], activity: [], error: 'Could not load games.', success: null });
   }
 });
 
@@ -331,6 +375,7 @@ router.get('/join/:inviteCode', async (req, res) => {
       'INSERT INTO game_participants (game_id, user_id, draft_position) VALUES ($1,$2,$3)',
       [game.id, req.session.user.id, draftPosition]
     );
+    logActivity(game.id, `${req.session.user.username} joined ${game.name}`);
     res.redirect(`/game/${game.id}?success=` + encodeURIComponent(`You've joined ${game.name}!`));
   } catch (err) {
     console.error('[join invite]', err);

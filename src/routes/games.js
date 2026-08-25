@@ -6,6 +6,7 @@ const draftRouter = require('./draft');
 const { router: lmsRouter, getLmsData, isHost: lmsIsHost, canManage: lmsCanManage } = require('./lms');
 const { router: scorecardRouter, getScorecardData, isHost: scorecardIsHost, canManage: scorecardCanManage } = require('./scorecard');
 const { LEAGUE_NAMES } = require('../services/football');
+const { logActivity } = require('../services/activity');
 
 const router = express.Router();
 
@@ -251,7 +252,7 @@ router.post('/:gameId/join', async (req, res) => {
   const userId = req.session.user.id;
 
   try {
-    const { rows: gameRows } = await pool.query('SELECT is_started FROM games WHERE id = $1', [gameId]);
+    const { rows: gameRows } = await pool.query('SELECT name, is_started FROM games WHERE id = $1', [gameId]);
     const game = gameRows[0];
     if (!game) return res.redirect('/?error=' + encodeURIComponent('Game not found.'));
     if (game.is_started) {
@@ -275,6 +276,7 @@ router.post('/:gameId/join', async (req, res) => {
       'INSERT INTO game_participants (game_id, user_id, draft_position) VALUES ($1, $2, $3)',
       [gameId, userId, draftPosition]
     );
+    logActivity(gameId, `${req.session.user.username} joined ${game.name}`);
     res.redirect(`/game/${gameId}/draft?success=` + encodeURIComponent("You've joined the game!"));
   } catch (err) {
     console.error('[join game]', err);

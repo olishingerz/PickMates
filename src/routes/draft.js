@@ -4,6 +4,7 @@ const { PICKS_PER_PLAYER } = require('../constants');
 const { fetchTournamentList, scrapeLeaderboard } = require('../services/scraper');
 const { sendDraftTurnEmail } = require('../services/email');
 const { refreshFixtureCache } = require('./lms');
+const { logActivity } = require('../services/activity');
 const { renderLobby: renderScorecardLobby } = require('./scorecard');
 
 // mergeParams so we can read :gameId set by the parent router in games.js
@@ -533,7 +534,7 @@ router.post('/add-user', requireAuth, async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    const { rows: stateRows } = await client.query('SELECT is_started FROM games WHERE id = $1', [gameId]);
+    const { rows: stateRows } = await client.query('SELECT name, is_started FROM games WHERE id = $1', [gameId]);
     if (stateRows[0]?.is_started) {
       await client.query('ROLLBACK');
       return res.redirect(base + '?error=' + encodeURIComponent('Cannot add players after the draft has started.'));
@@ -573,6 +574,7 @@ router.post('/add-user', requireAuth, async (req, res) => {
       [gameId, userId, draftPosition]
     );
     await client.query('COMMIT');
+    logActivity(gameId, `${username} joined ${stateRows[0].name}`);
 
     res.redirect(base + '?success=' + encodeURIComponent(`${username} added at position #${draftPosition}.`));
   } catch (err) {

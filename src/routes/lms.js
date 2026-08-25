@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const { getCurrentGameweekFixtures, processResults, LEAGUE_NAMES } = require('../services/football');
+const { logActivity } = require('../services/activity');
 
 const router = express.Router({ mergeParams: true });
 
@@ -269,6 +270,7 @@ router.post('/picks', requireAuth, async (req, res) => {
       'INSERT INTO lms_picks (game_id, user_id, participant_id, week_number, team_id, team_name) VALUES ($1,$2,$3,$4,$5,$6)',
       [gameId, userId, participantId, data.currentWeek, team_id, team_name]
     );
+    logActivity(gameId, `${req.session.user.username} locked in ${team_name} in ${data.game.name}`);
     res.redirect(`/game/${gameId}?success=` + encodeURIComponent(`Pick submitted: ${team_name}`));
   } catch (err) {
     console.error('[lms picks POST]', err);
@@ -324,7 +326,8 @@ async function restartRound(gameId) {
 // Fetch ESPN results, lock the week, and resolve the game if it concluded (winner or
 // rollover). Shared by the host's manual button and the auto-process cron.
 async function processGameResults(gameId) {
-  const { rows: game } = await pool.query('SELECT lms_current_week, prize_individual, lms_continuous, lms_leagues FROM games WHERE id=$1', [gameId]);
+  const { rows: game } = await pool.query('SELECT name, lms_current_week, prize_individual, lms_continuous, lms_leagues FROM games WHERE id=$1', [gameId]);
+  const gameName = game[0]?.name || 'the game';
   const week = game[0]?.lms_current_week || 1;
   const continuous = game[0]?.lms_continuous === true;
   const leagues = (game[0]?.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean);
@@ -353,6 +356,7 @@ async function processGameResults(gameId) {
     await pool.query('UPDATE games SET lms_current_week=$1 WHERE id=$2', [nextWeek, gameId]);
     try { await refreshFixtureCache(gameId, nextWeek); }
     catch (err) { console.warn(`[lms] fixture cache refresh failed after skipping week for game ${gameId}:`, err.message); }
+    logActivity(gameId, `${gameName}: week ${week} skipped — too few fixtures survived postponements. Advanced to week ${nextWeek}.`);
     return { week, updated, concluded: null, continuous, skipped: true,
       message: `Week ${week} skipped — only ${effectiveFixtures} fixture${effectiveFixtures !== 1 ? 's' : ''} survived postponements. Nobody's eliminated; advanced to week ${nextWeek}.` };
   }
@@ -373,6 +377,7 @@ async function processGameResults(gameId) {
        VALUES ($1,$2,$3,FALSE,$4,$5)`,
       [gameId, winner.user_id, winner.username, week, payout]
     );
+    logActivity(gameId, `🏆 ${winner.username} won ${gameName}!`);
     if (continuous) {
       await restartRound(gameId);
       return { week, updated, concluded: 'winner', continuous: true,
@@ -392,6 +397,7 @@ async function processGameResults(gameId) {
        VALUES ($1,NULL,NULL,TRUE,$2,$3)`,
       [gameId, week, newPrize]
     );
+    logActivity(gameId, `😱 Everyone eliminated in ${gameName} week ${week} — rollover! Prize is now £${newPrize}.`);
     if (continuous) {
       await restartRound(gameId);
       return { week, updated, concluded: 'rollover', continuous: true,
@@ -410,6 +416,7 @@ async function processGameResults(gameId) {
   try { await refreshFixtureCache(gameId, nextWeek); }
   catch (err) { console.warn(`[lms] fixture cache refresh failed after auto-advancing week for game ${gameId}:`, err.message); }
 
+  logActivity(gameId, `Week ${week} finished in ${gameName} — advanced to week ${nextWeek}.`);
   return { week, updated, concluded: null, continuous,
     message: `Results processed for week ${week} — ${updated} picks updated. Advanced to week ${nextWeek}.` };
 }
