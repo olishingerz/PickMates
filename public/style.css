@@ -316,7 +316,7 @@ main {
   color: var(--text);
 }
 
-.form-group input {
+.form-group input:not([type="checkbox"]):not([type="radio"]) {
   width: 100%;
   padding: .6rem .8rem;
   border: 1px solid var(--border);
@@ -328,7 +328,15 @@ main {
   transition: border-color .15s, box-shadow .15s;
 }
 
-.form-group input:focus {
+.form-group input[type="checkbox"],
+.form-group input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.form-group input:not([type="checkbox"]):not([type="radio"]):focus {
   outline: none;
   border-color: var(--green);
   box-shadow: 0 0 0 3px rgba(11,122,82,.14);
