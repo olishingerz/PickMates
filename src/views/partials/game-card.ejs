@@ -81,7 +81,7 @@
       <% } else if (g.is_started && !g.is_complete) { %>
         <% if ((g.user_joined || isGameHost) && g.game_type !== 'golf_scorecard') { %>
           <% if (g.game_type === 'last_man_standing') { %>
-            <% if (!g.userHasPicked) { %>
+            <% if (!g.userHasPicked && !g.userEliminated) { %>
               <a href="/game/<%= g.id %>/lms/picks" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Make pick</a>
             <% } %>
           <% } else { %>

@@ -44,7 +44,8 @@ async function getHomeData(userId) {
           try {
             const data = await getLmsData(g.id, userId);
             const mine = data.standings.find(s => s.user_id === userId);
-            g.userHasPicked = !!mine?.myCurrentPick;
+            g.userHasPicked  = !!mine?.myCurrentPick;
+            g.userEliminated = !!mine?.eliminated;
             if (mine && !mine.eliminated && !mine.myCurrentPick && data.weekObj?.deadline) {
               g.pickDeadline = data.weekObj.deadline;
             }
