@@ -27,42 +27,44 @@
     <div class="card" style="margin-bottom:1.2rem">
       <div class="stats-cols" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.2rem">
         <div>
-          <p class="label-small">Page views (24h)</p>
-          <strong style="font-size:1.6rem"><%= stats.views_today %></strong>
+          <p class="label-small">Total known visitors</p>
+          <strong style="font-size:1.6rem"><%= stats.total_visitors %></strong>
         </div>
         <div>
-          <p class="label-small">Unique IPs (24h)</p>
-          <strong style="font-size:1.6rem"><%= stats.unique_today %></strong>
+          <p class="label-small">Active in last 24h</p>
+          <strong style="font-size:1.6rem"><%= stats.active_today %></strong>
         </div>
         <div>
-          <p class="label-small">Unique IPs (7 days)</p>
-          <strong style="font-size:1.6rem"><%= stats.unique_week %></strong>
+          <p class="label-small">Active in last 7 days</p>
+          <strong style="font-size:1.6rem"><%= stats.active_week %></strong>
         </div>
       </div>
     </div>
 
-    <h2 class="section-title">Recent page views <span class="muted" style="font-size:.85rem;font-weight:400">(last 200)</span></h2>
+    <h2 class="section-title">Visitors <span class="muted" style="font-size:.85rem;font-weight:400">(most recent first, last 200)</span></h2>
     <div class="card">
-      <% if (views.length === 0) { %>
-        <p class="muted">No page views logged yet.</p>
+      <% if (visitors.length === 0) { %>
+        <p class="muted">No visitors logged yet.</p>
       <% } else { %>
         <div class="leaderboard-table-wrap">
           <table class="leaderboard-table">
             <thead>
               <tr>
-                <th>Time</th>
-                <th>Path</th>
+                <th>Last seen</th>
+                <th>Last page</th>
                 <th>Visitor</th>
                 <th>IP</th>
+                <th>Visits</th>
               </tr>
             </thead>
             <tbody>
-              <% views.forEach(v => { %>
+              <% visitors.forEach(v => { %>
                 <tr>
-                  <td class="muted" style="white-space:nowrap;font-size:.82rem"><%= new Date(v.created_at).toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %></td>
-                  <td style="font-family:monospace;font-size:.85rem"><%= v.path %></td>
+                  <td class="muted" style="white-space:nowrap;font-size:.82rem"><%= new Date(v.last_seen).toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %></td>
+                  <td style="font-family:monospace;font-size:.85rem"><%= v.last_path %></td>
                   <td><%= v.username || 'Guest' %></td>
                   <td class="muted" style="font-size:.82rem"><%= v.ip_address || '—' %></td>
+                  <td class="muted" style="font-size:.82rem"><%= v.visit_count %></td>
                 </tr>
               <% }) %>
             </tbody>

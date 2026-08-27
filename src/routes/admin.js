@@ -84,28 +84,28 @@ router.get('/', requireAdmin, async (req, res) => {
   }
 });
 
-// ── GET /admin/visitors — recent page-view log + rough traffic stats ───────────
+// ── GET /admin/visitors — one row per distinct visitor, most recently seen first ──
 router.get('/visitors', requireAdmin, async (req, res) => {
   try {
-    const [statsRes, viewsRes] = await Promise.all([
+    const [statsRes, visitorsRes] = await Promise.all([
       pool.query(`
         SELECT
-          COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')::int AS views_today,
-          COUNT(DISTINCT ip_address) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')::int AS unique_today,
-          COUNT(DISTINCT ip_address) FILTER (WHERE created_at > NOW() - INTERVAL '7 days')::int   AS unique_week
-        FROM page_views
+          COUNT(*)::int AS total_visitors,
+          COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '24 hours')::int AS active_today,
+          COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '7 days')::int   AS active_week
+        FROM visitor_log
       `),
       pool.query(`
-        SELECT pv.path, pv.ip_address, pv.user_agent, pv.created_at, u.username
-        FROM page_views pv
-        LEFT JOIN users u ON u.id = pv.user_id
-        ORDER BY pv.created_at DESC
+        SELECT vl.last_path, vl.ip_address, vl.last_seen, vl.first_seen, vl.visit_count, u.username
+        FROM visitor_log vl
+        LEFT JOIN users u ON u.id = vl.user_id
+        ORDER BY vl.last_seen DESC
         LIMIT 200
       `),
     ]);
     res.render('admin-visitors', {
       stats: statsRes.rows[0],
-      views: viewsRes.rows,
+      visitors: visitorsRes.rows,
       error:   req.query.error   || null,
       success: req.query.success || null,
     });

@@ -121,15 +121,23 @@ app.use((req, res, next) => {
   next();
 });
 
-// Page-view log for the admin "Visitors" page — GET only (static files never
-// reach here, express.static already served/terminated those requests above).
-// Fire-and-forget: a logging failure should never affect the actual page load.
+// Visitor log for the admin "Visitors" page — one row per distinct visitor
+// (keyed by user_id once logged in, else IP), upserted with their latest
+// activity rather than appending a row per page load. GET only (static
+// files never reach here, express.static already served/terminated those
+// requests above). Fire-and-forget: a logging failure should never affect
+// the actual page load.
 app.use((req, res, next) => {
   if (req.method === 'GET') {
+    const visitorKey = req.session.user?.id ? `user:${req.session.user.id}` : `ip:${req.ip || 'unknown'}`;
     pool.query(
-      'INSERT INTO page_views (path, ip_address, user_id, user_agent) VALUES ($1,$2,$3,$4)',
-      [req.path, req.ip || null, req.session.user?.id || null, req.headers['user-agent'] || null]
-    ).catch(err => console.warn('[page-views] log failed:', err.message));
+      `INSERT INTO visitor_log (visitor_key, ip_address, user_id, last_path, user_agent, last_seen, visit_count)
+       VALUES ($1,$2,$3,$4,$5,NOW(),1)
+       ON CONFLICT (visitor_key) DO UPDATE
+         SET ip_address = $2, last_path = $4, user_agent = $5, last_seen = NOW(),
+             visit_count = visitor_log.visit_count + 1`,
+      [visitorKey, req.ip || null, req.session.user?.id || null, req.path, req.headers['user-agent'] || null]
+    ).catch(err => console.warn('[visitor-log] failed:', err.message));
   }
   next();
 });

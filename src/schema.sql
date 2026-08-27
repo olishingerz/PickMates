@@ -705,18 +705,26 @@ CREATE TABLE IF NOT EXISTS activity_log (
 CREATE INDEX IF NOT EXISTS idx_activity_log_created ON activity_log(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_log_game     ON activity_log(game_id);
 
--- One row per page load — powers the admin "Visitors" page. Logged for every
--- viewer including anonymous ones (user_id null), so the host can see actual
--- traffic, not just registered-user activity.
-CREATE TABLE IF NOT EXISTS page_views (
-  id          SERIAL PRIMARY KEY,
-  path        TEXT NOT NULL,
-  ip_address  VARCHAR(64),
-  user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  user_agent  TEXT,
-  created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- One row per distinct visitor (not per page load) — powers the admin
+-- "Visitors" page. Keyed by user_id once logged in, otherwise by IP, and
+-- upserted on every request so it only ever tracks each visitor's latest
+-- activity rather than a full history of every page they've hit.
+CREATE TABLE IF NOT EXISTS visitor_log (
+  id           SERIAL PRIMARY KEY,
+  visitor_key  VARCHAR(128) NOT NULL UNIQUE,
+  ip_address   VARCHAR(64),
+  user_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  last_path    TEXT,
+  user_agent   TEXT,
+  first_seen   TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  last_seen    TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  visit_count  INTEGER DEFAULT 1
 );
-CREATE INDEX IF NOT EXISTS idx_page_views_created ON page_views(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_visitor_log_last_seen ON visitor_log(last_seen DESC);
+
+-- page_views (a full per-page-load log) was replaced by visitor_log above
+-- before it had any meaningful data — drop it rather than leave dead cruft.
+DROP TABLE IF EXISTS page_views;
 
 -- Replaces the old is_public boolean with a 3-state setting — "can people
 -- see this game" and "can people join it themselves" turned out to be two
