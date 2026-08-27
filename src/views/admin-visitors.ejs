@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Visitors – PickMates Admin</title>
+  <link rel="icon" href="/FavIcon.png" type="image/png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo"><img src="/Logo.png" alt="PickMates" class="logo-img" /> PickMates</a>
+      <nav><%- include('partials/nav') %></nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-header">
+      <h1>Visitors</h1>
+      <p style="margin-top:.4rem"><a href="/admin">← Back to Admin</a></p>
+    </div>
+
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+    <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+
+    <div class="card" style="margin-bottom:1.2rem">
+      <div class="stats-cols" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.2rem">
+        <div>
+          <p class="label-small">Page views (24h)</p>
+          <strong style="font-size:1.6rem"><%= stats.views_today %></strong>
+        </div>
+        <div>
+          <p class="label-small">Unique IPs (24h)</p>
+          <strong style="font-size:1.6rem"><%= stats.unique_today %></strong>
+        </div>
+        <div>
+          <p class="label-small">Unique IPs (7 days)</p>
+          <strong style="font-size:1.6rem"><%= stats.unique_week %></strong>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="section-title">Recent page views <span class="muted" style="font-size:.85rem;font-weight:400">(last 200)</span></h2>
+    <div class="card">
+      <% if (views.length === 0) { %>
+        <p class="muted">No page views logged yet.</p>
+      <% } else { %>
+        <div class="leaderboard-table-wrap">
+          <table class="leaderboard-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Path</th>
+                <th>Visitor</th>
+                <th>IP</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% views.forEach(v => { %>
+                <tr>
+                  <td class="muted" style="white-space:nowrap;font-size:.82rem"><%= new Date(v.created_at).toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %></td>
+                  <td style="font-family:monospace;font-size:.85rem"><%= v.path %></td>
+                  <td><%= v.username || 'Guest' %></td>
+                  <td class="muted" style="font-size:.82rem"><%= v.ip_address || '—' %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+  </main>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

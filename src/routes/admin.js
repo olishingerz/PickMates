@@ -84,6 +84,37 @@ router.get('/', requireAdmin, async (req, res) => {
   }
 });
 
+// ── GET /admin/visitors — recent page-view log + rough traffic stats ───────────
+router.get('/visitors', requireAdmin, async (req, res) => {
+  try {
+    const [statsRes, viewsRes] = await Promise.all([
+      pool.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')::int AS views_today,
+          COUNT(DISTINCT ip_address) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')::int AS unique_today,
+          COUNT(DISTINCT ip_address) FILTER (WHERE created_at > NOW() - INTERVAL '7 days')::int   AS unique_week
+        FROM page_views
+      `),
+      pool.query(`
+        SELECT pv.path, pv.ip_address, pv.user_agent, pv.created_at, u.username
+        FROM page_views pv
+        LEFT JOIN users u ON u.id = pv.user_id
+        ORDER BY pv.created_at DESC
+        LIMIT 200
+      `),
+    ]);
+    res.render('admin-visitors', {
+      stats: statsRes.rows[0],
+      views: viewsRes.rows,
+      error:   req.query.error   || null,
+      success: req.query.success || null,
+    });
+  } catch (err) {
+    console.error('[admin visitors]', err);
+    res.redirect('/admin');
+  }
+});
+
 // ── POST /admin/settings/game-creation ──────────────────────────────────────────
 router.post('/settings/game-creation', requireAdmin, async (req, res) => {
   const rawRoles = Array.isArray(req.body.roles) ? req.body.roles : req.body.roles ? [req.body.roles] : [];

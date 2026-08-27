@@ -121,6 +121,19 @@ app.use((req, res, next) => {
   next();
 });
 
+// Page-view log for the admin "Visitors" page — GET only (static files never
+// reach here, express.static already served/terminated those requests above).
+// Fire-and-forget: a logging failure should never affect the actual page load.
+app.use((req, res, next) => {
+  if (req.method === 'GET') {
+    pool.query(
+      'INSERT INTO page_views (path, ip_address, user_id, user_agent) VALUES ($1,$2,$3,$4)',
+      [req.path, req.ip || null, req.session.user?.id || null, req.headers['user-agent'] || null]
+    ).catch(err => console.warn('[page-views] log failed:', err.message));
+  }
+  next();
+});
+
 app.use((req, res, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
   // External API-key-authenticated endpoint, not a browser form — no session/token to check.
