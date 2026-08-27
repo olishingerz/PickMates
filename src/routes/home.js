@@ -274,6 +274,14 @@ router.post('/games/create', async (req, res) => {
     );
     const gameId = rows[0].id;
 
+    // LMS: add the host as a participant too, unless they said they're only hosting
+    if (gameType === 'last_man_standing' && req.body.lms_host_plays === '1') {
+      await pool.query(
+        'INSERT INTO game_participants (game_id, user_id, draft_position) VALUES ($1, $2, 1)',
+        [gameId, user.id]
+      );
+    }
+
     // Golf draft: save tournament if one was selected on the create page
     if (gameType === 'golf_draft' && req.body.tournament_id) {
       await pool.query(
