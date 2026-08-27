@@ -31,27 +31,60 @@
       const pickedCount      = aliveStandings.filter(s => s.myCurrentPick || s.picks.some(p => p.week_number === currentWeek)).length;
       const allPickedIn      = aliveStandings.length > 0 && pickedCount >= aliveStandings.length;
     %>
-    <div class="page-header">
-      <h1><%= game.name %></h1>
-      <p class="muted" style="margin-top:.2rem">
-        🏆 Last Man Standing
-        <% leagues.forEach(l => { %>
-          <span class="game-type-badge game-type-lms" style="margin-left:.3rem"><%= LEAGUE_NAMES[l] || l %></span>
-        <% }) %>
-      </p>
-      <%
-        const alive = standings.filter(s => !s.eliminated).length;
-        const total = standings.length;
-      %>
-      <p class="muted" style="margin-top:.3rem"><strong><%= alive %></strong> of <strong><%= total %></strong> still alive — Week <strong><%= currentWeek %></strong></p>
-      <% if (game.host_username) { %>
-        <p class="muted" style="margin-top:.2rem;font-size:.85rem">👤 Hosted by <strong><%= game.host_username %></strong></p>
-      <% } %>
-      <% if (game.prize_individual > 0) { %>
-        <p class="muted" style="margin-top:.2rem;font-size:.85rem">Prize pot: <strong>£<%= game.prize_individual * total %></strong> <span class="muted" style="font-size:.78rem">(£<%= game.prize_individual %> × <%= total %> player<%= total !== 1 ? 's' : '' %>)</span></p>
-      <% } %>
+    <%
+      const alive = standings.filter(s => !s.eliminated).length;
+      const total = standings.length;
+      const survivalPct = total > 0 ? Math.round((alive / total) * 100) : 0;
+    %>
+    <div class="card lms-hero">
+      <div class="lms-hero-top">
+        <div>
+          <h1 style="margin:0"><%= game.name %></h1>
+          <p class="muted" style="margin-top:.3rem">
+            🏆 Last Man Standing
+            <% leagues.forEach(l => { %>
+              <span class="game-type-badge game-type-lms" style="margin-left:.3rem">⚽ <%= LEAGUE_NAMES[l] || l %></span>
+            <% }) %>
+          </p>
+        </div>
+        <% if (weekObj?.results_locked) { %><span class="status-badge status-done">Results locked</span>
+        <% } else if (game.is_started) { %><span class="status-badge status-live">Week <%= currentWeek %></span><% } %>
+      </div>
+
+      <div class="lms-hero-stats">
+        <div class="lms-stat">
+          <span class="lms-stat-value"><%= alive %> <span class="muted" style="font-weight:400;font-size:.7em">/ <%= total %></span></span>
+          <span class="lms-stat-label">Still alive</span>
+          <div class="progress-bar-track" style="margin-top:.35rem"><div class="progress-bar-fill" style="width:<%= survivalPct %>%"></div></div>
+        </div>
+        <% if (game.prize_individual > 0) { %>
+          <div class="lms-stat">
+            <span class="lms-stat-value">£<%= game.prize_individual * total %></span>
+            <span class="lms-stat-label">Prize pot <span class="muted">(£<%= game.prize_individual %> × <%= total %>)</span></span>
+          </div>
+        <% } %>
+        <% if (weekObj?.deadline) { %>
+          <div class="lms-stat">
+            <span class="lms-stat-value countdown-timer" data-deadline="<%= new Date(weekObj.deadline).toISOString() %>">…</span>
+            <span class="lms-stat-label">Week <%= currentWeek %> deadline · <%= new Date(weekObj.deadline).toLocaleString('en-GB', { timeZone:'Europe/London', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %></span>
+          </div>
+        <% } %>
+      </div>
+
+      <div class="lms-hero-meta">
+        <% if (game.host_username) { %><span class="muted">👤 Hosted by <strong><%= game.host_username %></strong></span><% } %>
+        <% if (game.lms_continuous) { %><span class="muted">🔁 Auto-restarts when this round ends</span><% } %>
+        <% if (game.is_started && !weekObj?.results_locked) { %>
+          <% if (allPickedIn) { %>
+            <span style="color:var(--green-dark);font-weight:600">✓ All picks in — revealed below</span>
+          <% } else { %>
+            <span class="muted"><strong><%= pickedCount %></strong> of <strong><%= aliveStandings.length %></strong> picks submitted</span>
+          <% } %>
+        <% } %>
+      </div>
+
       <% if (game.prize_individual > 0 && myEntries.some(e => !e.has_paid)) { %>
-        <div class="alert alert-error" style="margin-top:.6rem">
+        <div class="alert alert-error" style="margin-top:.9rem;margin-bottom:0">
           💰 You haven't paid your £<%= game.prize_individual %> entry fee yet<% if (myEntries.length > 1) { %> for one or more entries<% } %>.
           <% if (game.host_payment_details) { %>
             <div style="margin-top:.4rem;white-space:pre-wrap;font-size:.88rem"><strong>Pay <%= game.host_username %>:</strong> <%= game.host_payment_details %></div>
@@ -60,37 +93,19 @@
           <% } %>
         </div>
       <% } %>
-      <% if (game.lms_continuous) { %>
-        <p class="muted" style="margin-top:.2rem;font-size:.78rem">🔁 Auto-restarts a new round when this one ends</p>
-      <% } %>
-    <% if (game.is_started && !weekObj?.results_locked) { %>
-      <p class="muted" style="margin-top:.2rem;font-size:.85rem">
-        <% if (allPickedIn) { %>
-          <span style="color:var(--green-dark);font-weight:600">✓ All picks in — picks revealed below</span>
-        <% } else { %>
-          <span><strong><%= pickedCount %></strong> of <strong><%= aliveStandings.length %></strong> picks submitted — picks hidden until everyone is in</span>
-        <% } %>
-      </p>
-    <% } %>
 
-      <% if (weekObj?.deadline) { %>
-        <p class="last-updated">
-          Week <%= currentWeek %> deadline: <%= new Date(weekObj.deadline).toLocaleString('en-GB', { timeZone:'Europe/London', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %>
-          <% if (weekObj.results_locked) { %><span class="status-badge status-done" style="margin-left:.5rem">Results locked</span><% } %>
-        </p>
-      <% } %>
-      <div style="margin-top:.6rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+      <div class="lms-hero-actions">
         <% if (alreadyJoined || canManage) { %>
           <a href="/game/<%= game.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Lobby</a>
         <% } %>
         <% if (game.invite_code && !game.is_started && !game.tournament_complete) { %>
-          <button class="btn btn-sm btn-ghost" style="color:var(--green-dark);border-color:var(--border);background:var(--green-light)" onclick="
+          <button class="btn btn-sm btn-outline" onclick="
             navigator.clipboard.writeText(location.origin + '/join/<%= game.invite_code %>');
             this.textContent = '✓ Invite link copied!';
             setTimeout(() => this.textContent = '🔗 Share invite link', 2000);
           ">🔗 Share invite link</button>
         <% } %>
-        <button class="btn btn-sm btn-ghost" style="color:var(--text-muted);border-color:var(--border)" onclick="
+        <button class="btn btn-sm btn-outline" onclick="
           navigator.clipboard.writeText(location.href);
           this.textContent = '✓ Copied!';
           setTimeout(() => this.textContent = '📋 Share leaderboard', 2000);
@@ -265,14 +280,17 @@
 
     <!-- ── Host controls ─────────────────────────────────────────────── -->
     <% if (canManage) { %>
-      <details style="display:inline-block;margin-top:1rem;position:relative">
-        <summary class="btn btn-sm btn-ghost" style="cursor:pointer;list-style:none;color:var(--text-muted)">⚙ Host controls</summary>
-        <div style="position:absolute;top:calc(100% + .3rem);left:0;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.6rem;display:flex;flex-direction:column;gap:.5rem;min-width:230px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.08)">
+      <details class="mt-lg">
+        <summary class="card admin-card" style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">
+          <h2 class="section-title" style="margin:0">⚙ Host Controls</h2>
+          <span class="muted" style="font-size:.82rem">tap to expand</span>
+        </summary>
+        <div class="card admin-card" style="margin-top:.5rem;border-top-left-radius:0;border-top-right-radius:0;display:flex;flex-direction:column;gap:1rem">
 
           <% if (isHost && participants.length > 1) { %>
-            <div>
-              <p class="label-small" style="margin-bottom:.3rem">Co-hosts</p>
-              <div style="display:flex;flex-direction:column;gap:.3rem">
+            <div class="admin-section" style="margin-bottom:0">
+              <p class="label-small" style="margin-bottom:.4rem">Co-hosts</p>
+              <div style="display:flex;flex-direction:column;gap:.35rem">
                 <%
                   // Dedupe by user_id — a player with multiple entries shouldn't
                   // appear (and be independently toggleable) more than once here,
@@ -282,66 +300,70 @@
                   ).values()];
                 %>
                 <% coHostCandidates.forEach(p => { %>
-                  <form action="/game/<%= game.id %>/draft/toggle-co-host" method="POST" style="display:flex;align-items:center;gap:.4rem">
+                  <form action="/game/<%= game.id %>/draft/toggle-co-host" method="POST" style="display:flex;align-items:center;gap:.5rem">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                     <input type="hidden" name="user_id" value="<%= p.user_id %>" />
-                    <span style="flex:1;font-size:.82rem"><%= p.username %></span>
-                    <button type="submit" class="btn btn-sm" style="padding:.15rem .4rem;font-size:.74rem;<%= p.is_co_host ? 'background:var(--green);color:#fff' : 'background:var(--card-border);color:var(--text)' %>">
-                      <%= p.is_co_host ? '👑' : 'Make co-host' %>
+                    <span style="flex:1;font-size:.88rem"><%= p.username %></span>
+                    <button type="submit" class="btn btn-sm" style="padding:.2rem .55rem;font-size:.78rem;<%= p.is_co_host ? 'background:var(--green);color:#fff' : 'background:var(--card-border);color:var(--text)' %>">
+                      <%= p.is_co_host ? '👑 Co-host' : 'Make co-host' %>
                     </button>
                   </form>
                 <% }) %>
               </div>
             </div>
+            <div class="admin-divider"></div>
           <% } %>
 
           <!-- Set deadline -->
-          <div>
-            <p class="label-small" style="margin-bottom:.3rem">Week <%= currentWeek %> deadline</p>
-            <form action="/game/<%= game.id %>/lms/set-deadline" method="POST" style="display:flex;gap:.3rem;align-items:center;flex-wrap:wrap">
+          <div class="admin-section" style="margin-bottom:0">
+            <p class="label-small" style="margin-bottom:.4rem">Week <%= currentWeek %> deadline</p>
+            <form action="/game/<%= game.id %>/lms/set-deadline" method="POST" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <input type="datetime-local" name="deadline"
                      value="<%= weekObj?.deadline ? new Date(weekObj.deadline).toISOString().slice(0,16) : (suggestedDeadline ? new Date(suggestedDeadline).toISOString().slice(0,16) : '') %>"
-                     style="padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.82rem;width:100%" />
-              <button type="submit" class="btn btn-sm" style="width:100%">Save deadline</button>
+                     style="padding:.4rem .6rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.88rem" />
+              <button type="submit" class="btn btn-sm">Save deadline</button>
             </form>
           </div>
+          <div class="admin-divider"></div>
 
-          <!-- Process results -->
-          <form action="/game/<%= game.id %>/lms/process-results" method="POST"
-                onsubmit="return confirm('Fetch results from ESPN and lock week <%= currentWeek %>? This cannot be undone.')">
-                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-            <button type="submit" class="btn btn-sm" style="width:100%;background:var(--green);color:#fff">
-              Process results — Wk <%= currentWeek %>
-            </button>
-          </form>
-
-          <!-- Advance week -->
-          <% if (weekObj?.results_locked) { %>
-            <form action="/game/<%= game.id %>/lms/advance-week" method="POST"
-                  onsubmit="return confirm('Move to week <%= currentWeek + 1 %>?')">
+          <div class="admin-row">
+            <!-- Process results -->
+            <form action="/game/<%= game.id %>/lms/process-results" method="POST"
+                  onsubmit="return confirm('Fetch results from ESPN and lock week <%= currentWeek %>? This cannot be undone.')">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-              <button type="submit" class="btn btn-sm" style="width:100%">Advance to week <%= currentWeek + 1 %></button>
+              <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">
+                Process results — Wk <%= currentWeek %>
+              </button>
             </form>
-          <% } %>
 
-          <!-- Stop auto-restart -->
-          <% if (game.lms_continuous) { %>
-            <form action="/game/<%= game.id %>/lms/stop" method="POST"
-                  onsubmit="return confirm('Turn off auto-restart? This round will still finish normally, but the game will return to the lobby afterward instead of starting a new round.')">
-                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-              <button type="submit" class="btn btn-sm btn-danger" style="width:100%">⏹ Stop Game</button>
-            </form>
-          <% } %>
+            <!-- Advance week -->
+            <% if (weekObj?.results_locked) { %>
+              <form action="/game/<%= game.id %>/lms/advance-week" method="POST"
+                    onsubmit="return confirm('Move to week <%= currentWeek + 1 %>?')">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <button type="submit" class="btn btn-sm">Advance to week <%= currentWeek + 1 %></button>
+              </form>
+            <% } %>
 
-          <!-- Delete game -->
-          <% if (isHost) { %>
-            <form action="/game/<%= game.id %>/delete" method="POST"
-                  onsubmit="return confirm('Delete this game and all picks? Cannot be undone.')">
-                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-              <button type="submit" class="btn btn-sm btn-danger" style="width:100%">Delete game</button>
-            </form>
-          <% } %>
+            <!-- Stop auto-restart -->
+            <% if (game.lms_continuous) { %>
+              <form action="/game/<%= game.id %>/lms/stop" method="POST"
+                    onsubmit="return confirm('Turn off auto-restart? This round will still finish normally, but the game will return to the lobby afterward instead of starting a new round.')">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <button type="submit" class="btn btn-sm btn-danger">⏹ Stop Game</button>
+              </form>
+            <% } %>
+
+            <!-- Delete game -->
+            <% if (isHost) { %>
+              <form action="/game/<%= game.id %>/delete" method="POST"
+                    onsubmit="return confirm('Delete this game and all picks? Cannot be undone.')">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <button type="submit" class="btn btn-sm btn-danger">Delete game</button>
+              </form>
+            <% } %>
+          </div>
         </div>
       </details>
     <% } %>
