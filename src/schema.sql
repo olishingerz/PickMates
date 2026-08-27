@@ -214,10 +214,6 @@ DO $$ BEGIN
     ALTER TABLE games ADD COLUMN host_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_name='games' AND column_name='is_public') THEN
-    ALTER TABLE games ADD COLUMN is_public BOOLEAN DEFAULT TRUE;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                  WHERE table_name='games' AND column_name='invite_code') THEN
     ALTER TABLE games ADD COLUMN invite_code VARCHAR(12);
   END IF;
@@ -708,6 +704,34 @@ CREATE TABLE IF NOT EXISTS activity_log (
 );
 CREATE INDEX IF NOT EXISTS idx_activity_log_created ON activity_log(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_log_game     ON activity_log(game_id);
+
+-- Replaces the old is_public boolean with a 3-state setting — "can people
+-- see this game" and "can people join it themselves" turned out to be two
+-- different questions (e.g. visible to everyone but invite-only to join).
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='games' AND column_name='visibility') THEN
+    ALTER TABLE games ADD COLUMN visibility VARCHAR(20) NOT NULL DEFAULT 'public'
+      CHECK (visibility IN ('public','invite_only','private'));
+  END IF;
+END $$;
+
+-- One-time backfill from the old column — only relevant for a database that
+-- already had is_public; a fresh install's visibility column already
+-- defaults correctly on its own and never had is_public in the first place.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='games' AND column_name='is_public')
+     AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE name = 'games_visibility_backfill') THEN
+    UPDATE games SET visibility = CASE WHEN is_public = FALSE THEN 'private' ELSE 'public' END;
+    INSERT INTO schema_migrations (name) VALUES ('games_visibility_backfill');
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='games' AND column_name='is_public') THEN
+    ALTER TABLE games DROP COLUMN is_public;
+  END IF;
+END $$;
 
 -- ── One-time data fixes ───────────────────────────────────────────────────────
 -- Fix ESPN name mismatches for Masters 2026 (Samuel Stevens / Nicolas Echavarria)

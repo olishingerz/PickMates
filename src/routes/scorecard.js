@@ -66,7 +66,7 @@ function sumField(holeScores, field) {
 async function getScorecardData(gameId, userId) {
   const [gameRes, teamsRes, teeTimesRes, participantsRes, holesRes, scoresRes, ctpRes] = await Promise.all([
     pool.query(
-      `SELECT g.id, g.name, g.game_type, g.is_started, g.tournament_complete, g.started_at, g.host_user_id, g.invite_code, g.is_public,
+      `SELECT g.id, g.name, g.game_type, g.is_started, g.tournament_complete, g.started_at, g.host_user_id, g.invite_code, g.visibility,
               g.scorecard_course_name, g.scorecard_course_par, g.scorecard_entry_fee, g.scorecard_format, g.winner_username, g.winner_individual_username,
               hu.username AS host_username
        FROM games g
@@ -204,17 +204,18 @@ async function renderLobby(req, res, gameId) {
 
     // Pre-start, this lobby is itself how a new player joins (picking a team
     // creates their game_participants row) — any logged-in user may view it,
-    // unless the game is private, in which case only the host/co-host or an
-    // already-joined participant can see it at all. Once started it's a
-    // read-only view of teams/handicaps, so it's restricted to
-    // participants/host/co-host, same as the golf_draft/LMS lobby.
+    // unless the game is private (fully hidden — not just invite-only), in
+    // which case only the host/co-host or an already-joined participant can
+    // see it at all. Once started it's a read-only view of teams/handicaps,
+    // so it's restricted to participants/host/co-host, same as the
+    // golf_draft/LMS lobby.
     const isParticipant = data.allParticipants.some(p => p.user_id === req.session.user.id);
     if (data.game.is_started) {
       if (!isParticipant && !manageFlag) {
         return res.redirect(`/game/${gameId}`);
       }
-    } else if (!data.game.is_public && !isParticipant && !manageFlag) {
-      return res.redirect('/?error=' + encodeURIComponent('This game is private — ask the host for an invite link.'));
+    } else if (data.game.visibility === 'private' && !isParticipant && !manageFlag) {
+      return res.redirect('/?error=' + encodeURIComponent('That game is private.'));
     }
 
     // Suggestions for the host's "add player" search box — only relevant pre-start
@@ -265,13 +266,13 @@ router.post('/join-team', requireAuth, async (req, res) => {
   const base = `/game/${gameId}/draft`;
 
   try {
-    const { rows: gameRows } = await pool.query('SELECT is_started, is_public, host_user_id FROM games WHERE id = $1', [gameId]);
+    const { rows: gameRows } = await pool.query('SELECT is_started, visibility, host_user_id FROM games WHERE id = $1', [gameId]);
     if (!gameRows[0]) return res.redirect('/');
     if (gameRows[0].is_started) {
       return res.redirect(`/game/${gameId}?error=` + encodeURIComponent('The game has already started — teams are locked in.'));
     }
-    if (!gameRows[0].is_public && gameRows[0].host_user_id !== userId && !req.session.user.isAdmin) {
-      return res.redirect('/?error=' + encodeURIComponent('This game is private — ask the host for an invite link.'));
+    if (gameRows[0].visibility !== 'public' && gameRows[0].host_user_id !== userId && !req.session.user.isAdmin) {
+      return res.redirect('/?error=' + encodeURIComponent('This game is not open for self-joining — ask the host for an invite link.'));
     }
 
     const { rows: teamRows } = await pool.query('SELECT id FROM scorecard_teams WHERE id = $1 AND game_id = $2', [teamId, gameId]);
@@ -306,7 +307,7 @@ router.post('/join', requireAuth, async (req, res) => {
   const base = `/game/${gameId}/draft`;
 
   try {
-    const { rows: gameRows } = await pool.query('SELECT is_started, scorecard_format, is_public, host_user_id FROM games WHERE id = $1', [gameId]);
+    const { rows: gameRows } = await pool.query('SELECT is_started, scorecard_format, visibility, host_user_id FROM games WHERE id = $1', [gameId]);
     if (!gameRows[0]) return res.redirect('/');
     if (gameRows[0].scorecard_format !== 'individual') {
       return res.redirect(base + '?error=' + encodeURIComponent('This game uses teams — join from a team card instead.'));
@@ -314,8 +315,8 @@ router.post('/join', requireAuth, async (req, res) => {
     if (gameRows[0].is_started) {
       return res.redirect(`/game/${gameId}?error=` + encodeURIComponent('The game has already started.'));
     }
-    if (!gameRows[0].is_public && gameRows[0].host_user_id !== userId && !req.session.user.isAdmin) {
-      return res.redirect('/?error=' + encodeURIComponent('This game is private — ask the host for an invite link.'));
+    if (gameRows[0].visibility !== 'public' && gameRows[0].host_user_id !== userId && !req.session.user.isAdmin) {
+      return res.redirect('/?error=' + encodeURIComponent('This game is not open for self-joining — ask the host for an invite link.'));
     }
 
     const { rows: existing } = await pool.query(

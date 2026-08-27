@@ -11,20 +11,20 @@ const { logActivity } = require('../services/activity');
 const router = express.Router();
 
 async function getHomeData(userId, isAdmin) {
-    // Private games are hidden from anyone who isn't the host, already a
-    // participant, or an admin — "private" means invite-link or host-added
-    // only, so it shouldn't be browsable in the general list either.
+    // Only fully "private" games are hidden from the list for anyone who
+    // isn't the host, already a participant, or an admin — "invite only"
+    // games are still listed (visible to everyone), just not self-joinable.
     const { rows: games } = await pool.query(`
       SELECT g.id, g.name, g.tournament_name, g.is_started, g.is_complete, g.tournament_complete, g.created_at,
              g.tournament_start_date, g.tournament_end_date, g.completed_at,
-             g.game_type, g.host_user_id, g.is_public, g.lms_leagues, g.scorecard_course_name,
+             g.game_type, g.host_user_id, g.visibility, g.lms_leagues, g.scorecard_course_name,
              g.prize_team, g.prize_individual, g.scorecard_entry_fee, g.current_pick_index,
              COUNT(gp.id)::int AS participant_count,
              BOOL_OR(gp.user_id = $1) AS user_joined
       FROM games g
       LEFT JOIN game_participants gp ON gp.game_id = g.id
       GROUP BY g.id
-      HAVING g.is_public = TRUE OR g.host_user_id = $1 OR BOOL_OR(gp.user_id = $1) OR $2
+      HAVING g.visibility != 'private' OR g.host_user_id = $1 OR BOOL_OR(gp.user_id = $1) OR $2
       ORDER BY BOOL_OR(gp.user_id = $1) DESC NULLS LAST,
                COALESCE(g.completed_at, g.created_at) DESC
     `, [userId, isAdmin === true]);
@@ -198,7 +198,8 @@ router.post('/games/create', async (req, res) => {
   const name     = req.body.name?.trim();
   const gameType = ['golf_draft', 'last_man_standing', 'golf_scorecard'].includes(req.body.game_type)
     ? req.body.game_type : 'golf_draft';
-  const isPublic = req.body.is_public !== '0';
+  const visibility = ['public', 'invite_only', 'private'].includes(req.body.visibility)
+    ? req.body.visibility : 'public';
 
   // Prizes — golf uses separate team/individual pots; LMS has a single entry fee/prize
   const prizeTeam       = gameType === 'last_man_standing' || gameType === 'golf_scorecard'
@@ -272,10 +273,10 @@ router.post('/games/create', async (req, res) => {
   try {
     const { rows } = await pool.query(
       `INSERT INTO games (name, game_type, host_user_id, invite_code, prize_team, prize_individual, lms_leagues,
-                           scorecard_course_name, scorecard_course_par, scorecard_entry_fee, scorecard_format, is_public)
+                           scorecard_course_name, scorecard_course_par, scorecard_entry_fee, scorecard_format, visibility)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
       [name, gameType, user.id, inviteCode, prizeTeam, prizeIndividual, lmsLeagues,
-       courseName, coursePar, scorecardEntryFee, scorecardFormat, isPublic]
+       courseName, coursePar, scorecardEntryFee, scorecardFormat, visibility]
     );
     const gameId = rows[0].id;
 

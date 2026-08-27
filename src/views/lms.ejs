@@ -106,9 +106,9 @@
     </div>
 
     <!-- ── Submit pick CTA ──────────────────────────────────────────── -->
-    <% if (user && !alreadyJoined && !game.is_complete && !game.is_public && !canManage) { %>
+    <% if (user && !alreadyJoined && !game.is_complete && game.visibility !== 'public' && !canManage) { %>
       <div class="card" style="background:#f8fafc;border:1px solid var(--border)">
-        <p style="margin:0">🔒 This game is private — ask <%= game.host_username %> for an invite link to join.</p>
+        <p style="margin:0">🔒 Invite only — ask <%= game.host_username %> for an invite link to join.</p>
       </div>
     <% } else if (user && !alreadyJoined && !game.is_complete) { %>
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">

@@ -50,11 +50,13 @@
       <div class="card" style="margin-bottom:1rem">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem">
           <h2 class="section-title" style="margin:0">Players</h2>
-          <% if (!game.is_started && user && !meJoined) { %>
+          <% if (!game.is_started && user && !meJoined && (game.visibility === 'public' || canManage)) { %>
             <form action="/game/<%= game.id %>/scorecard/join" method="POST" style="display:inline">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">Join game</button>
             </form>
+          <% } else if (!game.is_started && user && !meJoined) { %>
+            <span class="muted" style="font-size:.85rem">🔒 Invite only</span>
           <% } else if (meJoined) { %>
             <span class="status-badge status-live">✓ You're in</span>
             <% if (!game.is_started) { %>
@@ -157,12 +159,14 @@
       <div class="card" style="margin-bottom:1rem">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem">
           <h2 class="section-title" style="margin:0"><%= team.name %></h2>
-          <% if (!game.is_started && user && !onThisTeam) { %>
+          <% if (!game.is_started && user && !onThisTeam && (game.visibility === 'public' || canManage)) { %>
             <form action="/game/<%= game.id %>/scorecard/join-team" method="POST" style="display:inline">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
               <input type="hidden" name="team_id" value="<%= team.id %>" />
               <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">Join this team</button>
             </form>
+          <% } else if (!game.is_started && user && !onThisTeam) { %>
+            <span class="muted" style="font-size:.85rem">🔒 Invite only</span>
           <% } else if (onThisTeam) { %>
             <span class="status-badge status-live">✓ You're on this team</span>
             <% if (!game.is_started) { %>

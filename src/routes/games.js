@@ -83,13 +83,32 @@ router.get('/:gameId', async (req, res) => {
     const { rows: gameRows } = await pool.query(`
       SELECT g.id, g.name, g.tournament_id, g.tournament_name, g.tournament_start_date, g.tournament_end_date,
              g.is_started, g.is_complete, g.tournament_complete, g.game_type, g.host_user_id, g.prize_team,
-             g.prize_individual, g.invite_code, g.round_status, g.is_public, hu.username AS host_username
+             g.prize_individual, g.invite_code, g.round_status, g.visibility, hu.username AS host_username
       FROM games g
       LEFT JOIN users hu ON hu.id = g.host_user_id
       WHERE g.id = $1
     `, [gameId]);
     const game = gameRows[0];
     if (!game) return res.redirect('/?error=' + encodeURIComponent('Game not found.'));
+
+    // "Private" means nobody can even see the game, not just join it —
+    // shared across all three game types since this route branches to each
+    // one's own template below. "invite_only" stays viewable by anyone;
+    // only the join action is blocked for that (handled in /join).
+    if (game.visibility === 'private') {
+      const viewerId = req.session.user?.id || null;
+      const isAdmin  = req.session.user?.isAdmin === true;
+      let isParticipant = false;
+      if (viewerId) {
+        const { rows } = await pool.query(
+          'SELECT 1 FROM game_participants WHERE game_id = $1 AND user_id = $2', [gameId, viewerId]
+        );
+        isParticipant = rows.length > 0;
+      }
+      if (!isParticipant && game.host_user_id !== viewerId && !isAdmin) {
+        return res.redirect('/?error=' + encodeURIComponent('That game is private.'));
+      }
+    }
 
     // Branch to LMS game room
     if (game.game_type === 'last_man_standing') {
@@ -252,16 +271,17 @@ router.post('/:gameId/join', async (req, res) => {
   const userId = req.session.user.id;
 
   try {
-    const { rows: gameRows } = await pool.query('SELECT name, is_started, is_public, host_user_id FROM games WHERE id = $1', [gameId]);
+    const { rows: gameRows } = await pool.query('SELECT name, is_started, visibility, host_user_id FROM games WHERE id = $1', [gameId]);
     const game = gameRows[0];
     if (!game) return res.redirect('/?error=' + encodeURIComponent('Game not found.'));
     if (game.is_started) {
       return res.redirect(`/game/${gameId}/draft?error=` + encodeURIComponent('The draft has already started — you can no longer join.'));
     }
-    // Private games are invite-link or host-added only — not self-joinable,
-    // even by someone who's found their way directly to the game's URL.
-    if (!game.is_public && game.host_user_id !== userId && !req.session.user.isAdmin) {
-      return res.redirect('/?error=' + encodeURIComponent('This game is private — ask the host for an invite link.'));
+    // Invite-only and private games are invite-link or host-added only —
+    // not self-joinable, even by someone who's found their way directly to
+    // the game's URL.
+    if (game.visibility !== 'public' && game.host_user_id !== userId && !req.session.user.isAdmin) {
+      return res.redirect('/?error=' + encodeURIComponent('This game is not open for self-joining — ask the host for an invite link.'));
     }
 
     const { rows: already } = await pool.query(
