@@ -45,7 +45,7 @@
       </div>
     </div>
 
-    <h2 class="section-title">Visitors <span class="muted" style="font-size:.85rem;font-weight:400">(most recent first, last 200)</span></h2>
+    <h2 class="section-title">Visitors <span class="muted" style="font-size:.85rem;font-weight:400">(most recent first — page <%= page %> of <%= totalPages %>)</span></h2>
     <div class="card">
       <% if (visitors.length === 0) { %>
         <p class="muted">No visitors logged yet.</p>
@@ -74,6 +74,17 @@
             </tbody>
           </table>
         </div>
+        <% if (totalPages > 1) { %>
+          <div style="display:flex;justify-content:center;align-items:center;gap:1rem;margin-top:1rem">
+            <% if (page > 1) { %>
+              <a href="/admin/visitors?page=<%= page - 1 %>" class="btn btn-sm btn-outline">← Newer</a>
+            <% } %>
+            <span class="muted" style="font-size:.85rem">Page <%= page %> of <%= totalPages %></span>
+            <% if (page < totalPages) { %>
+              <a href="/admin/visitors?page=<%= page + 1 %>" class="btn btn-sm btn-outline">Older →</a>
+            <% } %>
+          </div>
+        <% } %>
       <% } %>
     </div>
   </main>

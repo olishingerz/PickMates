@@ -85,8 +85,12 @@ router.get('/', requireAdmin, async (req, res) => {
 });
 
 // ── GET /admin/visitors — one row per distinct visitor, most recently seen first ──
+const VISITORS_PER_PAGE = 50;
 router.get('/visitors', requireAdmin, async (req, res) => {
   try {
+    const page   = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * VISITORS_PER_PAGE;
+
     const [statsRes, visitorsRes] = await Promise.all([
       pool.query(`
         SELECT
@@ -101,12 +105,14 @@ router.get('/visitors', requireAdmin, async (req, res) => {
         FROM visitor_log vl
         LEFT JOIN users u ON u.id = vl.user_id
         ORDER BY vl.last_seen DESC
-        LIMIT 200
-      `),
+        LIMIT $1 OFFSET $2
+      `, [VISITORS_PER_PAGE, offset]),
     ]);
+    const totalPages = Math.max(1, Math.ceil(statsRes.rows[0].total_visitors / VISITORS_PER_PAGE));
     res.render('admin-visitors', {
       stats: statsRes.rows[0],
       visitors: visitorsRes.rows,
+      page, totalPages,
       error:   req.query.error   || null,
       success: req.query.success || null,
     });
