@@ -83,7 +83,7 @@ router.get('/:gameId', async (req, res) => {
     const { rows: gameRows } = await pool.query(`
       SELECT g.id, g.name, g.tournament_id, g.tournament_name, g.tournament_start_date, g.tournament_end_date,
              g.is_started, g.is_complete, g.tournament_complete, g.game_type, g.host_user_id, g.prize_team,
-             g.prize_individual, g.invite_code, g.round_status, hu.username AS host_username
+             g.prize_individual, g.invite_code, g.round_status, g.is_public, hu.username AS host_username
       FROM games g
       LEFT JOIN users hu ON hu.id = g.host_user_id
       WHERE g.id = $1

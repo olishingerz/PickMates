@@ -81,11 +81,13 @@
           <% if (_indivPot) { %>Individual pot: <strong style="color:var(--text)">£<%= _indivPot %></strong><% } %>
         </p>
       <% } %>
-      <% if (user && !userInGame && !game.is_started && !game.tournament_complete) { %>
+      <% if (user && !userInGame && !game.is_started && !game.tournament_complete && (game.is_public || isHost)) { %>
         <form action="/game/<%= game.id %>/join" method="POST" style="display:inline;margin-top:.4rem">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">Join game</button>
         </form>
+      <% } else if (user && !userInGame && !game.is_started && !game.tournament_complete) { %>
+        <p class="muted" style="font-size:.85rem;margin-top:.4rem">🔒 Private game — ask <%= game.host_username %> for an invite link.</p>
       <% } %>
       <% if (user && (userInGame || isHost)) { %>
         <a href="/game/<%= game.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a;margin-left:.6rem">Draft Room</a>
