@@ -634,25 +634,6 @@ footer {
 .status-upcoming { background: #eef0ee; color: #4d564f; }
 .status-done     { background: #eef0ee; color: #4d564f; }
 
-/* Compact info pills — a lighter-weight alternative to a stack of separate
-   text lines, for a page header that needs to stay short (e.g. LMS, so the
-   leaderboard below stays in view without extra scrolling). */
-.info-chip-row { display: flex; gap: .45rem; flex-wrap: wrap; margin-top: .55rem; }
-.info-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: .3rem;
-  padding: .3rem .65rem;
-  border-radius: 20px;
-  font-size: .8rem;
-  font-weight: 600;
-  background: var(--bg);
-  color: var(--text-muted);
-  border: 1px solid var(--border);
-}
-.info-chip-prize    { background: var(--green-light); color: var(--green-dark); border-color: transparent; }
-.info-chip-deadline { background: var(--gold-light); color: var(--gold-dark); border-color: transparent; }
-
 .admin-card   { border: 1px dashed var(--border); background: #fafaf6; }
 .admin-row    { display: flex; gap: .6rem; flex-wrap: wrap; }
 .btn-danger   { background: #c0392b; color: #fff; box-shadow: none; }
