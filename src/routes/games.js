@@ -289,6 +289,40 @@ router.post('/:gameId/join', async (req, res) => {
   }
 });
 
+// POST /game/:gameId/leave — any joined player can remove themselves before
+// the game/draft has started. Works the same across all three game types —
+// deletes every game_participants row they hold (an LMS player might have
+// more than one entry), and the FK cascades clean up any scores/picks tied
+// to those rows. Leaves games.host_user_id untouched, since hosting is
+// tracked separately from playing — a host can leave as a player and keep
+// managing the game.
+router.post('/:gameId/leave', async (req, res) => {
+  if (!req.session?.user) return res.redirect('/auth/login');
+  const gameId = parseInt(req.params.gameId);
+  const userId = req.session.user.id;
+
+  try {
+    const { rows: gameRows } = await pool.query('SELECT is_started FROM games WHERE id = $1', [gameId]);
+    const game = gameRows[0];
+    if (!game) return res.redirect('/?error=' + encodeURIComponent('Game not found.'));
+    if (game.is_started) {
+      return res.redirect(`/game/${gameId}?error=` + encodeURIComponent('Cannot leave after the game has started.'));
+    }
+
+    const { rowCount } = await pool.query(
+      'DELETE FROM game_participants WHERE game_id = $1 AND user_id = $2',
+      [gameId, userId]
+    );
+    if (rowCount === 0) {
+      return res.redirect(`/game/${gameId}?error=` + encodeURIComponent('You are not in this game.'));
+    }
+    res.redirect('/?success=' + encodeURIComponent("You've left the game."));
+  } catch (err) {
+    console.error('[leave game]', err);
+    res.redirect(`/game/${gameId}?error=` + encodeURIComponent('Failed to leave the game.'));
+  }
+});
+
 // POST /game/:gameId/prizes — host or admin: update prize amounts
 router.post('/:gameId/prizes', async (req, res) => {
   const user = req.session?.user;

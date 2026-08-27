@@ -92,6 +92,13 @@
             <button type="submit" class="btn btn-sm">Save</button>
           </form>
         <% } %>
+        <% if (!state.is_started) { %>
+          <form action="/game/<%= gameId %>/leave" method="POST"
+                onsubmit="return confirm('Leave this game? You can rejoin later if the host hasn\'t started it.')">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <button type="submit" class="btn btn-sm btn-danger">Leave game</button>
+          </form>
+        <% } %>
       </div>
     <% } %>
 
