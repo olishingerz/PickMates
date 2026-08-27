@@ -91,6 +91,7 @@ router.get('/visitors', requireAdmin, async (req, res) => {
       pool.query(`
         SELECT
           COUNT(*)::int AS total_visitors,
+          COALESCE(SUM(visit_count), 0)::int AS total_visits,
           COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '24 hours')::int AS active_today,
           COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '7 days')::int   AS active_week
         FROM visitor_log

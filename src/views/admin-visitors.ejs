@@ -25,10 +25,14 @@
     <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
 
     <div class="card" style="margin-bottom:1.2rem">
-      <div class="stats-cols" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.2rem">
+      <div class="stats-cols" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1.2rem">
         <div>
           <p class="label-small">Total known visitors</p>
           <strong style="font-size:1.6rem"><%= stats.total_visitors %></strong>
+        </div>
+        <div>
+          <p class="label-small">Total visits</p>
+          <strong style="font-size:1.6rem"><%= stats.total_visits %></strong>
         </div>
         <div>
           <p class="label-small">Active in last 24h</p>
