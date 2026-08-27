@@ -196,6 +196,13 @@
                 <td>
                   <% if (game.prize_individual > 0 && !s.has_paid && !s.eliminated) { %>
                     <span class="status-badge status-draft">Not Paid</span>
+                    <% if (canManage) { %>
+                      <form action="/game/<%= game.id %>/draft/toggle-paid" method="POST" style="display:inline-block;margin-left:.3rem">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                        <input type="hidden" name="participant_id" value="<%= s.participant_id %>" />
+                        <button type="submit" class="btn btn-sm" style="padding:.1rem .45rem;font-size:.7rem">✓ Mark paid</button>
+                      </form>
+                    <% } %>
                   <% } else if (!s.eliminated) { %>
                     <span class="status-badge status-live">Alive</span>
                   <% } else { %>
