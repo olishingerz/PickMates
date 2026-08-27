@@ -54,7 +54,11 @@
     <%
       const alreadyJoined = participants.some(p => user && p.id === user.id);
     %>
-    <% if (user && !alreadyJoined && !state.is_started) { %>
+    <% if (user && !alreadyJoined && !state.is_started && !state.is_public && !canManage) { %>
+      <div class="card" style="background:#f8fafc;border:1px solid var(--border)">
+        <p style="margin:0">🔒 This game is private — ask <%= state.host_username %> for an invite link to join.</p>
+      </div>
+    <% } else if (user && !alreadyJoined && !state.is_started) { %>
       <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
         <p style="margin:0">You're not in this game yet.</p>
         <form action="/game/<%= gameId %>/join" method="POST" style="display:inline">

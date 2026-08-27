@@ -71,7 +71,7 @@ async function getDraftData(userId, gameId) {
     `, [gameId]),
     pool.query(`
       SELECT g.id, g.name, g.tournament_id, g.tournament_name, g.current_pick_index, g.is_started, g.is_complete,
-             g.player_source, g.game_type, g.invite_code, g.prize_individual, g.host_user_id, hu.username AS host_username
+             g.player_source, g.game_type, g.invite_code, g.prize_individual, g.host_user_id, g.is_public, hu.username AS host_username
       FROM games g
       LEFT JOIN users hu ON hu.id = g.host_user_id
       WHERE g.id = $1

@@ -252,11 +252,16 @@ router.post('/:gameId/join', async (req, res) => {
   const userId = req.session.user.id;
 
   try {
-    const { rows: gameRows } = await pool.query('SELECT name, is_started FROM games WHERE id = $1', [gameId]);
+    const { rows: gameRows } = await pool.query('SELECT name, is_started, is_public, host_user_id FROM games WHERE id = $1', [gameId]);
     const game = gameRows[0];
     if (!game) return res.redirect('/?error=' + encodeURIComponent('Game not found.'));
     if (game.is_started) {
       return res.redirect(`/game/${gameId}/draft?error=` + encodeURIComponent('The draft has already started — you can no longer join.'));
+    }
+    // Private games are invite-link or host-added only — not self-joinable,
+    // even by someone who's found their way directly to the game's URL.
+    if (!game.is_public && game.host_user_id !== userId && !req.session.user.isAdmin) {
+      return res.redirect('/?error=' + encodeURIComponent('This game is private — ask the host for an invite link.'));
     }
 
     const { rows: already } = await pool.query(

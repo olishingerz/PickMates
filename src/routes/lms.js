@@ -122,7 +122,7 @@ async function getLmsData(gameId, userId) {
   const [gameRes, participantsRes, weeksRes, picksRes] = await Promise.all([
     pool.query(`
       SELECT g.id, g.name, g.lms_leagues, g.lms_current_week, g.is_complete, g.is_started, g.tournament_complete,
-             g.host_user_id, g.invite_code, g.prize_individual, g.lms_continuous, hu.username AS host_username,
+             g.host_user_id, g.invite_code, g.prize_individual, g.lms_continuous, g.is_public, hu.username AS host_username,
              hu.payment_details AS host_payment_details
       FROM games g
       LEFT JOIN users hu ON hu.id = g.host_user_id
