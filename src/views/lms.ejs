@@ -60,6 +60,13 @@
           <% } %>
         </div>
       <% } %>
+      <% if (canManage && game.prize_individual > 0 && standings.some(s => !s.has_paid)) { %>
+        <% const unpaidCount = standings.filter(s => !s.has_paid).length; %>
+        <div class="alert alert-error" style="margin-top:.6rem;display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap">
+          <span>💰 <strong><%= unpaidCount %></strong> player<%= unpaidCount !== 1 ? 's' : '' %> <%= unpaidCount !== 1 ? "haven't" : "hasn't" %> paid yet. Once someone pays, go to the Lobby and tick them off.</span>
+          <a href="/game/<%= game.id %>/draft" class="btn btn-sm" style="white-space:nowrap">Go to Lobby →</a>
+        </div>
+      <% } %>
       <% if (game.lms_continuous) { %>
         <p class="muted" style="margin-top:.2rem;font-size:.78rem">🔁 Auto-restarts a new round when this one ends</p>
       <% } %>
