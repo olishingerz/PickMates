@@ -991,23 +991,6 @@ a.nav-user:hover { color: var(--green); }
 .score-double { background: #e5e7eb; color: #1f2937; border-radius: 4px; padding: .05rem .3rem; }
 .score-other  { background: #111827; color: #fff; border-radius: 4px; padding: .05rem .3rem; }
 
-/* ── LMS hero header ────────────────────────────────────────────── */
-.lms-hero { padding: 1.7rem; margin-bottom: 1.2rem; }
-.lms-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; flex-wrap: wrap; }
-.lms-hero-stats {
-  display: flex;
-  gap: 1.4rem;
-  flex-wrap: wrap;
-  margin-top: 1.2rem;
-  padding-top: 1.1rem;
-  border-top: 1px solid var(--border);
-}
-.lms-stat { display: flex; flex-direction: column; min-width: 140px; }
-.lms-stat-value { font-size: 1.5rem; font-weight: 800; color: var(--green-dark); letter-spacing: -.01em; }
-.lms-stat-label { font-size: .78rem; color: var(--text-muted); margin-top: .1rem; }
-.lms-hero-meta { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: .9rem; font-size: .84rem; }
-.lms-hero-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1.1rem; }
-
 /* ── Last Man Standing (semantic result colours unchanged) ────────── */
 .lms-eliminated td { opacity: .55; }
 .lms-pick-cell { white-space: nowrap; font-size: .82rem; }
