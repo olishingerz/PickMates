@@ -223,7 +223,7 @@ router.post('/password', requireAuth, async (req, res) => {
     if (!(await bcrypt.compare(current_password, rows[0].password_hash))) {
       return res.redirect('/profile?error=' + encodeURIComponent('Current password is incorrect.'));
     }
-    const hash = await bcrypt.hash(password, 10);
+    const hash = await bcrypt.hash(password, 12);
     await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.session.user.id]);
     res.redirect('/profile?success=' + encodeURIComponent('Password updated.'));
   } catch (err) {

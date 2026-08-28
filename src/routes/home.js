@@ -364,8 +364,8 @@ router.get('/join/:inviteCode', async (req, res) => {
     const game = rows[0];
     if (!game) return res.redirect('/?error=' + encodeURIComponent('Invite link not found.'));
     if (!req.session.user) {
-      // Store invite code in session, redirect to login then back
-      req.session.pendingInvite = inviteCode;
+      // The ?next= param carries them back here after login — this route
+      // re-runs from the top on that next request, now authenticated.
       return res.redirect('/auth/login?next=' + encodeURIComponent(`/join/${inviteCode}`));
     }
     if (game.is_started) {

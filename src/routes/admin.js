@@ -225,7 +225,7 @@ router.post('/reset-password', requireAdmin, async (req, res) => {
     const { rows } = await pool.query('SELECT username FROM users WHERE id = $1', [targetId]);
     if (!rows[0]) return res.redirect('/admin?error=' + encodeURIComponent('User not found.'));
     const tempPassword = generateTempPassword();
-    const hash = await bcrypt.hash(tempPassword, 10);
+    const hash = await bcrypt.hash(tempPassword, 12);
     await pool.query(
       'UPDATE users SET password_hash = $1, must_change_password = TRUE WHERE id = $2',
       [hash, targetId]

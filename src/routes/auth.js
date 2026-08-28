@@ -41,12 +41,21 @@ router.post('/login', async (req, res) => {
       return res.render('login', { error: 'This account has been suspended. Please contact the host.', success: null, next, username });
     }
     loginLimiter.reset(rateLimitKey);
-    req.session.user = { id: user.id, username: user.username, isAdmin: user.is_admin, isPaid: user.is_paid || false };
-    // One-shot email prompt — only for accounts with no email that have never
-    // been shown it before; consumed and marked shown on the very next page load.
-    req.session.showEmailPrompt = !user.email && !user.email_prompt_shown;
-    if (user.must_change_password) return res.redirect('/auth/change-password');
-    res.redirect(next.startsWith('/') ? next : '/');
+    // Regenerate the session on successful login (session-fixation hardening)
+    // — a fresh session ID is issued rather than reusing whatever the browser
+    // had before authenticating.
+    req.session.regenerate((err) => {
+      if (err) {
+        console.error('[login] session regenerate failed', err);
+        return res.render('login', { error: 'Something went wrong. Please try again.', success: null, next, username });
+      }
+      req.session.user = { id: user.id, username: user.username, isAdmin: user.is_admin, isPaid: user.is_paid || false };
+      // One-shot email prompt — only for accounts with no email that have never
+      // been shown it before; consumed and marked shown on the very next page load.
+      req.session.showEmailPrompt = !user.email && !user.email_prompt_shown;
+      if (user.must_change_password) return res.redirect('/auth/change-password');
+      res.redirect(next.startsWith('/') ? next : '/');
+    });
   } catch (err) {
     console.error(err);
     res.render('login', { error: 'Something went wrong. Please try again.', success: null, next, username });
@@ -148,7 +157,7 @@ router.post('/reset-password/:token', async (req, res) => {
     if (!user) {
       return res.render('reset-password', { error: 'This reset link is invalid or has expired.', valid: false, token });
     }
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 12);
     await pool.query(
       `UPDATE users SET password_hash = $1, must_change_password = FALSE,
                          reset_token_hash = NULL, reset_token_expires = NULL
@@ -196,7 +205,7 @@ router.post('/register', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 12);
     const { rows } = await client.query(
       'INSERT INTO users (username, password_hash, email) VALUES ($1, $2, $3) RETURNING id, username',
       [username.trim(), passwordHash, email]
@@ -211,8 +220,17 @@ router.post('/register', async (req, res) => {
     }
 
     await client.query('COMMIT');
-    req.session.user = { id: userId, username: rows[0].username, isAdmin };
-    res.redirect('/');
+    // Regenerate the session on successful registration, same as login —
+    // session-fixation hardening, a fresh session ID rather than reusing
+    // whatever the browser had before registering.
+    req.session.regenerate((err) => {
+      if (err) {
+        console.error('[register] session regenerate failed', err);
+        return res.render('register', { error: 'Something went wrong. Please try again.', username, email });
+      }
+      req.session.user = { id: userId, username: rows[0].username, isAdmin };
+      res.redirect('/');
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     if (err.code === '23505') {
@@ -246,7 +264,7 @@ router.post('/change-password', async (req, res) => {
     return res.render('change-password', { error: 'Passwords do not match.' });
   }
   try {
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 12);
     await pool.query(
       'UPDATE users SET password_hash = $1, must_change_password = FALSE WHERE id = $2',
       [passwordHash, req.session.user.id]

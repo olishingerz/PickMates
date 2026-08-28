@@ -67,6 +67,7 @@ app.use(session({
     maxAge: 7 * 24 * 60 * 60 * 1000,
     secure: isProduction,
     sameSite: 'lax',
+    httpOnly: true, // express-session already defaults to this — set explicitly so it can't be silently changed
   },
 }));
 
