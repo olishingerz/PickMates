@@ -40,7 +40,7 @@ router.get('/', requireAdmin, async (req, res) => {
   try {
     const [usersRes, gamesRes, gameCreationRoles, lmsWinnersRes] = await Promise.all([
       pool.query(`
-        SELECT u.id, u.username, u.email,
+        SELECT u.id, u.username, u.email, u.email_prompt_shown,
                u.is_admin, u.is_paid, u.is_banned, u.created_at, u.last_seen,
                COUNT(gp.id)::int AS game_count
         FROM users u

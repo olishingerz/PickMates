@@ -234,7 +234,13 @@
                   <span class="muted" style="font-size:.82rem">You</span>
                 <% } %>
               </td>
-              <td class="muted" style="font-size:.82rem"><%= u.email || '—' %></td>
+              <td class="muted" style="font-size:.82rem">
+                <% if (u.email) { %>
+                  <%= u.email %>
+                <% } else { %>
+                  — <span style="font-size:.72rem"><%= u.email_prompt_shown ? '(prompted)' : '(not yet prompted)' %></span>
+                <% } %>
+              </td>
               <td style="white-space:nowrap">
                 <% if (u.id !== user.id) { %>
                   <!-- Impersonate -->
