@@ -7,6 +7,7 @@ const { getLmsData } = require('./lms');
 const { TEAM_COUNTING_SCORES } = require('./scorecard');
 const { getGameCreationRoles, canCreateGames } = require('../services/settings');
 const { logActivity } = require('../services/activity');
+const { computeScorecardPrizeSplit } = require('../services/scorecardPrizes');
 
 const router = express.Router();
 
@@ -412,7 +413,7 @@ router.get('/winners-club', async (req, res) => {
     // simple string match works. Golf Scorecard team-format games instead store
     // the winning TEAM'S NAME there — matching it against usernames would never
     // hit, so every member of that team needs crediting via scorecard_teams.
-    const [allTimeRes, recentRes] = await Promise.all([
+    const [allTimeRes, golfLmsWinningsRes, scorecardWinningsRes, recentRes] = await Promise.all([
       pool.query(`
         WITH team_wins AS (
           SELECT g.id AS game_id, u.id AS user_id
@@ -435,7 +436,7 @@ router.get('/winners-club', async (req, res) => {
         ),
         team_counts  AS (SELECT user_id, COUNT(DISTINCT game_id)::int AS cnt FROM team_wins  GROUP BY user_id),
         indiv_counts AS (SELECT user_id, COUNT(DISTINCT game_id)::int AS cnt FROM indiv_wins GROUP BY user_id)
-        SELECT u.username, u.avatar,
+        SELECT u.id AS user_id, u.username, u.avatar,
                COALESCE(t.cnt, 0) AS team_wins,
                COALESCE(i.cnt, 0) AS indiv_wins,
                (COALESCE(t.cnt, 0) + COALESCE(i.cnt, 0)) AS total_wins
@@ -444,6 +445,35 @@ router.get('/winners-club', async (req, res) => {
         LEFT JOIN indiv_counts i ON i.user_id = u.id
         WHERE t.cnt IS NOT NULL OR i.cnt IS NOT NULL
         ORDER BY total_wins DESC, team_wins DESC
+      `),
+      // Golf Draft/LMS winnings per user — same shape as profile.js's
+      // getProfileStats, just ungrouped across every user instead of one.
+      pool.query(`
+        SELECT u.id AS user_id,
+          (SELECT COALESCE(SUM(CASE WHEN g.winner_username = u.username THEN g.prize_team * pc.cnt ELSE 0 END)
+                          + SUM(CASE WHEN g.winner_individual_username = u.username THEN g.prize_individual * pc.cnt ELSE 0 END), 0)
+           FROM games g
+           JOIN (SELECT game_id, COUNT(*) AS cnt FROM game_participants GROUP BY game_id) pc ON pc.game_id = g.id
+           WHERE g.game_type = 'golf_draft' AND g.tournament_complete = TRUE
+             AND (g.winner_username = u.username OR g.winner_individual_username = u.username)) AS golf_winnings,
+          (SELECT COALESCE(SUM(prize_amount), 0) FROM lms_winners WHERE user_id = u.id) AS lms_winnings
+        FROM users u
+      `),
+      // Golf Scorecard prizes aren't stored anywhere — same per-game split as
+      // profile.js's scorecardWinningsRes, just for every participant instead
+      // of one user, reduced per-user below with computeScorecardPrizeSplit.
+      pool.query(`
+        SELECT g.scorecard_entry_fee, g.scorecard_format, g.winner_username, g.winner_individual_username,
+               gp.user_id AS my_user_id, u.username AS my_username, st.name AS my_team_name,
+               (SELECT COUNT(*) FROM game_participants gp2 WHERE gp2.game_id = g.id) AS total_players,
+               (SELECT COUNT(*) FROM game_participants gp3
+                  JOIN scorecard_teams st3 ON st3.id = gp3.scorecard_team_id
+                  WHERE gp3.game_id = g.id AND st3.name = g.winner_username) AS winning_team_size
+        FROM games g
+        JOIN game_participants gp ON gp.game_id = g.id
+        JOIN users u ON u.id = gp.user_id
+        LEFT JOIN scorecard_teams st ON st.id = gp.scorecard_team_id
+        WHERE g.game_type = 'golf_scorecard' AND g.tournament_complete = TRUE AND g.scorecard_entry_fee > 0
       `),
       pool.query(`
         SELECT g.id, g.name, g.game_type, g.tournament_name, g.scorecard_format,
@@ -465,8 +495,28 @@ router.get('/winners-club', async (req, res) => {
         ORDER BY COALESCE(g.completed_at, g.tournament_end_date, g.created_at) DESC
       `),
     ]);
+    const golfLmsWinningsByUser = new Map(
+      golfLmsWinningsRes.rows.map(r => [r.user_id, (parseFloat(r.golf_winnings) || 0) + (parseFloat(r.lms_winnings) || 0)])
+    );
+    const scorecardWinningsByUser = new Map();
+    for (const row of scorecardWinningsRes.rows) {
+      const { teamPrize, indivPrize } = computeScorecardPrizeSplit(row.scorecard_entry_fee, row.total_players, row.scorecard_format);
+      let winnings = row.winner_individual_username === row.my_username ? indivPrize : 0;
+      if (row.scorecard_format !== 'individual' && row.my_team_name && row.my_team_name === row.winner_username && row.winning_team_size > 0) {
+        winnings += teamPrize / row.winning_team_size;
+      }
+      if (winnings > 0) {
+        scorecardWinningsByUser.set(row.my_user_id, (scorecardWinningsByUser.get(row.my_user_id) || 0) + winnings);
+      }
+    }
+
+    const allTime = allTimeRes.rows.map(row => ({
+      ...row,
+      totalWinnings: (golfLmsWinningsByUser.get(row.user_id) || 0) + (scorecardWinningsByUser.get(row.user_id) || 0),
+    }));
+
     res.render('hall-of-fame', {
-      allTime: allTimeRes.rows,
+      allTime,
       recentWins: recentRes.rows,
       error:   req.query.error   || null,
       success: req.query.success || null,
