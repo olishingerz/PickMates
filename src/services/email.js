@@ -133,6 +133,30 @@ async function sendPasswordResetEmail(user, resetUrl) {
   });
 }
 
+/**
+ * Send an email-address verification link. Same shape as the password reset
+ * email — the token in verifyUrl is the raw (unhashed) value, only its
+ * sha256 hash is ever stored. Verification here is informational (shown on
+ * the profile page), not a login/access gate — this app doesn't block
+ * anything on it, it just gives the account owner a way to confirm the
+ * address is really theirs.
+ * @param {{ email: string, username: string }} user
+ * @param {string} verifyUrl
+ */
+async function sendVerificationEmail(user, verifyUrl) {
+  if (!user.email) return;
+  await sendEmail({
+    to:      user.email,
+    subject: '✅ Verify your PickMates email address',
+    html: `
+      <p>Hi ${escapeHtml(user.username)},</p>
+      <p>Please confirm this is your email address. This link expires in 24 hours.</p>
+      <p><a href="${verifyUrl}" style="background:#006747;color:#fff;padding:.5rem 1rem;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600">Verify email →</a></p>
+      <p style="color:#666;font-size:.85em">If you didn't add this address to a PickMates account, you can safely ignore this email.</p>
+    `,
+  });
+}
+
 const SUPPORT_ADDRESS = process.env.SUPPORT_EMAIL || 'support@pickmates.co.uk';
 
 /**
@@ -167,6 +191,6 @@ async function sendTestEmail(to) {
 }
 
 module.exports = {
-  sendDraftTurnEmail, sendLmsDeadlineEmails, sendPasswordResetEmail, sendTestEmail, sendContactEmail,
+  sendDraftTurnEmail, sendLmsDeadlineEmails, sendPasswordResetEmail, sendVerificationEmail, sendTestEmail, sendContactEmail,
   isConfigured: () => !!BREVO_API_KEY,
 };

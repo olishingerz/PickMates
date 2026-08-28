@@ -759,6 +759,35 @@ END $$;
 -- live scorecard render and in a bulk-delete path.
 CREATE INDEX IF NOT EXISTS idx_scorecard_scores_game ON scorecard_scores(game_id);
 
+-- Email verification — informational only (shown on the profile page), not a
+-- login/access gate. Same token pattern as password reset: only a sha256
+-- hash of the emailed token is ever stored.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='users' AND column_name='email_verified') THEN
+    ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='users' AND column_name='email_verify_token_hash') THEN
+    ALTER TABLE users ADD COLUMN email_verify_token_hash VARCHAR(64);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='users' AND column_name='email_verify_token_expires') THEN
+    ALTER TABLE users ADD COLUMN email_verify_token_expires TIMESTAMP WITH TIME ZONE;
+  END IF;
+END $$;
+
+-- One-time grandfather: anyone who already had an email before this feature
+-- existed was already being trusted with it (password resets, notifications)
+-- — treat those as verified rather than suddenly flagging existing accounts
+-- as unverified. Only new/changed emails from here on need a fresh click.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE name = 'email_verified_grandfather_2026') THEN
+    UPDATE users SET email_verified = TRUE WHERE email IS NOT NULL;
+    INSERT INTO schema_migrations (name) VALUES ('email_verified_grandfather_2026');
+  END IF;
+END $$;
+
 -- ── One-time data fixes ───────────────────────────────────────────────────────
 -- Fix ESPN name mismatches for Masters 2026 (Samuel Stevens / Nicolas Echavarria)
 UPDATE picks SET player_name = 'Sam Stevens'

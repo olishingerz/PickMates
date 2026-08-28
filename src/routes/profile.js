@@ -3,6 +3,7 @@ const bcrypt  = require('bcrypt');
 const multer  = require('multer');
 const { pool } = require('../db');
 const { computeScorecardPrizeSplit } = require('../services/scorecardPrizes');
+const { issueVerificationEmail } = require('./auth');
 
 const router = express.Router();
 const upload = multer({
@@ -131,7 +132,7 @@ router.get('/', requireAuth, async (req, res) => {
   const id = req.session.user.id;
   try {
     const [profileRes, friendsRes, stats] = await Promise.all([
-      pool.query('SELECT username, avatar, email, notify_draft_turn, notify_lms_deadline, payment_details FROM users WHERE id = $1', [id]),
+      pool.query('SELECT username, avatar, email, email_verified, notify_draft_turn, notify_lms_deadline, payment_details FROM users WHERE id = $1', [id]),
       pool.query(`
         SELECT u.id, u.username, u.avatar
         FROM friends f
@@ -241,15 +242,54 @@ router.post('/email', requireAuth, async (req, res) => {
     return res.redirect('/profile?error=' + encodeURIComponent('Please enter a valid email address.'));
   }
   try {
-    await pool.query(
-      'UPDATE users SET email = $1, notify_draft_turn = $2, notify_lms_deadline = $3 WHERE id = $4',
-      [email || null, notifyDraftTurn, notifyLmsDeadline, req.session.user.id]
-    );
-    res.redirect('/profile?success=' + encodeURIComponent(email ? 'Email preferences saved.' : 'Email removed.'));
+    const { rows: currentRows } = await pool.query('SELECT email, username FROM users WHERE id = $1', [req.session.user.id]);
+    const currentEmail = currentRows[0]?.email || null;
+    const emailChanged = email !== currentEmail;
+
+    if (emailChanged) {
+      await pool.query(
+        'UPDATE users SET email = $1, notify_draft_turn = $2, notify_lms_deadline = $3, email_verified = FALSE WHERE id = $4',
+        [email || null, notifyDraftTurn, notifyLmsDeadline, req.session.user.id]
+      );
+      if (email) {
+        issueVerificationEmail({ id: req.session.user.id, username: currentRows[0].username, email })
+          .catch(e => console.warn('[verify-email] issue failed:', e.message));
+      }
+    } else {
+      await pool.query(
+        'UPDATE users SET notify_draft_turn = $1, notify_lms_deadline = $2 WHERE id = $3',
+        [notifyDraftTurn, notifyLmsDeadline, req.session.user.id]
+      );
+    }
+
+    const successMsg = !email
+      ? 'Email removed.'
+      : emailChanged
+        ? 'Email preferences saved. Check your inbox to verify your new address.'
+        : 'Email preferences saved.';
+    res.redirect('/profile?success=' + encodeURIComponent(successMsg));
   } catch (err) {
     if (err.code === '23505') {
       return res.redirect('/profile?error=' + encodeURIComponent('That email is already used by another account.'));
     }
+    console.error(err);
+    res.redirect('/profile?error=' + encodeURIComponent('Something went wrong.'));
+  }
+});
+
+router.post('/resend-verification', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id, username, email, email_verified FROM users WHERE id = $1', [req.session.user.id]);
+    const user = rows[0];
+    if (!user?.email) {
+      return res.redirect('/profile?error=' + encodeURIComponent('Add an email address first.'));
+    }
+    if (user.email_verified) {
+      return res.redirect('/profile?success=' + encodeURIComponent('That email is already verified.'));
+    }
+    await issueVerificationEmail(user);
+    res.redirect('/profile?success=' + encodeURIComponent('Verification email sent — check your inbox.'));
+  } catch (err) {
     console.error(err);
     res.redirect('/profile?error=' + encodeURIComponent('Something went wrong.'));
   }

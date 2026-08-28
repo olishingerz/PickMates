@@ -2,12 +2,26 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { pool } = require('../db');
-const { sendPasswordResetEmail } = require('../services/email');
+const { sendPasswordResetEmail, sendVerificationEmail } = require('../services/email');
 const { createRateLimiter } = require('../services/rateLimiter');
 
 const APP_URL = process.env.APP_URL || 'https://pickmates.up.railway.app';
+const EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — more generous than the 1hr password-reset window, since this isn't security-critical
 
 const router = express.Router();
+
+// Generates a verification token, stores its hash, and emails the raw token
+// — shared by registration and the profile page's "resend" action.
+async function issueVerificationEmail(user) {
+  const rawToken  = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  await pool.query(
+    'UPDATE users SET email_verify_token_hash = $1, email_verify_token_expires = $2 WHERE id = $3',
+    [tokenHash, new Date(Date.now() + EMAIL_VERIFY_TTL_MS), user.id]
+  );
+  const verifyUrl = `${APP_URL}/auth/verify-email/${rawToken}`;
+  sendVerificationEmail(user, verifyUrl).catch(e => console.warn('[verify-email] send failed:', e.message));
+}
 
 // Keyed by IP+username so one attacker hammering a known username can't lock
 // a real player out entirely.
@@ -220,6 +234,7 @@ router.post('/register', async (req, res) => {
     }
 
     await client.query('COMMIT');
+    issueVerificationEmail({ id: userId, username: rows[0].username, email }).catch(e => console.warn('[register] verification email failed:', e.message));
     // Regenerate the session on successful registration, same as login —
     // session-fixation hardening, a fresh session ID rather than reusing
     // whatever the browser had before registering.
@@ -243,6 +258,28 @@ router.post('/register', async (req, res) => {
     res.render('register', { error: 'Something went wrong. Please try again.', username, email });
   } finally {
     client.release();
+  }
+});
+
+// GET /auth/verify-email/:token — clicked from the verification email
+router.get('/verify-email/:token', async (req, res) => {
+  const tokenHash = crypto.createHash('sha256').update(req.params.token).digest('hex');
+  try {
+    const { rows } = await pool.query(
+      'SELECT id FROM users WHERE email_verify_token_hash = $1 AND email_verify_token_expires > NOW()',
+      [tokenHash]
+    );
+    if (!rows[0]) {
+      return res.redirect('/?error=' + encodeURIComponent('That verification link is invalid or has expired.'));
+    }
+    await pool.query(
+      'UPDATE users SET email_verified = TRUE, email_verify_token_hash = NULL, email_verify_token_expires = NULL WHERE id = $1',
+      [rows[0].id]
+    );
+    res.redirect((req.session.user ? '/profile' : '/auth/login') + '?success=' + encodeURIComponent('Email verified — thanks!'));
+  } catch (err) {
+    console.error('[verify-email]', err);
+    res.redirect('/?error=' + encodeURIComponent('Something went wrong verifying your email.'));
   }
 });
 
@@ -280,4 +317,4 @@ router.post('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/'));
 });
 
-module.exports = router;
+module.exports = { router, issueVerificationEmail };

@@ -113,6 +113,13 @@
                    value="<%= profileUser.email || '' %>" autocomplete="email"
                    placeholder="you@example.com" />
             <small>Never shared. Needed for password resets and either notification below.</small>
+            <% if (profileUser.email) { %>
+              <% if (profileUser.email_verified) { %>
+                <small style="color:#006747;font-weight:600">✓ Verified</small>
+              <% } else { %>
+                <small style="color:#a15c00">✗ Not verified</small>
+              <% } %>
+            <% } %>
           </div>
           <div class="form-group" style="display:flex;flex-direction:column;gap:.4rem">
             <label style="display:flex;align-items:center;gap:.5rem;font-size:.9rem;cursor:pointer">
@@ -126,6 +133,12 @@
           </div>
           <button type="submit" class="btn btn-sm">Save</button>
         </form>
+        <% if (profileUser.email && !profileUser.email_verified) { %>
+          <form action="/profile/resend-verification" method="POST" style="margin-top:.5rem">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <button type="submit" class="btn btn-sm btn-ghost" style="color:var(--text)">Resend verification email</button>
+          </form>
+        <% } %>
       </div>
 
       <!-- ── Payment details ─────────────────────────────────────────────── -->
