@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt  = require('bcrypt');
 const multer  = require('multer');
 const { pool } = require('../db');
+const { computeScorecardPrizeSplit } = require('../services/scorecardPrizes');
 
 const router = express.Router();
 const upload = multer({
@@ -79,13 +80,13 @@ async function getProfileStats(id) {
       FROM users u
       WHERE u.id = $1
     `, [id]),
-    // Golf Scorecard prizes aren't stored anywhere — scorecard.ejs computes them
-    // live from entry fee × player count (50/40/10 split of team/individual/CTP
-    // for team format, 70/30 individual/CTP for individual format). Mirror that
-    // math here per completed game the user was in, so the team prize (unlike
-    // Golf Draft's single winner) gets divided across the winning team's actual
-    // members rather than counted in full. Closest-to-the-pin isn't included —
-    // there's no reliable "who held it at completion" history to attribute it.
+    // Golf Scorecard prizes aren't stored anywhere — computeScorecardPrizeSplit
+    // (shared with the live pot display on scorecard.ejs) gives the same
+    // entry-fee × player-count split per completed game the user was in, so
+    // the team prize (unlike Golf Draft's single winner) gets divided across
+    // the winning team's actual members rather than counted in full. Closest-
+    // to-the-pin isn't included — there's no reliable "who held it at
+    // completion" history to attribute it.
     pool.query(`
       SELECT g.id, g.scorecard_entry_fee, g.scorecard_format, g.winner_username, g.winner_individual_username,
              u.username AS my_username, st.name AS my_team_name,
@@ -103,13 +104,10 @@ async function getProfileStats(id) {
   ]);
 
   const scorecardWinnings = scorecardWinningsRes.rows.reduce((total, row) => {
-    const pot = (parseFloat(row.scorecard_entry_fee) || 0) * (row.total_players || 0);
+    const { teamPrize, indivPrize } = computeScorecardPrizeSplit(row.scorecard_entry_fee, row.total_players, row.scorecard_format);
     if (row.scorecard_format === 'individual') {
-      const indivPrize = Math.round(pot * 0.7);
       return total + (row.winner_individual_username === row.my_username ? indivPrize : 0);
     }
-    const teamPrize  = Math.round(pot * 0.5);
-    const indivPrize = Math.round(pot * 0.4);
     let winnings = row.winner_individual_username === row.my_username ? indivPrize : 0;
     if (row.my_team_name && row.my_team_name === row.winner_username && row.winning_team_size > 0) {
       winnings += teamPrize / row.winning_team_size;

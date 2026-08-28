@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const { requireAuth, getGameId, isHost, canManage } = require('../services/permissions');
+const { computeScorecardPrizeSplit } = require('../services/scorecardPrizes');
 
 const router = express.Router({ mergeParams: true });
 
@@ -163,7 +164,9 @@ async function getScorecardData(gameId, userId) {
     players: allParticipants.filter(p => p.scorecard_tee_time_id === tt.id),
   }));
 
-  return { game, teams, standings, holes, parThreeHoles, teeTimes, unassignedParticipants, allParticipants, individualStandings, closestToPin, userId };
+  const prizeSplit = computeScorecardPrizeSplit(game.scorecard_entry_fee, allParticipants.length, game.scorecard_format);
+
+  return { game, teams, standings, holes, parThreeHoles, teeTimes, unassignedParticipants, allParticipants, individualStandings, closestToPin, userId, prizeSplit };
 }
 
 // Called from draft.js when game_type === 'golf_scorecard'

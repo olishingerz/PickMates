@@ -33,27 +33,15 @@
       <% const isIndividual = game.scorecard_format === 'individual'; %>
       <% const totalPlayers = allParticipants.length; %>
       <% if (game.scorecard_entry_fee > 0) { %>
-        <%
-          const pot = game.scorecard_entry_fee * totalPlayers;
-          let teamPrize = 0, indivPrize, ctpPrize;
-          if (isIndividual) {
-            indivPrize = Math.round(pot * 0.7);
-            ctpPrize = pot - indivPrize; // remainder, so the two always sum to the pot
-          } else {
-            teamPrize = Math.round(pot * 0.5);
-            indivPrize = Math.round(pot * 0.4);
-            ctpPrize = pot - teamPrize - indivPrize; // remainder, so the three always sum to the pot
-          }
-        %>
-        <p class="muted" style="margin-top:.2rem;font-size:.85rem">Prize pot: <strong>£<%= pot %></strong> <span class="muted" style="font-size:.78rem">(£<%= game.scorecard_entry_fee %> × <%= totalPlayers %> player<%= totalPlayers !== 1 ? 's' : '' %>)</span></p>
+        <p class="muted" style="margin-top:.2rem;font-size:.85rem">Prize pot: <strong>£<%= prizeSplit.pot %></strong> <span class="muted" style="font-size:.78rem">(£<%= game.scorecard_entry_fee %> × <%= totalPlayers %> player<%= totalPlayers !== 1 ? 's' : '' %>)</span></p>
         <p class="muted" style="margin-top:.15rem;font-size:.8rem">
           <% if (!isIndividual) { %>
-            🏆 Winning team: <strong>£<%= teamPrize %></strong>
+            🏆 Winning team: <strong>£<%= prizeSplit.teamPrize %></strong>
             <span style="margin:0 .3rem">·</span>
           <% } %>
-          ⛳ Individual net score: <strong>£<%= indivPrize %></strong>
+          ⛳ Individual net score: <strong>£<%= prizeSplit.indivPrize %></strong>
           <span style="margin:0 .3rem">·</span>
-          🎯 Nearest the pin: <strong>£<%= ctpPrize %></strong>
+          🎯 Nearest the pin: <strong>£<%= prizeSplit.ctpPrize %></strong>
         </p>
       <% } %>
       <% if (game.tournament_complete && (game.winner_username || game.winner_individual_username)) { %>
