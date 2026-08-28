@@ -16,51 +16,85 @@
   </header>
 
   <main>
+    <%
+      const liveGamesCount     = games.filter(g => g.is_started && !g.tournament_complete).length;
+      const completeGamesCount = games.filter(g => g.tournament_complete).length;
+    %>
     <div class="page-header">
       <h1>Admin</h1>
-      <p style="margin-top:.4rem"><a href="/admin/visitors">👀 Visitors →</a></p>
+      <p class="admin-quicknav" style="margin-top:.5rem;display:flex;gap:1rem;flex-wrap:wrap;font-size:.88rem">
+        <a href="#settings">Settings</a>
+        <a href="#games">Games</a>
+        <a href="#users">Users</a>
+        <a href="#tools">Tools</a>
+        <a href="/admin/visitors">👀 Visitors →</a>
+      </p>
     </div>
 
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
     <% if (success) { %><div class="alert alert-success" style="font-family:monospace"><%= success %></div><% } %>
 
-    <!-- ── Site settings ──────────────────────────────────────────────────── -->
-    <div class="card" style="margin-bottom:2rem">
-      <h2 class="section-title">Who can create games?</h2>
-      <form action="/admin/settings/game-creation" method="POST">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-        <div style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:.8rem">
-          <% ROLE_OPTIONS.forEach(opt => { %>
-            <label style="display:flex;align-items:center;gap:.5rem;font-size:.9rem;cursor:pointer">
-              <input type="checkbox" name="roles" value="<%= opt.value %>"
-                     <%= gameCreationRoles.includes(opt.value) ? 'checked' : '' %> />
-              <%= opt.label %>
-            </label>
-          <% }) %>
+    <!-- ── At a glance ────────────────────────────────────────────────────── -->
+    <div class="card" style="margin-bottom:1.5rem">
+      <div class="stats-cols" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1.2rem">
+        <div>
+          <p class="label-small">Users</p>
+          <strong style="font-size:1.6rem"><%= users.length %></strong>
         </div>
-        <button type="submit" class="btn btn-sm">Save</button>
-      </form>
+        <div>
+          <p class="label-small">Games</p>
+          <strong style="font-size:1.6rem"><%= games.length %></strong>
+        </div>
+        <div>
+          <p class="label-small">Live now</p>
+          <strong style="font-size:1.6rem"><%= liveGamesCount %></strong>
+        </div>
+        <div>
+          <p class="label-small">Complete</p>
+          <strong style="font-size:1.6rem"><%= completeGamesCount %></strong>
+        </div>
+      </div>
     </div>
 
-    <!-- ── Email ──────────────────────────────────────────────────────────── -->
-    <div class="card" style="margin-bottom:2rem">
-      <h2 class="section-title">Email</h2>
-      <p class="admin-hint" style="margin-bottom:.6rem">
-        Brevo API: <strong style="color:<%= emailConfigured ? 'var(--green)' : '#ef4444' %>"><%= emailConfigured ? 'Configured' : 'Not configured (BREVO_API_KEY missing)' %></strong>
-      </p>
-      <form action="/admin/test-email" method="POST" style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-        <div>
-          <label class="form-label">Send a test email to</label>
-          <input type="email" name="to" required placeholder="you@example.com"
-                 style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;min-width:220px;display:block;margin-top:.3rem" />
-        </div>
-        <button type="submit" class="btn btn-sm">Send test</button>
-      </form>
+    <!-- ── Settings ───────────────────────────────────────────────────────── -->
+    <h2 class="section-title" id="settings">Settings</h2>
+    <div class="admin-settings-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem">
+      <div class="card" style="margin-bottom:0">
+        <h3 class="section-title" style="font-size:.95rem">Who can create games?</h3>
+        <form action="/admin/settings/game-creation" method="POST">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <div style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:.8rem">
+            <% ROLE_OPTIONS.forEach(opt => { %>
+              <label style="display:flex;align-items:center;gap:.5rem;font-size:.9rem;cursor:pointer">
+                <input type="checkbox" name="roles" value="<%= opt.value %>"
+                       <%= gameCreationRoles.includes(opt.value) ? 'checked' : '' %> />
+                <%= opt.label %>
+              </label>
+            <% }) %>
+          </div>
+          <button type="submit" class="btn btn-sm">Save</button>
+        </form>
+      </div>
+
+      <div class="card" style="margin-bottom:0">
+        <h3 class="section-title" style="font-size:.95rem">Email</h3>
+        <p class="admin-hint" style="margin-bottom:.6rem">
+          Brevo API: <strong style="color:<%= emailConfigured ? 'var(--green)' : '#ef4444' %>"><%= emailConfigured ? 'Configured' : 'Not configured' %></strong>
+        </p>
+        <form action="/admin/test-email" method="POST" style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+          <div style="flex:1;min-width:180px">
+            <label class="form-label">Send a test email to</label>
+            <input type="email" name="to" required placeholder="you@example.com"
+                   style="padding:.45rem .75rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;width:100%;display:block;margin-top:.3rem" />
+          </div>
+          <button type="submit" class="btn btn-sm">Send test</button>
+        </form>
+      </div>
     </div>
 
     <!-- ── Games ──────────────────────────────────────────────────────────── -->
-    <h2 class="section-title">Games <span class="muted" style="font-size:.85rem;font-weight:400">(<%= games.length %>)</span></h2>
+    <h2 class="section-title" id="games">Games <span class="muted" style="font-size:.85rem;font-weight:400">(<%= games.length %>)</span></h2>
     <div class="leaderboard-table-wrap" style="margin-bottom:2rem">
       <table class="leaderboard-table">
         <thead>
@@ -145,7 +179,9 @@
     <% } %>
 
     <!-- ── Users ──────────────────────────────────────────────────────────── -->
-    <h2 class="section-title">Users <span class="muted" style="font-size:.85rem;font-weight:400">(<%= users.length %>)</span></h2>
+    <h2 class="section-title" id="users">Users <span class="muted" style="font-size:.85rem;font-weight:400">(<%= users.length %>)</span></h2>
+    <input type="text" id="user-search" placeholder="Filter by username or email…"
+           style="padding:.5rem .8rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.9rem;width:100%;max-width:320px;margin-bottom:.8rem" />
     <div class="leaderboard-table-wrap" style="margin-bottom:2rem">
       <table class="leaderboard-table">
         <thead>
@@ -160,9 +196,9 @@
             <th></th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="users-tbody">
           <% users.forEach(u => { %>
-            <tr style="<%= u.is_banned ? 'opacity:.5' : '' %>">
+            <tr style="<%= u.is_banned ? 'opacity:.5' : '' %>" data-filter="<%= (u.username + ' ' + (u.email || '')).toLowerCase() %>">
               <td><strong><%= u.username %></strong><% if (u.is_banned) { %> <span style="font-size:.72rem;color:#ef4444">BANNED</span><% } %></td>
               <td class="muted" style="text-align:center"><%= u.game_count %></td>
               <td class="muted" style="font-size:.82rem;white-space:nowrap">
@@ -239,7 +275,7 @@
     </div>
 
     <!-- ── Tools ──────────────────────────────────────────────────────────── -->
-    <h2 class="section-title">Tools</h2>
+    <h2 class="section-title" id="tools">Tools</h2>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem;margin-bottom:2rem">
 
       <!-- Force-set team name -->
@@ -288,6 +324,20 @@
 
     </div>
   </main>
+
+  <script>
+    (function() {
+      const search = document.getElementById('user-search');
+      const rows   = document.querySelectorAll('#users-tbody tr');
+      if (!search) return;
+      search.addEventListener('input', () => {
+        const q = search.value.trim().toLowerCase();
+        rows.forEach(row => {
+          row.style.display = row.dataset.filter.includes(q) ? '' : 'none';
+        });
+      });
+    })();
+  </script>
 
   <%- include('partials/footer') %>
 </body>

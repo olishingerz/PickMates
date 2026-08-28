@@ -1285,6 +1285,9 @@ a.nav-user:hover { color: var(--green); }
   /* Profile stats: stack to single column */
   .stats-cols { grid-template-columns: 1fr !important; }
 
+  /* Admin settings: stack to single column */
+  .admin-settings-grid { grid-template-columns: 1fr !important; }
+
   /* Team name input: full width */
   .team-name-input { width: 100%; min-width: unset; }
 
