@@ -2,39 +2,9 @@ const express = require('express');
 const { pool } = require('../db');
 const { getCurrentGameweekFixtures, processResults, LEAGUE_NAMES } = require('../services/football');
 const { logActivity } = require('../services/activity');
+const { requireAuth, getGameId, isHost, canManage } = require('../services/permissions');
 
 const router = express.Router({ mergeParams: true });
-
-function requireAuth(req, res, next) {
-  if (!req.session.user) return res.redirect('/auth/login');
-  next();
-}
-
-function getGameId(req) {
-  return parseInt(req.params.gameId);
-}
-
-async function isHost(req, gameId) {
-  if (!req.session.user) return false;
-  if (req.session.user.isAdmin) return true;
-  const { rows } = await pool.query('SELECT host_user_id FROM games WHERE id = $1', [gameId]);
-  return rows[0]?.host_user_id === req.session.user.id;
-}
-
-// Host or co-host — can manage the game day-to-day, but not delete it (that's isHost-only)
-async function canManage(req, gameId) {
-  if (await isHost(req, gameId)) return true;
-  if (!req.session.user) return false;
-  // A user can hold multiple LMS entries (game_participants rows) in the same
-  // game — aggregate rather than reading an arbitrary row, since a freshly
-  // added extra entry defaults to is_co_host=FALSE regardless of the user's
-  // existing co-host status on their other entry.
-  const { rows } = await pool.query(
-    'SELECT bool_or(is_co_host) AS is_co_host FROM game_participants WHERE game_id = $1 AND user_id = $2',
-    [gameId, req.session.user.id]
-  );
-  return rows[0]?.is_co_host === true;
-}
 
 // Fetch the pickable team list from ESPN once and store it for this round, so the
 // picks page doesn't hit ESPN live on every view. Called when a round starts,
@@ -488,4 +458,4 @@ router.post('/override-result', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = { router, getLmsData, isHost, canManage, processGameResults, refreshFixtureCache, computeLmsStandings };
+module.exports = { router, getLmsData, processGameResults, refreshFixtureCache, computeLmsStandings };

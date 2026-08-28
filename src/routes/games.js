@@ -3,10 +3,11 @@ const { pool } = require('../db');
 const { SCORES_THAT_COUNT, MIN_CUT_MAKERS } = require('../constants');
 const { computeGolfDraftWinner } = require('../services/golfWinner');
 const draftRouter = require('./draft');
-const { router: lmsRouter, getLmsData, isHost: lmsIsHost, canManage: lmsCanManage } = require('./lms');
-const { router: scorecardRouter, getScorecardData, isHost: scorecardIsHost, canManage: scorecardCanManage } = require('./scorecard');
+const { router: lmsRouter, getLmsData } = require('./lms');
+const { router: scorecardRouter, getScorecardData } = require('./scorecard');
 const { LEAGUE_NAMES } = require('../services/football');
 const { logActivity } = require('../services/activity');
+const { isHost, canManage } = require('../services/permissions');
 
 const router = express.Router();
 
@@ -114,8 +115,8 @@ router.get('/:gameId', async (req, res) => {
     if (game.game_type === 'last_man_standing') {
       const userId    = req.session.user?.id || null;
       const data      = await getLmsData(gameId, userId);
-      const hostFlag  = await lmsIsHost(req, gameId);
-      const manageFlag = await lmsCanManage(req, gameId);
+      const hostFlag  = await isHost(req, gameId);
+      const manageFlag = await canManage(req, gameId);
 
       // Leaderboard is a pure DB read — never hits ESPN live. The fixture cache
       // is populated in the background at round-start/restart/advance-week; if
@@ -145,8 +146,8 @@ router.get('/:gameId', async (req, res) => {
     if (game.game_type === 'golf_scorecard') {
       const userId    = req.session.user?.id || null;
       const data      = await getScorecardData(gameId, userId);
-      const hostFlag  = await scorecardIsHost(req, gameId);
-      const manageFlag = await scorecardCanManage(req, gameId);
+      const hostFlag  = await isHost(req, gameId);
+      const manageFlag = await canManage(req, gameId);
       const myParticipant = data.allParticipants.find(p => p.user_id === userId) || null;
 
       return res.render('scorecard', {
@@ -343,14 +344,11 @@ router.post('/:gameId/leave', async (req, res) => {
   }
 });
 
-// POST /game/:gameId/prizes — host or admin: update prize amounts
+// POST /game/:gameId/prizes — host, co-host, or admin: update prize amounts
 router.post('/:gameId/prizes', async (req, res) => {
-  const user = req.session?.user;
-  if (!user) return res.redirect('/');
+  if (!req.session?.user) return res.redirect('/');
   const gameId = parseInt(req.params.gameId);
-  const { rows } = await pool.query('SELECT host_user_id FROM games WHERE id = $1', [gameId]);
-  const isHost = user.isAdmin || user.id === rows[0]?.host_user_id;
-  if (!isHost) return res.redirect(`/game/${gameId}`);
+  if (!await canManage(req, gameId)) return res.redirect(`/game/${gameId}`);
   const prizeTeam       = Math.max(0, parseInt(req.body.prize_team)      || 0);
   const prizeIndividual = Math.max(0, parseInt(req.body.prize_individual) || 0);
   try {
@@ -362,14 +360,11 @@ router.post('/:gameId/prizes', async (req, res) => {
   }
 });
 
-// POST /game/:gameId/delete — host or admin: delete a game and all its data
+// POST /game/:gameId/delete — host or admin only (not co-host): delete a game and all its data
 router.post('/:gameId/delete', async (req, res) => {
-  const user = req.session?.user;
-  if (!user) return res.redirect('/');
+  if (!req.session?.user) return res.redirect('/');
   const gameId = parseInt(req.params.gameId);
-  const { rows } = await pool.query('SELECT host_user_id FROM games WHERE id = $1', [gameId]);
-  const isHost = user.isAdmin || user.id === rows[0]?.host_user_id;
-  if (!isHost) return res.redirect('/');
+  if (!await isHost(req, gameId)) return res.redirect('/');
   try {
     await pool.query('DELETE FROM games WHERE id = $1', [gameId]);
     res.redirect('/?success=' + encodeURIComponent('Game deleted.'));
@@ -379,13 +374,10 @@ router.post('/:gameId/delete', async (req, res) => {
   }
 });
 
-// POST /game/:gameId/uncomplete — host or admin: unmark tournament_complete so scraping resumes
+// POST /game/:gameId/uncomplete — host, co-host, or admin: unmark tournament_complete so scraping resumes
 router.post('/:gameId/uncomplete', async (req, res) => {
-  const user = req.session?.user;
   const gameId = parseInt(req.params.gameId);
-  const { rows } = await pool.query('SELECT host_user_id FROM games WHERE id = $1', [gameId]);
-  const isHost = user?.isAdmin || user?.id === rows[0]?.host_user_id;
-  if (!isHost) return res.redirect(`/game/${gameId}`);
+  if (!await canManage(req, gameId)) return res.redirect(`/game/${gameId}`);
   try {
     await pool.query(
       'UPDATE games SET tournament_complete = FALSE, completed_at = NULL, winner_username = NULL, winner_individual_username = NULL WHERE id = $1',
@@ -398,13 +390,10 @@ router.post('/:gameId/uncomplete', async (req, res) => {
   }
 });
 
-// POST /game/:gameId/complete — host or admin: mark tournament as fully over
+// POST /game/:gameId/complete — host, co-host, or admin: mark tournament as fully over
 router.post('/:gameId/complete', async (req, res) => {
-  const user = req.session?.user;
   const gameId = parseInt(req.params.gameId);
-  const { rows } = await pool.query('SELECT host_user_id FROM games WHERE id = $1', [gameId]);
-  const isHost = user?.isAdmin || user?.id === rows[0]?.host_user_id;
-  if (!isHost) return res.redirect(`/game/${req.params.gameId}`);
+  if (!await canManage(req, gameId)) return res.redirect(`/game/${req.params.gameId}`);
   try {
     await pool.query('UPDATE games SET tournament_complete = TRUE, completed_at = COALESCE(completed_at, NOW()) WHERE id = $1', [gameId]);
     await saveWinner(gameId).catch(e => console.warn('[saveWinner]', e.message));
