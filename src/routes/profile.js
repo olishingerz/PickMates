@@ -131,25 +131,30 @@ async function getProfileStats(id) {
 
 router.get('/', requireAuth, async (req, res) => {
   const id = req.session.user.id;
-  const [profileRes, friendsRes, stats] = await Promise.all([
-    pool.query('SELECT username, avatar, email, notify_draft_turn, notify_lms_deadline, payment_details FROM users WHERE id = $1', [id]),
-    pool.query(`
-      SELECT u.id, u.username, u.avatar
-      FROM friends f
-      JOIN users u ON u.id = f.friend_id
-      WHERE f.user_id = $1
-      ORDER BY u.username ASC
-    `, [id]),
-    getProfileStats(id),
-  ]);
+  try {
+    const [profileRes, friendsRes, stats] = await Promise.all([
+      pool.query('SELECT username, avatar, email, notify_draft_turn, notify_lms_deadline, payment_details FROM users WHERE id = $1', [id]),
+      pool.query(`
+        SELECT u.id, u.username, u.avatar
+        FROM friends f
+        JOIN users u ON u.id = f.friend_id
+        WHERE f.user_id = $1
+        ORDER BY u.username ASC
+      `, [id]),
+      getProfileStats(id),
+    ]);
 
-  res.render('profile', {
-    profileUser: profileRes.rows[0],
-    ...stats,
-    friends: friendsRes.rows,
-    error:   req.query.error   || null,
-    success: req.query.success || null,
-  });
+    res.render('profile', {
+      profileUser: profileRes.rows[0],
+      ...stats,
+      friends: friendsRes.rows,
+      error:   req.query.error   || null,
+      success: req.query.success || null,
+    });
+  } catch (err) {
+    console.error('[profile GET /]', err);
+    res.redirect('/?error=' + encodeURIComponent('Could not load your profile.'));
+  }
 });
 
 // GET /profile/:username — another player's public stats page, reached by
@@ -157,26 +162,31 @@ router.get('/', requireAuth, async (req, res) => {
 // card as the owner's profile, plus an add-friend button — never email,
 // payment details, or anything else editable on the owner's own profile.
 router.get('/:username', requireAuth, async (req, res) => {
-  const { rows } = await pool.query(
-    'SELECT id, username, avatar FROM users WHERE LOWER(username) = LOWER($1)',
-    [req.params.username]
-  );
-  const targetUser = rows[0];
-  if (!targetUser) return res.redirect('/?error=' + encodeURIComponent('That player was not found.'));
-  if (targetUser.id === req.session.user.id) return res.redirect('/profile');
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, username, avatar FROM users WHERE LOWER(username) = LOWER($1)',
+      [req.params.username]
+    );
+    const targetUser = rows[0];
+    if (!targetUser) return res.redirect('/?error=' + encodeURIComponent('That player was not found.'));
+    if (targetUser.id === req.session.user.id) return res.redirect('/profile');
 
-  const [stats, friendRes] = await Promise.all([
-    getProfileStats(targetUser.id),
-    pool.query('SELECT 1 FROM friends WHERE user_id = $1 AND friend_id = $2', [req.session.user.id, targetUser.id]),
-  ]);
+    const [stats, friendRes] = await Promise.all([
+      getProfileStats(targetUser.id),
+      pool.query('SELECT 1 FROM friends WHERE user_id = $1 AND friend_id = $2', [req.session.user.id, targetUser.id]),
+    ]);
 
-  res.render('player-profile', {
-    profileUser: targetUser,
-    ...stats,
-    isFriend: friendRes.rows.length > 0,
-    error:   req.query.error   || null,
-    success: req.query.success || null,
-  });
+    res.render('player-profile', {
+      profileUser: targetUser,
+      ...stats,
+      isFriend: friendRes.rows.length > 0,
+      error:   req.query.error   || null,
+      success: req.query.success || null,
+    });
+  } catch (err) {
+    console.error('[profile GET /:username]', err);
+    res.redirect('/?error=' + encodeURIComponent('Could not load that profile.'));
+  }
 });
 
 // POST /profile/username

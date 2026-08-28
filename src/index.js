@@ -20,6 +20,15 @@ const { getGameCreationRoles, canCreateGames } = require('./services/settings');
 
 const app = express();
 
+// Safety net for a promise rejection that slips past every route's own
+// try/catch (Express 4 doesn't auto-forward those to the error-handling
+// middleware below) — without this, Node treats an unhandled rejection as an
+// uncaught exception and kills the whole process, taking the entire site
+// down over one bad request instead of just failing that one response.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+
 const isProduction = process.env.NODE_ENV === 'production';
 
 if (isProduction && !process.env.SESSION_SECRET) {
@@ -172,6 +181,31 @@ app.post('/api/scrape', async (req, res) => {
     console.error('[scrape API]', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// 404 — no route matched. Must come after every app.use()/route registration.
+app.use((req, res) => {
+  res.status(404).send(
+    '<!DOCTYPE html><html><head><title>Not Found – PickMates</title></head>' +
+    '<body style="font-family:sans-serif;text-align:center;padding:4rem 1rem">' +
+    '<h1>404</h1><p>That page doesn\'t exist.</p><a href="/">← Back to PickMates</a></body></html>'
+  );
+});
+
+// Catch-all error handler — must be the LAST middleware, with all 4 args, for
+// Express to treat it as an error handler rather than regular middleware.
+// Only catches synchronous throws and errors explicitly forwarded via
+// next(err) (Express 4 doesn't auto-forward a rejected promise from an async
+// handler) — every route handler should still have its own try/catch, this
+// is the safety net for anything that slips through.
+app.use((err, req, res, next) => {
+  console.error('[unhandled error]', err);
+  if (res.headersSent) return next(err);
+  res.status(500).send(
+    '<!DOCTYPE html><html><head><title>Something went wrong – PickMates</title></head>' +
+    '<body style="font-family:sans-serif;text-align:center;padding:4rem 1rem">' +
+    '<h1>Something went wrong</h1><p>Please try again, or head back home.</p><a href="/">← Back to PickMates</a></body></html>'
+  );
 });
 
 async function start() {

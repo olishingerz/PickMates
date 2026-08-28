@@ -304,8 +304,12 @@ router.get('/network-test', requireAdmin, async (req, res) => {
     ['smtp-relay.brevo.com', 2525],
     ['smtp.gmail.com', 587],
   ];
-  const results = await Promise.all(targets.map(([host, port]) => checkConnect(host, port)));
-  res.json(results);
+  try {
+    const results = await Promise.all(targets.map(([host, port]) => checkConnect(host, port)));
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── POST /admin/test-email — send a real test email via the Brevo API and

@@ -754,6 +754,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- scorecard_scores only had a (participant_id, hole_number) unique index — no
+-- index with game_id leading, despite being queried by game_id alone on every
+-- live scorecard render and in a bulk-delete path.
+CREATE INDEX IF NOT EXISTS idx_scorecard_scores_game ON scorecard_scores(game_id);
+
 -- ── One-time data fixes ───────────────────────────────────────────────────────
 -- Fix ESPN name mismatches for Masters 2026 (Samuel Stevens / Nicolas Echavarria)
 UPDATE picks SET player_name = 'Sam Stevens'

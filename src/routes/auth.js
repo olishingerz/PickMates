@@ -94,6 +94,30 @@ function recordForgotPasswordAttempt(key) {
   }
 }
 
+// Same sliding-window pattern again, keyed by IP alone (there's no existing
+// account to key against yet) — keeps registration from being scripted into
+// mass account creation. A little more generous than login since a shared
+// household/office IP registering several real accounts is plausible.
+const registerAttempts = new Map();
+const MAX_REGISTER_ATTEMPTS = 10;
+const REGISTER_WINDOW_MS    = 15 * 60 * 1000;
+
+function registerRateLimited(key) {
+  const entry = registerAttempts.get(key);
+  if (!entry || Date.now() > entry.resetAt) return false;
+  return entry.count >= MAX_REGISTER_ATTEMPTS;
+}
+
+function recordRegisterAttempt(key) {
+  const now = Date.now();
+  const entry = registerAttempts.get(key);
+  if (!entry || now > entry.resetAt) {
+    registerAttempts.set(key, { count: 1, resetAt: now + REGISTER_WINDOW_MS });
+  } else {
+    entry.count++;
+  }
+}
+
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 router.get('/forgot-password', (req, res) => {
@@ -201,6 +225,11 @@ router.get('/register', (req, res) => {
 router.post('/register', async (req, res) => {
   const { username, password, confirmPassword } = req.body;
   const email = req.body.email?.trim().toLowerCase() || '';
+
+  if (registerRateLimited(req.ip)) {
+    return res.render('register', { error: 'Too many attempts — please try again in a few minutes.', username: username || '', email });
+  }
+  recordRegisterAttempt(req.ip);
 
   if (!username || !password || !confirmPassword || !email) {
     return res.render('register', { error: 'Please fill in all fields.', username: username || '', email });

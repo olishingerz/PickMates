@@ -23,8 +23,12 @@ async function isHost(req, gameId) {
 async function canManage(req, gameId) {
   if (await isHost(req, gameId)) return true;
   if (!req.session.user) return false;
+  // Aggregate rather than reading an arbitrary row — a user can hold multiple
+  // entries (game_participants rows) in the same game (LMS today), and a
+  // freshly added extra entry defaults to is_co_host=FALSE regardless of the
+  // user's existing co-host status on their other entry.
   const { rows } = await pool.query(
-    'SELECT is_co_host FROM game_participants WHERE game_id = $1 AND user_id = $2',
+    'SELECT bool_or(is_co_host) AS is_co_host FROM game_participants WHERE game_id = $1 AND user_id = $2',
     [gameId, req.session.user.id]
   );
   return rows[0]?.is_co_host === true;
