@@ -1,33 +1,14 @@
 const express = require('express');
 const { pool } = require('../db');
 const { sendContactEmail } = require('../services/email');
+const { createRateLimiter } = require('../services/rateLimiter');
 
 const router = express.Router();
 
 const CATEGORIES = ['General question', 'Bug report', 'Feature suggestion', 'Other'];
 
-// Sliding-window limiter, keyed by IP — same pattern as auth.js's login/
-// forgot-password limiters, to stop this public form being used to spam
-// the support inbox.
-const contactAttempts = new Map();
-const MAX_CONTACT_ATTEMPTS = 5;
-const CONTACT_WINDOW_MS    = 15 * 60 * 1000;
-
-function contactRateLimited(key) {
-  const entry = contactAttempts.get(key);
-  if (!entry || Date.now() > entry.resetAt) return false;
-  return entry.count >= MAX_CONTACT_ATTEMPTS;
-}
-
-function recordContactAttempt(key) {
-  const now = Date.now();
-  const entry = contactAttempts.get(key);
-  if (!entry || now > entry.resetAt) {
-    contactAttempts.set(key, { count: 1, resetAt: now + CONTACT_WINDOW_MS });
-  } else {
-    entry.count++;
-  }
-}
+// Keyed by IP — stops this public form being used to spam the support inbox.
+const contactLimiter = createRateLimiter(5, 15 * 60 * 1000);
 
 router.get('/', async (req, res) => {
   let email = '';
@@ -69,10 +50,10 @@ router.post('/', async (req, res) => {
   }
 
   const rateLimitKey = req.ip;
-  if (contactRateLimited(rateLimitKey)) {
+  if (contactLimiter.isLimited(rateLimitKey)) {
     return rerender("You've sent a few messages recently — please wait a bit before sending another.");
   }
-  recordContactAttempt(rateLimitKey);
+  contactLimiter.recordAttempt(rateLimitKey);
 
   try {
     await sendContactEmail({ name, email, category, message });

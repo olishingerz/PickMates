@@ -3,33 +3,15 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { pool } = require('../db');
 const { sendPasswordResetEmail } = require('../services/email');
+const { createRateLimiter } = require('../services/rateLimiter');
 
 const APP_URL = process.env.APP_URL || 'https://pickmates.up.railway.app';
 
 const router = express.Router();
 
-// In-memory sliding-window login limiter, keyed by IP+username so one attacker
-// hammering a known username can't lock a real player out entirely. Fine at
-// this app's scale — swap for a shared store if it's ever run multi-instance.
-const loginAttempts = new Map();
-const MAX_LOGIN_ATTEMPTS = 8;
-const LOGIN_WINDOW_MS    = 15 * 60 * 1000;
-
-function loginRateLimited(key) {
-  const entry = loginAttempts.get(key);
-  if (!entry || Date.now() > entry.resetAt) return false;
-  return entry.count >= MAX_LOGIN_ATTEMPTS;
-}
-
-function recordFailedLogin(key) {
-  const now = Date.now();
-  const entry = loginAttempts.get(key);
-  if (!entry || now > entry.resetAt) {
-    loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
-  } else {
-    entry.count++;
-  }
-}
+// Keyed by IP+username so one attacker hammering a known username can't lock
+// a real player out entirely.
+const loginLimiter = createRateLimiter(8, 15 * 60 * 1000);
 
 router.get('/login', (req, res) => {
   if (req.session.user) return res.redirect('/');
@@ -44,7 +26,7 @@ router.post('/login', async (req, res) => {
   }
 
   const rateLimitKey = `${req.ip}:${username.trim().toLowerCase()}`;
-  if (loginRateLimited(rateLimitKey)) {
+  if (loginLimiter.isLimited(rateLimitKey)) {
     return res.render('login', { error: 'Incorrect username or password.', success: null, next, username });
   }
 
@@ -52,13 +34,13 @@ router.post('/login', async (req, res) => {
     const { rows } = await pool.query('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [username.trim()]);
     const user = rows[0];
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
-      recordFailedLogin(rateLimitKey);
+      loginLimiter.recordAttempt(rateLimitKey);
       return res.render('login', { error: 'Incorrect username or password.', success: null, next, username });
     }
     if (user.is_banned) {
       return res.render('login', { error: 'This account has been suspended. Please contact the host.', success: null, next, username });
     }
-    loginAttempts.delete(rateLimitKey);
+    loginLimiter.reset(rateLimitKey);
     req.session.user = { id: user.id, username: user.username, isAdmin: user.is_admin, isPaid: user.is_paid || false };
     // One-shot email prompt — only for accounts with no email that have never
     // been shown it before; consumed and marked shown on the very next page load.
@@ -71,52 +53,15 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Same sliding-window pattern as the login limiter, keyed by IP+email — keeps
-// this endpoint from being used to spam a given inbox with reset emails or to
-// probe which addresses are registered via timing.
-const forgotPasswordAttempts = new Map();
-const MAX_FORGOT_ATTEMPTS = 5;
-const FORGOT_WINDOW_MS    = 15 * 60 * 1000;
+// Keyed by IP+email — keeps this endpoint from being used to spam a given
+// inbox with reset emails or to probe which addresses are registered via timing.
+const forgotPasswordLimiter = createRateLimiter(5, 15 * 60 * 1000);
 
-function forgotPasswordRateLimited(key) {
-  const entry = forgotPasswordAttempts.get(key);
-  if (!entry || Date.now() > entry.resetAt) return false;
-  return entry.count >= MAX_FORGOT_ATTEMPTS;
-}
-
-function recordForgotPasswordAttempt(key) {
-  const now = Date.now();
-  const entry = forgotPasswordAttempts.get(key);
-  if (!entry || now > entry.resetAt) {
-    forgotPasswordAttempts.set(key, { count: 1, resetAt: now + FORGOT_WINDOW_MS });
-  } else {
-    entry.count++;
-  }
-}
-
-// Same sliding-window pattern again, keyed by IP alone (there's no existing
-// account to key against yet) — keeps registration from being scripted into
-// mass account creation. A little more generous than login since a shared
-// household/office IP registering several real accounts is plausible.
-const registerAttempts = new Map();
-const MAX_REGISTER_ATTEMPTS = 10;
-const REGISTER_WINDOW_MS    = 15 * 60 * 1000;
-
-function registerRateLimited(key) {
-  const entry = registerAttempts.get(key);
-  if (!entry || Date.now() > entry.resetAt) return false;
-  return entry.count >= MAX_REGISTER_ATTEMPTS;
-}
-
-function recordRegisterAttempt(key) {
-  const now = Date.now();
-  const entry = registerAttempts.get(key);
-  if (!entry || now > entry.resetAt) {
-    registerAttempts.set(key, { count: 1, resetAt: now + REGISTER_WINDOW_MS });
-  } else {
-    entry.count++;
-  }
-}
+// Keyed by IP alone (there's no existing account to key against yet) — keeps
+// registration from being scripted into mass account creation. A little more
+// generous than login since a shared household/office IP registering several
+// real accounts is plausible.
+const registerLimiter = createRateLimiter(10, 15 * 60 * 1000);
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -137,10 +82,10 @@ router.post('/forgot-password', async (req, res) => {
   }
 
   const rateLimitKey = `${req.ip}:${email.toLowerCase()}`;
-  if (forgotPasswordRateLimited(rateLimitKey)) {
+  if (forgotPasswordLimiter.isLimited(rateLimitKey)) {
     return res.render('forgot-password', { error: null, success: genericSuccess });
   }
-  recordForgotPasswordAttempt(rateLimitKey);
+  forgotPasswordLimiter.recordAttempt(rateLimitKey);
 
   try {
     const { rows } = await pool.query('SELECT id, username, email FROM users WHERE LOWER(email) = LOWER($1)', [email]);
@@ -226,10 +171,10 @@ router.post('/register', async (req, res) => {
   const { username, password, confirmPassword } = req.body;
   const email = req.body.email?.trim().toLowerCase() || '';
 
-  if (registerRateLimited(req.ip)) {
+  if (registerLimiter.isLimited(req.ip)) {
     return res.render('register', { error: 'Too many attempts — please try again in a few minutes.', username: username || '', email });
   }
-  recordRegisterAttempt(req.ip);
+  registerLimiter.recordAttempt(req.ip);
 
   if (!username || !password || !confirmPassword || !email) {
     return res.render('register', { error: 'Please fill in all fields.', username: username || '', email });
