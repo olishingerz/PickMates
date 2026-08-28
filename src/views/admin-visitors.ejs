@@ -64,7 +64,7 @@
             <tbody>
               <% visitors.forEach(v => { %>
                 <tr>
-                  <td class="muted" style="white-space:nowrap;font-size:.82rem"><%= new Date(v.last_seen).toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %></td>
+                  <td class="muted" style="white-space:nowrap;font-size:.82rem"><%= new Date(v.last_seen).toLocaleString('en-GB', { timeZone:'Europe/London', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %></td>
                   <td style="font-family:monospace;font-size:.85rem"><%= v.last_path %></td>
                   <td><%= v.username || 'Guest' %></td>
                   <td class="muted" style="font-size:.82rem"><%= v.ip_address || '—' %></td>
