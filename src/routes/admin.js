@@ -602,25 +602,4 @@ router.get('/lms-state-debug/:gameId', requireAdmin, async (req, res) => {
   }
 });
 
-// ── GET /admin/fix-activity-log-picks — ONE-TIME cleanup for the LMS
-// pick-reveal leak. Before that fix, every LMS pick logged the team name
-// straight into the activity feed ("X locked in Arsenal in Y"), bypassing
-// the "picks hidden until everyone's in" rule on the LMS page itself. The
-// fix (already deployed) only changed what *new* picks log — rows written
-// before it still have the old team-naming text sitting in the table and
-// still get shown. This deletes only rows matching that exact old wording;
-// every other activity_log message (joins, winners, week-skip/finish, etc.)
-// is untouched. Delete this route once it's been run — it's tailored to
-// this one incident, not a reusable tool.
-router.get('/fix-activity-log-picks', requireAdmin, async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      `DELETE FROM activity_log WHERE message LIKE '% locked in % in %' RETURNING id, game_id, message, created_at`
-    );
-    res.json({ ok: true, deletedCount: rows.length, deleted: rows });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 module.exports = router;
