@@ -100,15 +100,25 @@ app.use(async (req, res, next) => {
     }
     // At most once every 5 minutes per session: update last_seen and re-sync
     // is_admin/is_paid, so a revoked admin loses access without needing to log
-    // out (previously only the one-time sync above ever refreshed these).
+    // out (previously only the one-time sync above ever refreshed these). Also
+    // catches the email prompt for someone who was already logged in when it
+    // would otherwise have fired — the login route's one-shot check only ever
+    // sees a *fresh* login, so a persistent session that predates the prompt
+    // (or was simply active at the time) would otherwise never see it until
+    // their session happens to expire and they log in again. Setting the flag
+    // here takes effect from the next request onward, same "shown on next
+    // page load" behaviour as the login-triggered path.
     const now = Date.now();
     if (!req.session.lastSeenAt || now - req.session.lastSeenAt > 5 * 60 * 1000) {
       req.session.lastSeenAt = now;
-      pool.query('UPDATE users SET last_seen = NOW() WHERE id = $1 RETURNING is_admin, is_paid', [req.session.user.id])
+      pool.query('UPDATE users SET last_seen = NOW() WHERE id = $1 RETURNING is_admin, is_paid, email, email_prompt_shown', [req.session.user.id])
         .then(({ rows }) => {
           if (rows[0]) {
             req.session.user.isAdmin = rows[0].is_admin || false;
             req.session.user.isPaid  = rows[0].is_paid  || false;
+            if (!rows[0].email && !rows[0].email_prompt_shown) {
+              req.session.showEmailPrompt = true;
+            }
           }
         })
         .catch(() => {});

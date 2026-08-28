@@ -64,14 +64,13 @@ router.post('/login', async (req, res) => {
         return res.render('login', { error: 'Something went wrong. Please try again.', success: null, next, username });
       }
       req.session.user = { id: user.id, username: user.username, isAdmin: user.is_admin, isPaid: user.is_paid || false };
-      // Shown once per fresh login (consumed on the very next page load, same
-      // as before) whenever the account currently has no email — not just the
-      // first time ever. A persistent "stay logged in" session never re-hits
-      // this route, so someone who dismissed it once wouldn't be re-prompted
-      // for as long as their session lasts otherwise; re-checking on every
-      // fresh login (rather than a permanent per-account "already shown" gate)
-      // also covers a user who added then later removed their email again.
-      req.session.showEmailPrompt = !user.email;
+      // One-shot email prompt — only for accounts with no email that have never
+      // been shown it before; consumed and marked shown on the very next page
+      // load. This only catches a *fresh* login, though — someone already
+      // logged in (a persistent session never hits this route again) needs
+      // the periodic check in index.js's per-request middleware instead, or
+      // they'd never get prompted until their session happens to expire.
+      req.session.showEmailPrompt = !user.email && !user.email_prompt_shown;
       if (user.must_change_password) return res.redirect('/auth/change-password');
       res.redirect(next.startsWith('/') ? next : '/');
     });
