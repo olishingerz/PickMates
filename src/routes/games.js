@@ -246,7 +246,12 @@ router.get('/:gameId', async (req, res) => {
     `, [gameId]);
 
     const userId = req.session.user?.id || null;
-    const isHost = req.session.user && (
+    // Named viewerIsHost, not isHost — this whole handler also has the
+    // imported isHost(req, gameId) in scope (used by the LMS/Scorecard
+    // branches above), and a same-scope `const isHost` here shadowed it for
+    // the entire function body via the TDZ, breaking every LMS/Scorecard
+    // game page (ReferenceError thrown before those branches' early return).
+    const viewerIsHost = req.session.user && (
       req.session.user.isAdmin || req.session.user.id === game.host_user_id
     );
     const userInGame = userId
@@ -255,7 +260,7 @@ router.get('/:gameId', async (req, res) => {
 
     res.render('game', {
       game, standings, individualPotRankings, lastUpdated, rankHistory,
-      fmtScore, SCORES_THAT_COUNT, MIN_CUT_MAKERS, isHost, userInGame,
+      fmtScore, SCORES_THAT_COUNT, MIN_CUT_MAKERS, isHost: viewerIsHost, userInGame,
       error:   req.query.error   || null,
       success: req.query.success || null,
     });

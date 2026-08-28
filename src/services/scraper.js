@@ -1,5 +1,6 @@
 const { pool } = require('../db');
 const { computeGolfDraftWinner } = require('./golfWinner');
+const { SCORES_THAT_COUNT } = require('../constants');
 
 const ESPN_SCOREBOARD = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
 
