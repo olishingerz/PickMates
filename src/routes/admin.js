@@ -91,19 +91,28 @@ router.get('/visitors', requireAdmin, async (req, res) => {
     const page   = Math.max(1, parseInt(req.query.page) || 1);
     const offset = (page - 1) * VISITORS_PER_PAGE;
 
+    // Admins are excluded — the page exists to show real visitor traffic, not
+    // an admin's own routine dev/testing browsing. New visits already stop
+    // being logged for admins at the source (see index.js); this also filters
+    // out any rows recorded before that, for an account later made admin, or
+    // in the rare case a logged-out anonymous IP row later gets attributed to
+    // one (a coincidence, but excluding it here costs nothing either way).
     const [statsRes, visitorsRes] = await Promise.all([
       pool.query(`
         SELECT
           COUNT(*)::int AS total_visitors,
-          COALESCE(SUM(visit_count), 0)::int AS total_visits,
-          COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '24 hours')::int AS active_today,
-          COUNT(*) FILTER (WHERE last_seen > NOW() - INTERVAL '7 days')::int   AS active_week
-        FROM visitor_log
+          COALESCE(SUM(vl.visit_count), 0)::int AS total_visits,
+          COUNT(*) FILTER (WHERE vl.last_seen > NOW() - INTERVAL '24 hours')::int AS active_today,
+          COUNT(*) FILTER (WHERE vl.last_seen > NOW() - INTERVAL '7 days')::int   AS active_week
+        FROM visitor_log vl
+        LEFT JOIN users u ON u.id = vl.user_id
+        WHERE u.is_admin IS NOT TRUE
       `),
       pool.query(`
         SELECT vl.last_path, vl.ip_address, vl.last_seen, vl.first_seen, vl.visit_count, u.username
         FROM visitor_log vl
         LEFT JOIN users u ON u.id = vl.user_id
+        WHERE u.is_admin IS NOT TRUE
         ORDER BY vl.last_seen DESC
         LIMIT $1 OFFSET $2
       `, [VISITORS_PER_PAGE, offset]),

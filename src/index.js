@@ -146,9 +146,11 @@ app.use((req, res, next) => {
 // activity rather than appending a row per page load. GET only (static
 // files never reach here, express.static already served/terminated those
 // requests above). Fire-and-forget: a logging failure should never affect
-// the actual page load.
+// the actual page load. Admins are never logged — the page exists to show
+// real visitor traffic, and an admin's own browsing (especially routine
+// dev/testing) would otherwise dominate and skew it.
 app.use((req, res, next) => {
-  if (req.method === 'GET') {
+  if (req.method === 'GET' && !req.session.user?.isAdmin) {
     const visitorKey = req.session.user?.id ? `user:${req.session.user.id}` : `ip:${req.ip || 'unknown'}`;
     pool.query(
       `INSERT INTO visitor_log (visitor_key, ip_address, user_id, last_path, user_agent, last_seen, visit_count)
