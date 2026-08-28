@@ -80,8 +80,9 @@ header {
   gap: .5rem;
   text-decoration: none;
   letter-spacing: -.01em;
+  -webkit-tap-highlight-color: transparent; /* kills the grey/blue flash on mobile tap */
 }
-.logo:hover { text-decoration: none; }
+.logo:hover, .logo:active, .logo:focus { text-decoration: none; }
 
 .logo-flag {
   font-size: 1.25rem;
