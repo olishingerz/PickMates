@@ -24,15 +24,7 @@
     <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
 
     <!-- ── Recent activity ───────────────────────────────────────────────── -->
-    <%
-      // Temporarily disabled — LMS pick messages ("X locked in Arsenal") leak
-      // a player's pick before everyone's submitted, bypassing the "picks
-      // hidden until all in" rule on the LMS page itself. Re-enable once the
-      // activity feed only reveals picks after that point (or uses a
-      // non-revealing message for them). Data logging itself is untouched.
-      const RECENT_ACTIVITY_ENABLED = false;
-    %>
-    <% if (RECENT_ACTIVITY_ENABLED && typeof activity !== 'undefined' && activity.length > 0) { %>
+    <% if (typeof activity !== 'undefined' && activity.length > 0) { %>
       <%
         function timeAgo(date) {
           const diffMs  = Date.now() - new Date(date).getTime();

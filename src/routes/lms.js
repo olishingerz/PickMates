@@ -240,7 +240,10 @@ router.post('/picks', requireAuth, async (req, res) => {
       'INSERT INTO lms_picks (game_id, user_id, participant_id, week_number, team_id, team_name) VALUES ($1,$2,$3,$4,$5,$6)',
       [gameId, userId, participantId, data.currentWeek, team_id, team_name]
     );
-    logActivity(gameId, `${req.session.user.username} locked in ${team_name} in ${data.game.name}`);
+    // Never name the team here — picks stay hidden on the LMS page itself
+    // until everyone's submitted for the week, so revealing it in the
+    // activity feed the moment it's made would leak it early.
+    logActivity(gameId, `${req.session.user.username} locked in their pick for ${data.game.name} (Week ${data.currentWeek})`);
     res.redirect(`/game/${gameId}?success=` + encodeURIComponent(`Pick submitted: ${team_name}`));
   } catch (err) {
     console.error('[lms picks POST]', err);
