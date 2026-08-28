@@ -15,7 +15,7 @@ const contactRoutes = require('./routes/contact');
 const { scrapeAllGames } = require('./services/scraper');
 const { sendLmsDeadlineEmails } = require('./services/email');
 const { getCurrentGameweekFixtures, processResults } = require('./services/football');
-const { processGameResults } = require('./routes/lms');
+const { processGameResults, getLmsData } = require('./routes/lms');
 const { getGameCreationRoles, canCreateGames } = require('./services/settings');
 
 const app = express();
@@ -232,18 +232,29 @@ async function start() {
           AND w.deadline BETWEEN NOW() + INTERVAL '23 hours' AND NOW() + INTERVAL '25 hours'
       `);
       for (const week of weeks) {
-        // Get alive players with emails
-        const { rows: players } = await pool.query(`
-          SELECT u.email, u.username
-          FROM game_participants gp
-          JOIN users u ON u.id = gp.user_id
-          WHERE gp.game_id = $1 AND u.email IS NOT NULL AND u.notify_lms_deadline = TRUE
-            AND NOT EXISTS (
-              SELECT 1 FROM lms_picks lp
-              WHERE lp.participant_id = gp.id
-                AND lp.week_number = $2 AND lp.result != 'loss'
-            )
-        `, [week.game_id, week.week_number]);
+        // Who this reminder actually needs to go to: entries that are still
+        // alive AND haven't picked this week yet. Elimination isn't a simple
+        // "no pick logged" check — it depends on the full pick/week history
+        // (a loss/draw/no-pick in any earlier locked week, or the current
+        // week's own match already graded) — so this reuses computeLmsStandings
+        // via getLmsData rather than re-deriving that logic in raw SQL, same
+        // reasoning as the elimination-status bug that logic was extracted to
+        // fix in the first place.
+        const data = await getLmsData(week.game_id, null);
+        const needsPick = data.standings.filter(s =>
+          !s.eliminated && !s.picks.some(pk => pk.week_number === week.week_number)
+        );
+        // One email per user, not per entry — someone holding 2+ alive
+        // entries that both still need a pick should still only get one email.
+        const userIds = [...new Set(needsPick.map(s => s.user_id))];
+
+        const players = userIds.length > 0
+          ? (await pool.query(
+              `SELECT email, username FROM users
+               WHERE id = ANY($1) AND email IS NOT NULL AND notify_lms_deadline = TRUE`,
+              [userIds]
+            )).rows
+          : [];
 
         if (players.length > 0) {
           await sendLmsDeadlineEmails(
