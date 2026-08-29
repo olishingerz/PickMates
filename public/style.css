@@ -1001,7 +1001,8 @@ a.nav-user:hover { color: var(--green); }
 /* ── Last Man Standing (semantic result colours unchanged) ────────── */
 .lms-eliminated td { opacity: .55; }
 .lms-pick-cell { white-space: nowrap; font-size: .82rem; }
-.lms-pick { padding: .15rem .4rem; border-radius: 4px; font-size: .78rem; font-weight: 600; display: inline-block; }
+.lms-pick { padding: .15rem .4rem; border-radius: 4px; font-size: .78rem; font-weight: 600; display: inline-flex; align-items: center; gap: .3rem; }
+.lms-pick-crest { width: 14px; height: 14px; object-fit: contain; flex-shrink: 0; }
 .lms-pick.win    { background: var(--green-light); color: var(--green-dark); }
 .lms-pick.loss   { background: #fbe3e0; color: #9a2f22; }
 .lms-pick.draw   { background: var(--gold-light); color: var(--gold-dark); }

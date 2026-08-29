@@ -231,21 +231,22 @@
                     // Current week picks are hidden until everyone has submitted
                     const revealThisWeek = w < currentWeek || allPickedIn || weekLocked;
                     const isMyPick = user && s.user_id === user.id;
+                    const crest = pick && typeof crestByTeamId !== 'undefined' ? crestByTeamId.get(pick.team_id) : null;
                   %>
                   <td class="lms-pick-cell">
                     <% if (pick) { %>
                       <% if (!revealThisWeek && !isMyPick) { %>
                         <span class="lms-pick pending" title="Waiting for all picks">🔒</span>
                       <% } else if (pick.result === 'win') { %>
-                        <span class="lms-pick win"><%= pick.team_name %> ✓</span>
+                        <span class="lms-pick win"><% if (crest) { %><img src="<%= crest %>" class="lms-pick-crest" alt="" /><% } %><%= pick.team_name %> ✓</span>
                       <% } else if (pick.result === 'loss') { %>
-                        <span class="lms-pick loss"><%= pick.team_name %> ✗</span>
+                        <span class="lms-pick loss"><% if (crest) { %><img src="<%= crest %>" class="lms-pick-crest" alt="" /><% } %><%= pick.team_name %> ✗</span>
                       <% } else if (pick.result === 'draw') { %>
-                        <span class="lms-pick draw"><%= pick.team_name %> ═</span>
+                        <span class="lms-pick draw"><% if (crest) { %><img src="<%= crest %>" class="lms-pick-crest" alt="" /><% } %><%= pick.team_name %> ═</span>
                       <% } else if (pick.result === 'postponed') { %>
-                        <span class="lms-pick win" title="Fixture postponed — through automatically, team can't be picked again"><%= pick.team_name %> ⏸</span>
+                        <span class="lms-pick win" title="Fixture postponed — through automatically, team can't be picked again"><% if (crest) { %><img src="<%= crest %>" class="lms-pick-crest" alt="" /><% } %><%= pick.team_name %> ⏸</span>
                       <% } else { %>
-                        <span class="lms-pick pending"><%= pick.team_name %></span>
+                        <span class="lms-pick pending"><% if (crest) { %><img src="<%= crest %>" class="lms-pick-crest" alt="" /><% } %><%= pick.team_name %></span>
                       <% } %>
                     <% } else if (weekLocked || isPastWeek) { %>
                       <span class="lms-pick no-pick">No pick</span>
