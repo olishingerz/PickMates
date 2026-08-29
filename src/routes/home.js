@@ -77,10 +77,20 @@ async function getHomeData(userId, isAdmin) {
             const mine = data.myEntries;
             g.userHasPicked  = mine.length > 0 && mine.every(e => !!e.myCurrentPick || e.eliminated);
             g.userEliminated = mine.length > 0 && mine.every(e => e.eliminated);
-            if (mine.some(e => !e.eliminated && !e.myCurrentPick) && data.weekObj?.deadline) {
-              g.pickDeadline = data.weekObj.deadline;
+            // The current week's own deadline can be in the past — the host
+            // hasn't processed results yet, so the week hasn't advanced and
+            // no later lms_weeks row (with its own deadline) exists. Once
+            // that's happened, prefer the earliest deadline that's actually
+            // still upcoming over showing a stale passed one as if it were
+            // still relevant.
+            const now = Date.now();
+            const currentDeadlineFuture = data.weekObj?.deadline && new Date(data.weekObj.deadline).getTime() > now;
+            const nextFutureWeek = data.weeks.find(w => w.deadline && new Date(w.deadline).getTime() > now);
+            const upcomingDeadline = currentDeadlineFuture ? data.weekObj.deadline : (nextFutureWeek ? nextFutureWeek.deadline : null);
+            if (mine.some(e => !e.eliminated && !e.myCurrentPick) && upcomingDeadline) {
+              g.pickDeadline = upcomingDeadline;
             }
-            g.nextDeadline = data.weekObj?.deadline || null;
+            g.nextDeadline = upcomingDeadline;
             g.aliveCount   = data.standings.filter(s => !s.eliminated).length;
             g.entryCount   = data.standings.length;
           } catch (e) {
