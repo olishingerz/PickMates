@@ -90,7 +90,9 @@ async function getHomeData(userId, isAdmin) {
     }
 
     // Recent activity across every game the viewer is in — powers the home
-    // dashboard's "Recent Activity" feed.
+    // dashboard's "Recent Activity" feed. Capped to the last 24h so a quiet
+    // stretch just makes the feed disappear, rather than filling the space
+    // with whatever's oldest out of the last 20 rows ever logged.
     let activity = [];
     if (userId) {
       const { rows } = await pool.query(`
@@ -98,6 +100,7 @@ async function getHomeData(userId, isAdmin) {
         FROM activity_log al
         JOIN games g ON g.id = al.game_id
         WHERE al.game_id IN (SELECT game_id FROM game_participants WHERE user_id = $1)
+          AND al.created_at > NOW() - INTERVAL '24 hours'
         ORDER BY al.created_at DESC
         LIMIT 20
       `, [userId]);
