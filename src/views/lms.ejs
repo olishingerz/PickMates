@@ -88,7 +88,7 @@
       <% } %>
       <div style="margin-top:.6rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
         <% if (alreadyJoined || canManage) { %>
-          <a href="/game/<%= game.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Lobby</a>
+          <a href="/game/<%= game.id %>/draft" class="btn btn-sm btn-amber">Lobby</a>
         <% } %>
         <% if (game.invite_code && !game.is_started && !game.tournament_complete) { %>
           <button class="btn btn-sm btn-ghost" style="color:var(--green-dark);border-color:var(--border);background:var(--green-light)" onclick="
@@ -144,7 +144,7 @@
                 <span class="muted" style="font-size:.85rem;display:block;margin-top:.2rem">No deadline set yet.</span>
               <% } %>
             </div>
-            <a href="/game/<%= game.id %>/lms/picks" class="btn" style="background:#f59e0b;color:#1a1a1a">Make your pick</a>
+            <a href="/game/<%= game.id %>/lms/picks" class="btn btn-amber">Make your pick</a>
           </div>
         <% } else if (entry.myCurrentPick && !weekObj?.results_locked) { %>
           <div class="card" style="background:#f0fdf4;border:1px solid var(--green);margin-bottom:.6rem">

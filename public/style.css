@@ -12,6 +12,8 @@
   --gold:         #cea94e;
   --gold-light:   #fbf3df;
   --gold-dark:    #a9822f;
+  --amber:        #f59e0b;  /* "pending action" button color — Lobby/Draft/Make pick, across every game type */
+  --amber-text:   #1a1a1a;
   --silver:       #a0a0a0;
   --silver-light: rgba(160,160,160,.1);
   --bronze:       #b87333;
@@ -148,6 +150,10 @@ nav {
 .btn:active { transform: translateY(0) scale(.97); }
 
 .btn-sm { padding: .4rem .8rem; font-size: .82rem; border-radius: 9px; }
+
+/* The "pending action" button — Lobby/Draft/Make pick, shared across every
+   game type's pre-start and mid-round primary CTA. */
+.btn-amber { background: var(--amber); color: var(--amber-text); }
 
 .btn-ghost {
   background: transparent;
@@ -996,11 +1002,11 @@ a.nav-user:hover { color: var(--green); }
 .lms-eliminated td { opacity: .55; }
 .lms-pick-cell { white-space: nowrap; font-size: .82rem; }
 .lms-pick { padding: .15rem .4rem; border-radius: 4px; font-size: .78rem; font-weight: 600; display: inline-block; }
-.lms-pick.win    { background: #d1fae5; color: #065f46; }
-.lms-pick.loss   { background: #fee2e2; color: #991b1b; }
-.lms-pick.draw   { background: #fef3c7; color: #92400e; }
-.lms-pick.pending { background: #f3f4f6; color: #374151; }
-.lms-pick.no-pick { background: #fee2e2; color: #991b1b; font-style: italic; }
+.lms-pick.win    { background: var(--green-light); color: var(--green-dark); }
+.lms-pick.loss   { background: #fbe3e0; color: #9a2f22; }
+.lms-pick.draw   { background: var(--gold-light); color: var(--gold-dark); }
+.lms-pick.pending { background: var(--border); color: var(--text-muted); }
+.lms-pick.no-pick { background: #fbe3e0; color: #9a2f22; font-style: italic; }
 
 .lms-fixture {
   display: grid;

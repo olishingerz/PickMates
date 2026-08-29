@@ -117,15 +117,15 @@
       <% if (!g.is_started) { %>
         <% if (g.game_type === 'last_man_standing') { %>
           <% if (g.user_joined) { %>
-            <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Lobby</a>
+            <a href="/game/<%= g.id %>/draft" class="btn btn-sm btn-amber">Lobby</a>
           <% } else { %>
             <a href="/game/<%= g.id %>" class="btn btn-sm" style="background:var(--green);color:#fff">Join game</a>
           <% } %>
         <% } else if (g.game_type === 'golf_scorecard') { %>
-          <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:<%= g.user_joined ? '#f59e0b' : 'var(--green)' %>;color:<%= g.user_joined ? '#1a1a1a' : '#fff' %>"><%= g.user_joined ? 'Lobby' : 'Join game' %></a>
+          <a href="/game/<%= g.id %>/draft" class="btn btn-sm <%= g.user_joined ? 'btn-amber' : '' %>" style="<%= g.user_joined ? '' : 'background:var(--green);color:#fff' %>"><%= g.user_joined ? 'Lobby' : 'Join game' %></a>
         <% } else { %>
           <% if (g.user_joined || isGameHost) { %>
-            <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Draft</a>
+            <a href="/game/<%= g.id %>/draft" class="btn btn-sm btn-amber">Draft</a>
           <% } %>
           <% if (!g.user_joined) { %>
             <form action="/game/<%= g.id %>/join" method="POST" style="display:inline">
@@ -139,10 +139,10 @@
         <% if ((g.user_joined || isGameHost) && g.game_type !== 'golf_scorecard') { %>
           <% if (g.game_type === 'last_man_standing') { %>
             <% if (!g.userHasPicked && !g.userEliminated) { %>
-              <a href="/game/<%= g.id %>/lms/picks" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Make pick</a>
+              <a href="/game/<%= g.id %>/lms/picks" class="btn btn-sm btn-amber">Make pick</a>
             <% } %>
           <% } else { %>
-            <a href="/game/<%= g.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">Draft</a>
+            <a href="/game/<%= g.id %>/draft" class="btn btn-sm btn-amber">Draft</a>
           <% } %>
         <% } %>
       <% } %>
