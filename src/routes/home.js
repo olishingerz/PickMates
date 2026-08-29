@@ -484,6 +484,7 @@ router.get('/winners-club', async (req, res) => {
                g.winner_individual_username, wiu.avatar AS winner_individual_avatar,
                g.tournament_end_date, g.tournament_start_date, g.created_at, g.completed_at,
                COALESCE(g.completed_at, g.tournament_end_date, g.created_at) AS event_date,
+               COALESCE(rc.rollover_count, 0) AS rollover_count,
                (SELECT COALESCE(json_agg(json_build_object('username', u2.username, 'avatar', u2.avatar) ORDER BY u2.username), '[]')
                 FROM game_participants gp2
                 JOIN scorecard_teams st2 ON st2.id = gp2.scorecard_team_id
@@ -493,6 +494,14 @@ router.get('/winners-club', async (req, res) => {
         FROM games g
         LEFT JOIN users wu ON wu.username = g.winner_username AND g.game_type IN ('golf_draft', 'last_man_standing')
         LEFT JOIN users wiu ON wiu.username = g.winner_individual_username
+        -- lms_winners logs every round of a continuous LMS game, including
+        -- rollovers (everyone eliminated, pot carries over, no payee) — this
+        -- counts those so a hard-fought win can show how many rollovers it
+        -- survived. Non-LMS games just get 0 via the LEFT JOIN + COALESCE.
+        LEFT JOIN (
+          SELECT game_id, COUNT(*)::int AS rollover_count
+          FROM lms_winners WHERE is_rollover = TRUE GROUP BY game_id
+        ) rc ON rc.game_id = g.id
         WHERE g.tournament_complete = TRUE
           AND (g.winner_username IS NOT NULL OR g.winner_individual_username IS NOT NULL)
         ORDER BY COALESCE(g.completed_at, g.tournament_end_date, g.created_at) DESC

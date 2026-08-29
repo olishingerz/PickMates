@@ -123,6 +123,9 @@
                   <span class="winner-label">· Winner</span>
                 </div>
               <% } %>
+              <% if (w.game_type === 'last_man_standing' && w.rollover_count > 0) { %>
+                <div class="muted" style="font-size:.76rem;margin-top:.3rem">🔄 survived <%= w.rollover_count %> rollover<%= w.rollover_count === 1 ? '' : 's' %> before winning</div>
+              <% } %>
             </div>
           </a>
         <% }) %>
