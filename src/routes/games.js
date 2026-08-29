@@ -3,7 +3,7 @@ const { pool } = require('../db');
 const { SCORES_THAT_COUNT, MIN_CUT_MAKERS } = require('../constants');
 const { computeGolfDraftWinner } = require('../services/golfWinner');
 const draftRouter = require('./draft');
-const { router: lmsRouter, getLmsData } = require('./lms');
+const { router: lmsRouter, getLmsData, computePickPopularity } = require('./lms');
 const { router: scorecardRouter, getScorecardData } = require('./scorecard');
 const { LEAGUE_NAMES } = require('../services/football');
 const { logActivity } = require('../services/activity');
@@ -131,12 +131,22 @@ router.get('/:gameId', async (req, res) => {
         }
       }
 
+      // What everyone picked, for the most recently locked week only — picks
+      // for any week still in progress are hidden until everyone's in, same
+      // rule as the standings table itself, so this only ever looks at a week
+      // whose picks are already visible to everyone.
+      const lockedWeekNumbers = data.weeks.filter(w => w.results_locked).map(w => w.week_number);
+      const popularityWeek = lockedWeekNumbers.length > 0 ? Math.max(...lockedWeekNumbers) : null;
+      const pickPopularity = popularityWeek !== null ? computePickPopularity(data.allPicks, popularityWeek) : [];
+
       return res.render('lms', {
         ...data,
         isHost:     hostFlag,
         canManage:  manageFlag,
         LEAGUE_NAMES,
         suggestedDeadline,
+        popularityWeek,
+        pickPopularity,
         error:   req.query.error   || null,
         success: req.query.success || null,
       });

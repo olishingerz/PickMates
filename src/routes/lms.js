@@ -88,6 +88,24 @@ function computeLmsStandings(participants, allPicks, weeks, currentWeek, weekObj
   });
 }
 
+// Pure — what share of that week's submitted picks went to each team. Only
+// meaningful for a week whose picks are already visible to everyone (results
+// locked), so the caller is responsible for only calling this with a locked
+// week — this function itself has no opinion on reveal timing, it just counts.
+function computePickPopularity(allPicks, weekNumber) {
+  const weekPicks = allPicks.filter(pk => pk.week_number === weekNumber);
+  const total = weekPicks.length;
+  if (total === 0) return [];
+
+  const counts = new Map();
+  for (const pk of weekPicks) {
+    counts.set(pk.team_name, (counts.get(pk.team_name) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([team_name, count]) => ({ team_name, count, pct: Math.round((count / total) * 100) }))
+    .sort((a, b) => b.count - a.count);
+}
+
 async function getLmsData(gameId, userId) {
   const [gameRes, participantsRes, weeksRes, picksRes] = await Promise.all([
     pool.query(`
@@ -461,4 +479,4 @@ router.post('/override-result', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = { router, getLmsData, processGameResults, refreshFixtureCache, computeLmsStandings };
+module.exports = { router, getLmsData, processGameResults, refreshFixtureCache, computeLmsStandings, computePickPopularity };

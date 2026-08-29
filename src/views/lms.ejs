@@ -163,6 +163,16 @@
       <% }) %>
     <% } %>
 
+    <!-- ── Pick popularity ──────────────────────────────────────────── -->
+    <% if (typeof pickPopularity !== 'undefined' && pickPopularity.length > 0) { %>
+      <div class="card" style="margin-bottom:1.2rem">
+        <h2 class="section-title" style="margin-bottom:.5rem">Week <%= popularityWeek %> picks</h2>
+        <% pickPopularity.forEach(p => { %>
+          <p class="muted" style="margin:.2rem 0;font-size:.88rem"><%= p.team_name %> — <%= p.pct %>%</p>
+        <% }) %>
+      </div>
+    <% } %>
+
     <!-- ── Standings ────────────────────────────────────────────────── -->
     <h2 class="section-title mt-lg">Standings</h2>
     <div class="card">
