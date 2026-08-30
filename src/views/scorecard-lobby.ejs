@@ -289,7 +289,7 @@
 
     <!-- ── Unassigned players (shouldn't normally happen — joining always picks a team) ── -->
     <% if (unassignedParticipants.length > 0) { %>
-      <div class="card" style="margin-bottom:1rem;background:#fffbeb;border:1px solid #f59e0b">
+      <div class="card" style="margin-bottom:1rem;background:var(--gold-light);border:1px solid var(--gold-action)">
         <h2 class="section-title">Not yet on a team</h2>
         <ul style="margin:0;padding-left:1.2rem;list-style:none">
           <% unassignedParticipants.forEach(p => { %>
@@ -396,7 +396,7 @@
     <% } %>
 
     <% if (game.is_started) { %>
-      <a href="/game/<%= game.id %>" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a">← Back to Scorecard</a>
+      <a href="/game/<%= game.id %>" class="btn btn-sm btn-gold">← Back to Scorecard</a>
     <% } %>
   </main>
 

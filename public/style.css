@@ -12,8 +12,8 @@
   --gold:         #cea94e;
   --gold-light:   #fbf3df;
   --gold-dark:    #a9822f;
-  --amber:        #f59e0b;  /* "pending action" button color — Lobby/Draft/Make pick, across every game type */
-  --amber-text:   #1a1a1a;
+  --gold-action:      var(--gold);  /* "pending action" button color — Lobby/Draft/Make pick, across every game type. Was a hardcoded #f59e0b Tailwind amber that didn't match anything else on the site — ties it to the site's actual gold brand tone instead. */
+  --gold-action-text: #1a1a1a;
   --silver:       #a0a0a0;
   --silver-light: rgba(160,160,160,.1);
   --bronze:       #b87333;
@@ -153,7 +153,7 @@ nav {
 
 /* The "pending action" button — Lobby/Draft/Make pick, shared across every
    game type's pre-start and mid-round primary CTA. */
-.btn-amber { background: var(--amber); color: var(--amber-text); }
+.btn-gold { background: var(--gold-action); color: var(--gold-action-text); }
 
 .btn-ghost {
   background: transparent;

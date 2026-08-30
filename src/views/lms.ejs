@@ -89,7 +89,7 @@
       <% } %>
       <div style="margin-top:.6rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
         <% if (alreadyJoined || canManage) { %>
-          <a href="/game/<%= game.id %>/draft" class="btn btn-sm btn-amber">Lobby</a>
+          <a href="/game/<%= game.id %>/draft" class="btn btn-sm btn-gold">Lobby</a>
         <% } %>
         <% if (game.invite_code && !game.is_started && !game.tournament_complete) { %>
           <button class="btn btn-sm btn-ghost" style="color:var(--green-dark);border-color:var(--border);background:var(--green-light)" onclick="
@@ -134,7 +134,7 @@
               <span class="countdown-timer" data-deadline="<%= new Date(weekObj.deadline).toISOString() %>">…</span>
             </div>
           <% } %>
-          <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;background:#fffbeb;border:1px solid #f59e0b;margin-bottom:.6rem">
+          <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;background:var(--gold-light);border:1px solid var(--gold-action);margin-bottom:.6rem">
             <div>
               <strong><% if (multiEntry) { %><%= entry.team_name || entry.username %> — <% } %>Week <%= currentWeek %> — make your pick!</strong>
               <% if (weekObj?.deadline) { %>
@@ -145,7 +145,7 @@
                 <span class="muted" style="font-size:.85rem;display:block;margin-top:.2rem">No deadline set yet.</span>
               <% } %>
             </div>
-            <a href="/game/<%= game.id %>/lms/picks" class="btn btn-amber">Make your pick</a>
+            <a href="/game/<%= game.id %>/lms/picks" class="btn btn-gold">Make your pick</a>
           </div>
         <% } else if (entry.myCurrentPick && !weekObj?.results_locked) { %>
           <div class="card" style="background:#f0fdf4;border:1px solid var(--green);margin-bottom:.6rem">

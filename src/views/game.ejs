@@ -91,7 +91,7 @@
         <p class="muted" style="font-size:.85rem;margin-top:.4rem">🔒 Invite only — ask <%= game.host_username %> for an invite link to join.</p>
       <% } %>
       <% if (user && (userInGame || isHost)) { %>
-        <a href="/game/<%= game.id %>/draft" class="btn btn-sm" style="background:#f59e0b;color:#1a1a1a;margin-left:.6rem">Draft Room</a>
+        <a href="/game/<%= game.id %>/draft" class="btn btn-sm btn-gold" style="margin-left:.6rem">Draft Room</a>
       <% } %>
       <% if (isHost) { %>
         <details style="display:inline-block;margin-left:.6rem;position:relative">
