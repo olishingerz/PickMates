@@ -92,7 +92,19 @@ function clusterDates(calendarDates) {
 // pool shouldn't have its week 1 deadline dragged earlier by the Championship's
 // earlier season start (players would be locked out before PL fixtures even begin).
 // Other leagues just widen which teams are pickable inside that same window.
-async function getGameweekWindow(leagueCodes) {
+// requireUpcomingDeadline: when true, a candidate round only qualifies if its
+// own natural deadline (an hour before its earliest kickoff — same formula
+// as getCurrentGameweekFixtures's suggestedDeadline) is still in the future,
+// not just "has some fixture left unplayed". Without this, a round that's
+// already partway through (e.g. Saturday early kickoffs done, Sunday still to
+// come) still counts as "current" — right for grading results on an
+// already-running week, wrong for handing a *new* week to players to pick
+// from: they'd inherit a deadline already in the past and look eliminated
+// before they ever got a chance to pick. Callers that hand a week to players
+// (refreshFixtureCache) pass true; callers grading an already-assigned week
+// (the results cron, processGameResults) must not, or they'd skip straight
+// past the round they're meant to be grading.
+async function getGameweekWindow(leagueCodes, { requireUpcomingDeadline = false } = {}) {
   const anchorCode = leagueCodes.includes('eng.1') ? 'eng.1' : leagueCodes[0];
   if (!anchorCode) return null;
 
@@ -115,7 +127,13 @@ async function getGameweekWindow(leagueCodes) {
       const datesParam = `${candidate.start.replace(/-/g, '')}-${candidate.end.replace(/-/g, '')}`;
       const fixtures = await fetchFixtures([anchorCode], datesParam);
       const stillLive = fixtures.length === 0 || fixtures.some(f => !f.completed && !f.postponed);
-      if (stillLive) return candidate;
+      if (!stillLive) continue;
+      if (requireUpcomingDeadline) {
+        const kickoffs = fixtures.filter(f => !f.postponed).map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
+        const deadlineAhead = kickoffs.length === 0 || (Math.min(...kickoffs) - 60 * 60 * 1000) > Date.now();
+        if (!deadlineAhead) continue;
+      }
+      return candidate;
     }
     return candidates[candidates.length - 1] || fallback;
   } catch (err) {
@@ -125,9 +143,10 @@ async function getGameweekWindow(leagueCodes) {
 }
 
 // Fixtures for the current gameweek (by date clustering) plus a suggested pick
-// deadline of an hour before the earliest kickoff in that window.
-async function getCurrentGameweekFixtures(leagueCodes) {
-  const window = await getGameweekWindow(leagueCodes);
+// deadline of an hour before the earliest kickoff in that window. See
+// getGameweekWindow for what requireUpcomingDeadline changes.
+async function getCurrentGameweekFixtures(leagueCodes, opts) {
+  const window = await getGameweekWindow(leagueCodes, opts);
   if (!window) return { fixtures: [], suggestedDeadline: null };
 
   const datesParam = `${window.start.replace(/-/g, '')}-${window.end.replace(/-/g, '')}`;

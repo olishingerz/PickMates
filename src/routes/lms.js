@@ -12,7 +12,12 @@ const router = express.Router({ mergeParams: true });
 async function refreshFixtureCache(gameId, week) {
   const { rows } = await pool.query('SELECT lms_leagues FROM games WHERE id = $1', [gameId]);
   const leagues = (rows[0]?.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean);
-  const { fixtures } = await getCurrentGameweekFixtures(leagues);
+  // requireUpcomingDeadline: this is always handing a *new* week to players to
+  // pick from, so it must never land on a round that's already partway
+  // through (e.g. a game created/started mid-Saturday, after that round's
+  // early kickoffs) — that round's own natural deadline would already be in
+  // the past, and everyone would look eliminated before they ever picked.
+  const { fixtures } = await getCurrentGameweekFixtures(leagues, { requireUpcomingDeadline: true });
 
   // Auto-set the deadline to an hour before the earliest kickoff so players see
   // a countdown right away — COALESCE means this never overwrites a deadline
