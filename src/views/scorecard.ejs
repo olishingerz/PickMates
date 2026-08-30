@@ -30,6 +30,7 @@
       <% if (game.host_username) { %>
         <p class="muted" style="margin-top:.2rem;font-size:.85rem">👤 Hosted by <strong><%= game.host_username %></strong></p>
       <% } %>
+      <%- include('partials/visibility-line', { visibility: game.visibility }) %>
       <% const isIndividual = game.scorecard_format === 'individual'; %>
       <% const totalPlayers = allParticipants.length; %>
       <% if (game.scorecard_entry_fee > 0) { %>

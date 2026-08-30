@@ -1,0 +1,9 @@
+<%
+  // locals: visibility ('public' | 'invite_only' | 'private')
+  const _visMeta = {
+    public:      { icon: '🌍', label: 'Public' },
+    invite_only: { icon: '🔒', label: 'Invite only' },
+    private:     { icon: '🔐', label: 'Private' },
+  }[visibility] || { icon: '🌍', label: 'Public' };
+%>
+<p class="muted" style="margin-top:.2rem;font-size:.85rem"><%= _visMeta.icon %> <%= _visMeta.label %></p>
