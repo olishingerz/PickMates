@@ -30,6 +30,39 @@
       const aliveStandings   = standings.filter(s => !s.eliminated);
       const pickedCount      = aliveStandings.filter(s => s.myCurrentPick || s.picks.some(p => p.week_number === currentWeek)).length;
       const allPickedIn      = aliveStandings.length > 0 && pickedCount >= aliveStandings.length;
+
+      // Plain-text version of the standings table, for the "Copy leaderboard"
+      // button — one line per player, e.g. "Preece > Arsenal ✅ > Man Utd ❌",
+      // to paste straight into a group chat. Mirrors the table's own reveal
+      // rule exactly (a still-hidden current-week pick never appears — this
+      // text is meant to be posted for everyone to read, not just the one
+      // person copying it, so it can never leak a pick before everyone's in).
+      const leaderboardOrder = [...standings.filter(s => !s.eliminated),
+        ...standings.filter(s => s.eliminated).sort((a, b) => b.eliminatedWeek - a.eliminatedWeek)];
+      const leaderboardLines = leaderboardOrder.map(s => {
+        const name = s.team_name || s.username;
+        const parts = [name];
+        for (let w = 1; w <= currentWeek; w++) {
+          const pick = s.picks.find(p => p.week_number === w);
+          const weekLocked = weeks.find(wk => wk.week_number === w)?.results_locked;
+          const isPastWeek = w < currentWeek;
+          const revealThisWeek = w < currentWeek || allPickedIn || weekLocked;
+          if (pick) {
+            if (!revealThisWeek) break;
+            const icon = pick.result === 'win' ? '✅'
+                       : pick.result === 'postponed' ? '⏸️'
+                       : pick.result === 'pending' ? '⏳'
+                       : '❌'; // loss or draw
+            parts.push(`${pick.team_name} ${icon}`);
+          } else if (weekLocked || isPastWeek) {
+            parts.push('No pick ❌');
+          } else {
+            break;
+          }
+        }
+        return parts.join(' > ');
+      });
+      const leaderboardText = `${game.name} — Week ${currentWeek}\n` + leaderboardLines.join('\n');
     %>
     <div class="page-header">
       <h1><%= game.name %></h1>
@@ -103,6 +136,11 @@
           this.textContent = '✓ Copied!';
           setTimeout(() => this.textContent = '📋 Share leaderboard', 2000);
         ">📋 Share leaderboard</button>
+        <button class="btn btn-sm btn-ghost" style="color:var(--text-muted);border-color:var(--border)" onclick="
+          navigator.clipboard.writeText(window.LMS_LEADERBOARD_TEXT);
+          this.textContent = '✓ Copied!';
+          setTimeout(() => this.textContent = '📝 Copy leaderboard', 2000);
+        ">📝 Copy leaderboard</button>
       </div>
     </div>
 
@@ -362,6 +400,8 @@
   </main>
 
   <script>
+    window.LMS_LEADERBOARD_TEXT = <%- JSON.stringify(leaderboardText) %>;
+
     (function() {
       function fmt(ms) {
         if (ms <= 0) return 'Deadline passed';
