@@ -14,7 +14,7 @@ const adminRoutes   = require('./routes/admin');
 const contactRoutes = require('./routes/contact');
 const { scrapeAllGames } = require('./services/scraper');
 const { sendLmsDeadlineEmails } = require('./services/email');
-const { getCurrentGameweekFixtures, processResults } = require('./services/football');
+const { getCurrentGameweekFixtures, refetchFixtures, processResults } = require('./services/football');
 const { processGameResults, getLmsData } = require('./routes/lms');
 const { getGameCreationRoles, canCreateGames } = require('./services/settings');
 
@@ -289,7 +289,7 @@ async function start() {
   cron.schedule('*/5 * * * *', async () => {
     try {
       const { rows: games } = await pool.query(`
-        SELECT g.id, g.lms_leagues, g.lms_current_week
+        SELECT g.id, g.lms_leagues, g.lms_current_week, w.fixtures_cache
         FROM games g
         LEFT JOIN lms_weeks w ON w.game_id = g.id AND w.week_number = g.lms_current_week
         WHERE g.game_type = 'last_man_standing' AND g.is_started = TRUE
@@ -298,7 +298,16 @@ async function start() {
       for (const game of games) {
         try {
           const leagues = (game.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean);
-          const { fixtures } = await getCurrentGameweekFixtures(leagues);
+          // Fresh data for the week's own already-known fixtures, not a fresh
+          // "guess which round is current" — see refetchFixtures's comment.
+          // That guessing stops finding an already-elapsed round the moment
+          // today's date moves past its own last match date, which is
+          // exactly when grading needs to run, so it's what let a round sit
+          // stuck indefinitely no matter how long past its deadline.
+          const storedFixtures = game.fixtures_cache || [];
+          const fixtures = storedFixtures.length > 0
+            ? await refetchFixtures(leagues, storedFixtures)
+            : (await getCurrentGameweekFixtures(leagues)).fixtures;
           if (fixtures.length === 0) continue;
 
           // Grade whichever matches have already finished this cycle

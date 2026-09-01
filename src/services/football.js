@@ -165,6 +165,34 @@ async function getCurrentGameweekFixtures(leagueCodes, opts) {
   return { fixtures, suggestedDeadline };
 }
 
+// Fresh scores/status for a week that's already under way, using its own
+// already-known fixture list (a game's lms_weeks.fixtures_cache, captured
+// when that week started) to build the date range — NOT getCurrentGameweekFixtures's
+// "guess which round is current from today's date" logic.
+//
+// That guessing breaks down specifically for grading: getGameweekWindow only
+// treats a round as a valid candidate while its last match date is today or
+// later. The moment "today" passes a round's last match date — which is
+// exactly what happens once that round is actually over and needs grading —
+// it silently drops out and the lookup starts returning a different, future,
+// entirely-unplayed round instead. From then on nothing in that wrong round
+// is ever "finished", so the real round can never lock: not a single stuck
+// fixture (which the staleness fallback in index.js's cron handles), but the
+// wrong *set* of fixtures entirely. Since a week's own fixture list is
+// already known once it starts, there's no need to re-derive "which round is
+// this" at grading time at all — just ask ESPN for fresh data over the same
+// fixed date range those fixtures already fall in.
+async function refetchFixtures(leagueCodes, storedFixtures) {
+  if (!storedFixtures || storedFixtures.length === 0) return [];
+  const dateStrs = storedFixtures
+    .map(f => new Date(f.kickoff).toISOString().slice(0, 10).replace(/-/g, ''))
+    .filter(d => d.length === 8);
+  if (dateStrs.length === 0) return [];
+  const start = dateStrs.reduce((a, b) => (a < b ? a : b));
+  const end   = dateStrs.reduce((a, b) => (a > b ? a : b));
+  return fetchFixtures(leagueCodes, `${start}-${end}`);
+}
+
 // Process results for a game week — updates lms_picks result column.
 // `fixtures` must be the properly gameweek-scoped list (from getCurrentGameweekFixtures),
 // not a raw fetchFixtures() call, which defaults to ESPN's ambiguous "today" view and can
@@ -210,4 +238,4 @@ async function processResults(pool, gameId, weekNumber, fixtures) {
   return { updated, teamResults };
 }
 
-module.exports = { fetchFixtures, getCurrentGameweekFixtures, processResults, LEAGUE_NAMES };
+module.exports = { fetchFixtures, getCurrentGameweekFixtures, refetchFixtures, processResults, LEAGUE_NAMES };

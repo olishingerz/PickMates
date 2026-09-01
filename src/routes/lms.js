@@ -1,6 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
-const { getCurrentGameweekFixtures, processResults, LEAGUE_NAMES } = require('../services/football');
+const { getCurrentGameweekFixtures, refetchFixtures, processResults, LEAGUE_NAMES } = require('../services/football');
 const { logActivity } = require('../services/activity');
 const { requireAuth, getGameId, isHost, canManage } = require('../services/permissions');
 
@@ -309,7 +309,22 @@ async function processGameResults(gameId) {
   const week = game[0]?.lms_current_week || 1;
   const continuous = game[0]?.lms_continuous === true;
   const leagues = (game[0]?.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean);
-  const { fixtures } = await getCurrentGameweekFixtures(leagues);
+
+  // Use the week's own already-known fixture list to get fresh scores, not
+  // getCurrentGameweekFixtures's "guess the current round from today's date"
+  // — that guessing stops finding this round the moment its own dates are
+  // fully in the past, which is exactly when grading needs to happen (see
+  // refetchFixtures's comment for the full story). Only falls back to the
+  // date-guessing version if the cache is somehow empty (e.g. it was never
+  // populated), since there's no known fixture list to build a range from.
+  const { rows: weekRows } = await pool.query(
+    'SELECT fixtures_cache FROM lms_weeks WHERE game_id = $1 AND week_number = $2', [gameId, week]
+  );
+  const storedFixtures = weekRows[0]?.fixtures_cache || [];
+  const fixtures = storedFixtures.length > 0
+    ? await refetchFixtures(leagues, storedFixtures)
+    : (await getCurrentGameweekFixtures(leagues)).fixtures;
+
   const { updated } = await processResults(pool, gameId, week, fixtures);
 
   // Official LMS rule: a round that's shrunk to 5 or fewer surviving fixtures
