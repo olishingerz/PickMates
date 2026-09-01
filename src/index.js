@@ -309,7 +309,29 @@ async function start() {
           // either finished or been postponed — a postponed fixture's
           // `completed` stays false forever, so without the `postponed` check
           // here a single postponement would stall this game's grading indefinitely.
-          const allFinished = fixtures.every(f => f.completed || f.postponed);
+          //
+          // Belt-and-braces on top of that: a fixture can also get stuck
+          // never reaching completed:true for reasons that aren't a normal
+          // postponement — a delayed ESPN status update, or a status value
+          // this app doesn't recognise as "won't complete normally" (see
+          // football.js's postponed list). Without a fallback, that one
+          // fixture stalls this game forever, completely decoupled from the
+          // pick deadline — this is what let a round sit stuck well past its
+          // deadline with no path to recover on its own. A fixture whose
+          // kickoff was over STALE_HOURS ago is treated as resolved for the
+          // purposes of unblocking the round, using whatever result data is
+          // available for it (processResults above already only grades a
+          // fixture it's confident about, so a pick against a genuinely
+          // stuck fixture may stay 'pending' — the host's existing "override
+          // result" control on the standings table covers that rare case).
+          const STALE_HOURS = 6;
+          const staleCutoff = Date.now() - STALE_HOURS * 60 * 60 * 1000;
+          const stuckFixtures = fixtures.filter(f => !f.completed && !f.postponed && new Date(f.kickoff).getTime() < staleCutoff);
+          if (stuckFixtures.length > 0) {
+            console.warn(`[cron] LMS game ${game.id}: ${stuckFixtures.length} fixture(s) still not completed/postponed ${STALE_HOURS}h+ after kickoff, forcing the round on anyway:`,
+              stuckFixtures.map(f => `${f.homeTeam.name} v ${f.awayTeam.name} (${f.id})`).join(', '));
+          }
+          const allFinished = fixtures.every(f => f.completed || f.postponed || new Date(f.kickoff).getTime() < staleCutoff);
           if (!allFinished) continue;
 
           console.log(`[cron] LMS game ${game.id}: gameweek finished, finalizing week ${game.lms_current_week}…`);

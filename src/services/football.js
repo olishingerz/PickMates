@@ -37,10 +37,17 @@ async function fetchFixtures(leagueCodes, datesParam) {
       if (!home || !away) continue;
 
       const statusName = comp.status?.type?.name || '';
-      // ESPN's convention for a match that won't go ahead as scheduled — not
-      // verified against a live postponed fixture (none was in progress when
-      // this was written), based on the standard ESPN status.type.name enum.
-      const postponed  = statusName === 'STATUS_POSTPONED' || statusName === 'STATUS_CANCELED';
+      // ESPN's convention for a match that won't produce a normal result — not
+      // verified against a live fixture in each of these states (most weren't
+      // in progress when this was written), based on the standard ESPN
+      // status.type.name enum. Treated the same as postponed: pickers pass
+      // through automatically, no win/loss/draw. Abandoned/suspended/forfeit
+      // added alongside the original postponed/canceled — a match stuck in
+      // any of these never reaches completed:true either, and previously had
+      // no fallback at all, which could stall a whole LMS round indefinitely
+      // (see the deadline-passed staleness fallback in index.js's grading
+      // cron for the belt-and-braces version of this same fix).
+      const postponed  = ['STATUS_POSTPONED', 'STATUS_CANCELED', 'STATUS_ABANDONED', 'STATUS_SUSPENDED', 'STATUS_FORFEIT'].includes(statusName);
       const completed  = comp.status?.type?.completed === true;
       const homeScore  = parseInt(home.score) || 0;
       const awayScore  = parseInt(away.score) || 0;
