@@ -80,6 +80,8 @@ async function fetchFixtures(leagueCodes, datesParam) {
 // ESPN's soccer API has no explicit "gameweek" number — it only exposes a flat
 // calendar of match dates per league. A round is inferred by clustering dates that
 // fall close together, treating a gap of 4+ days as the boundary to the next round.
+// Only used as the Christmas-period fallback now (see getGameweekWindow) — the
+// rest of the season uses a fixed Friday-Monday window instead.
 function clusterDates(calendarDates) {
   const sorted = [...new Set(calendarDates)].sort();
   if (sorted.length === 0) return [];
@@ -94,27 +96,43 @@ function clusterDates(calendarDates) {
   return clusters.map(c => ({ start: c[0], end: c[c.length - 1] }));
 }
 
-// Premier League is treated as the anchor league when it's selected — its calendar
-// alone defines the round boundaries and deadline, since a combined PL+Championship
-// pool shouldn't have its week 1 deadline dragged earlier by the Championship's
-// earlier season start (players would be locked out before PL fixtures even begin).
-// Other leagues just widen which teams are pickable inside that same window.
-// requireUpcomingDeadline: when true, a candidate round only qualifies if its
-// own natural deadline (an hour before its earliest kickoff — same formula
-// as getCurrentGameweekFixtures's suggestedDeadline) is still in the future,
-// not just "has some fixture left unplayed". Without this, a round that's
-// already partway through (e.g. Saturday early kickoffs done, Sunday still to
-// come) still counts as "current" — right for grading results on an
-// already-running week, wrong for handing a *new* week to players to pick
-// from: they'd inherit a deadline already in the past and look eliminated
-// before they ever got a chance to pick. Callers that hand a week to players
-// (refreshFixtureCache) pass true; callers grading an already-assigned week
-// (the results cron, processGameResults) must not, or they'd skip straight
-// past the round they're meant to be grading.
-async function getGameweekWindow(leagueCodes, { requireUpcomingDeadline = false } = {}) {
-  const anchorCode = leagueCodes.includes('eng.1') ? 'eng.1' : leagueCodes[0];
-  if (!anchorCode) return null;
+// Boxing Day through New Year — English football's one stretch of the
+// season where fixtures routinely fall on non-weekend days close together
+// (Boxing Day, the 28th/29th, New Year's Day), too tightly packed for a
+// fixed Friday-Monday window to make sense of.
+function isChristmasPeriod(date) {
+  const month = date.getUTCMonth(); // 0 = Jan, 11 = Dec
+  const day   = date.getUTCDate();
+  return (month === 11 && day >= 20) || (month === 0 && day <= 2);
+}
 
+// The Friday-Monday window containing `date` if it falls on Fri/Sat/Sun/Mon,
+// otherwise the upcoming one (Tue/Wed/Thu look ahead to the next Friday).
+function weekendWindowFor(date) {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = d.getUTCDay(); // 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat
+  const fridayOffset = day === 5 ? 0 : day === 6 ? -1 : day === 0 ? -2 : day === 1 ? -3 : 5 - day;
+  const friday = new Date(d);
+  friday.setUTCDate(friday.getUTCDate() + fridayOffset);
+  const monday = new Date(friday);
+  monday.setUTCDate(monday.getUTCDate() + 3);
+  return { start: friday.toISOString().slice(0, 10), end: monday.toISOString().slice(0, 10) };
+}
+
+function nextWeekendWindow(window) {
+  const friday = new Date(window.start + 'T00:00:00Z');
+  friday.setUTCDate(friday.getUTCDate() + 7);
+  const monday = new Date(friday);
+  monday.setUTCDate(monday.getUTCDate() + 3);
+  return { start: friday.toISOString().slice(0, 10), end: monday.toISOString().slice(0, 10) };
+}
+
+// Fixture calendars are unreliable for round boundaries close to Christmas
+// (games most days, not clustered around one weekend), so this is only ever
+// reached from getGameweekWindow during that period — the old date-clustering
+// approach, still fine for that irregular stretch even though it's no longer
+// used for the rest of the season.
+async function getGameweekWindowDynamic(anchorCode, requireUpcomingDeadline) {
   try {
     const data = await fetchJSON(`${ESPN_SOCCER}/${anchorCode}/scoreboard`);
     const calendar = (data.leagues?.[0]?.calendar || []).map(d => d.slice(0, 10));
@@ -125,11 +143,6 @@ async function getGameweekWindow(leagueCodes, { requireUpcomingDeadline = false 
     const fallback = clusters[clusters.length - 1];
     const candidates = clusters.filter(c => c.end >= todayStr);
 
-    // A cluster's last date being "today or later" isn't enough on its own —
-    // if that round's final match kicked off earlier today and has since
-    // finished, the round is over even though the date string still matches.
-    // Probe each date-eligible candidate in order and take the first one that
-    // still has an unplayed (or not-yet-started) fixture.
     for (const candidate of (candidates.length ? candidates : [fallback])) {
       const datesParam = `${candidate.start.replace(/-/g, '')}-${candidate.end.replace(/-/g, '')}`;
       const fixtures = await fetchFixtures([anchorCode], datesParam);
@@ -145,6 +158,63 @@ async function getGameweekWindow(leagueCodes, { requireUpcomingDeadline = false 
     return candidates[candidates.length - 1] || fallback;
   } catch (err) {
     console.warn(`[football] calendar fetch failed for ${anchorCode}:`, err.message);
+    return null;
+  }
+}
+
+// Premier League is treated as the anchor league when it's selected — its
+// fixtures alone define the round boundaries and deadline, since a combined
+// PL+Championship pool shouldn't have its week 1 deadline dragged earlier by
+// the Championship's earlier season start (players would be locked out
+// before PL fixtures even begin). Other leagues just widen which teams are
+// pickable inside that same window.
+//
+// A gameweek is a fixed Friday-through-Monday window — that's when Premier
+// League/Championship rounds fall the vast majority of the season, and it's
+// a far more predictable boundary than trying to infer one from gaps in
+// ESPN's calendar data. During the Christmas period (see isChristmasPeriod)
+// fixtures fall most days rather than clustering around one weekend, so that
+// stretch falls back to the old dynamic calendar-based detection instead.
+//
+// requireUpcomingDeadline: when true, a candidate window only qualifies if
+// its own natural deadline (an hour before its earliest kickoff — same
+// formula as getCurrentGameweekFixtures's suggestedDeadline) is still in the
+// future, not just "has some fixture left unplayed". Without this, a window
+// that's already partway through (e.g. Saturday early kickoffs done, Sunday
+// still to come) still counts as "current" — right for grading results on
+// an already-running week, wrong for handing a *new* week to players to
+// pick from: they'd inherit a deadline already in the past and look
+// eliminated before they ever got a chance to pick. Callers that hand a
+// week to players (refreshFixtureCache) pass true; callers grading an
+// already-assigned week (the results cron, processGameResults) must not, or
+// they'd skip straight past the round they're meant to be grading.
+async function getGameweekWindow(leagueCodes, { requireUpcomingDeadline = false } = {}) {
+  const anchorCode = leagueCodes.includes('eng.1') ? 'eng.1' : leagueCodes[0];
+  if (!anchorCode) return null;
+
+  const now = new Date();
+  if (isChristmasPeriod(now)) {
+    return getGameweekWindowDynamic(anchorCode, requireUpcomingDeadline);
+  }
+
+  try {
+    let window = weekendWindowFor(now);
+    const MAX_WEEKS_AHEAD = 6; // safety bound — an empty fixture list forever shouldn't loop forever
+    for (let i = 0; i < MAX_WEEKS_AHEAD; i++) {
+      const datesParam = `${window.start.replace(/-/g, '')}-${window.end.replace(/-/g, '')}`;
+      const fixtures = await fetchFixtures([anchorCode], datesParam);
+      const stillLive = fixtures.length === 0 || fixtures.some(f => !f.completed && !f.postponed);
+      if (stillLive) {
+        if (!requireUpcomingDeadline) return window;
+        const kickoffs = fixtures.filter(f => !f.postponed).map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
+        const deadlineAhead = kickoffs.length === 0 || (Math.min(...kickoffs) - 60 * 60 * 1000) > Date.now();
+        if (deadlineAhead) return window;
+      }
+      window = nextWeekendWindow(window);
+    }
+    return window;
+  } catch (err) {
+    console.warn(`[football] fixture fetch failed for ${anchorCode}:`, err.message);
     return null;
   }
 }
