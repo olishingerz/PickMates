@@ -149,41 +149,15 @@ async function getGameweekWindow(leagueCodes, { requireUpcomingDeadline = false 
   }
 }
 
-// A gameweek's fixture list should never contain the same team twice — each
-// team plays at most once per round. If it does, the date-gap clustering in
-// getGameweekWindow pulled in more than one round: the gap between two
-// genuinely separate rounds isn't always a full 4 days (e.g. a rearranged
-// Monday Premier League match followed by Tuesday Championship fixtures can
-// leave well under a day between them), and a merged window like that means
-// grading has to wait on fixtures that don't actually belong to this round,
-// which is exactly the kind of thing that can leave a week stuck. Team
-// uniqueness is a much more reliable boundary than any fixed day-gap, so
-// this trims back to just the fixtures up to (not including) the first
-// repeat, in kickoff order — that's the genuine single gameweek.
-function trimToSingleGameweek(fixtures) {
-  const sorted = [...fixtures].sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
-  const seenTeams = new Set();
-  for (let i = 0; i < sorted.length; i++) {
-    const f = sorted[i];
-    if (seenTeams.has(f.homeTeam.id) || seenTeams.has(f.awayTeam.id)) {
-      return sorted.slice(0, i);
-    }
-    seenTeams.add(f.homeTeam.id);
-    seenTeams.add(f.awayTeam.id);
-  }
-  return sorted;
-}
-
-// Fixtures for the current gameweek (by date clustering, trimmed to a single
-// genuine round — see trimToSingleGameweek) plus a suggested pick deadline of
-// an hour before the earliest kickoff in that window. See getGameweekWindow
-// for what requireUpcomingDeadline changes.
+// Fixtures for the current gameweek (by date clustering) plus a suggested pick
+// deadline of an hour before the earliest kickoff in that window. See
+// getGameweekWindow for what requireUpcomingDeadline changes.
 async function getCurrentGameweekFixtures(leagueCodes, opts) {
   const window = await getGameweekWindow(leagueCodes, opts);
   if (!window) return { fixtures: [], suggestedDeadline: null };
 
   const datesParam = `${window.start.replace(/-/g, '')}-${window.end.replace(/-/g, '')}`;
-  const fixtures = trimToSingleGameweek(await fetchFixtures(leagueCodes, datesParam));
+  const fixtures = await fetchFixtures(leagueCodes, datesParam);
 
   const kickoffs = fixtures.map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
   const suggestedDeadline = kickoffs.length ? new Date(Math.min(...kickoffs) - 60 * 60 * 1000) : null;
