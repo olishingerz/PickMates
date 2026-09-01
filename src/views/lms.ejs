@@ -66,13 +66,13 @@
       if (aliveForCopy.length > 0) {
         leaderboardTextParts.push(`\n✅ *Still in* (${aliveForCopy.length})`);
         leaderboardTextParts.push(aliveForCopy
-          .map(s => `*${s.team_name || s.username}* — ${buildPlayerPicksText(s)}`)
+          .map(s => `*${s.username}* — ${buildPlayerPicksText(s)}`)
           .join('\n'));
       }
       if (outForCopy.length > 0) {
         leaderboardTextParts.push(`\n❌ *Out* (${outForCopy.length})`);
         leaderboardTextParts.push(outForCopy
-          .map(s => `*${s.team_name || s.username}* — ${buildPlayerPicksText(s)} (out wk${s.eliminatedWeek})`)
+          .map(s => `*${s.username}* — ${buildPlayerPicksText(s)} (out wk${s.eliminatedWeek})`)
           .join('\n'));
       }
       const leaderboardText = leaderboardTextParts.join('\n');
