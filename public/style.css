@@ -1114,6 +1114,7 @@ a.nav-user:hover { color: var(--green); }
 
 /* ── Recent Activity feed ──────────────────────────────────────────── */
 .activity-feed { padding: 1rem 1.2rem; }
+.activity-feed .section-title::before { display: none; }
 .activity-list {
   display: flex;
   flex-direction: column;
