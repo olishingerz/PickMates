@@ -67,8 +67,18 @@
       // (built client-side from location.origin, same as the "Share invite
       // link" button above) is appended instead when the button is clicked.
       const aliveForCopy = standings.filter(s => !s.eliminated);
-      const leaderboardText = [`🏆 *${game.name}* — Week ${currentWeek}`, ...aliveForCopy
-        .map(s => `*${s.username}* — ${buildPlayerPicksText(s)}`)
+      // A live countdown can't survive being pasted into a chat — the text
+      // just sits there, it doesn't keep ticking — so this shows the actual
+      // deadline instead, which stays correct however long after copying
+      // someone reads it. Only shown while there's still a real deadline to
+      // hit (not once the week's locked), so people can nag stragglers.
+      const copyDeadlineLine = (weekObj?.deadline && !weekObj?.results_locked)
+        ? `⏰ Deadline: ${new Date(weekObj.deadline).toLocaleString('en-GB', { timeZone: 'Europe/London', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+        : null;
+      const leaderboardText = [
+        `🏆 *${game.name}* — Week ${currentWeek}`,
+        ...(copyDeadlineLine ? [copyDeadlineLine] : []),
+        ...aliveForCopy.map(s => `*${s.username}* — ${buildPlayerPicksText(s)}`),
       ].join('\n');
     %>
     <div class="page-header">
