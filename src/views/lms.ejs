@@ -76,9 +76,9 @@
         ? `⏰ Deadline: ${new Date(weekObj.deadline).toLocaleString('en-GB', { timeZone: 'Europe/London', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
         : null;
       const leaderboardText = [
-        `🏆 *${game.name}* — Week ${currentWeek}`,
+        `🏆 ${game.name} — Week ${currentWeek}`,
         ...(copyDeadlineLine ? [copyDeadlineLine] : []),
-        ...aliveForCopy.map(s => `*${s.username}* — ${buildPlayerPicksText(s)}`),
+        ...aliveForCopy.map(s => `${s.username} — ${buildPlayerPicksText(s)}`),
       ].join('\n');
     %>
     <div class="page-header">
