@@ -60,22 +60,16 @@
         }
         return parts.length > 0 ? parts.join(' ➡ ') : 'No picks yet';
       };
+      // Eliminated players are left out entirely — the "Copy leaderboard"
+      // text is meant to be a quick, skimmable check of who's still alive,
+      // not a full history; the standings table on the page itself is
+      // still there for anyone who wants that. A "Make your pick" link
+      // (built client-side from location.origin, same as the "Share invite
+      // link" button above) is appended instead when the button is clicked.
       const aliveForCopy = standings.filter(s => !s.eliminated);
-      const outForCopy   = standings.filter(s => s.eliminated).sort((a, b) => b.eliminatedWeek - a.eliminatedWeek);
-      const leaderboardTextParts = [`🏆 *${game.name}* — Week ${currentWeek}`];
-      if (aliveForCopy.length > 0) {
-        leaderboardTextParts.push(`\n✅ *Still in* (${aliveForCopy.length})`);
-        leaderboardTextParts.push(aliveForCopy
-          .map(s => `*${s.username}* — ${buildPlayerPicksText(s)}`)
-          .join('\n'));
-      }
-      if (outForCopy.length > 0) {
-        leaderboardTextParts.push(`\n❌ *Out* (${outForCopy.length})`);
-        leaderboardTextParts.push(outForCopy
-          .map(s => `*${s.username}* — ${buildPlayerPicksText(s)} (out wk${s.eliminatedWeek})`)
-          .join('\n'));
-      }
-      const leaderboardText = leaderboardTextParts.join('\n');
+      const leaderboardText = [`🏆 *${game.name}* — Week ${currentWeek}`, ...aliveForCopy
+        .map(s => `*${s.username}* — ${buildPlayerPicksText(s)}`)
+      ].join('\n');
     %>
     <div class="page-header">
       <h1><%= game.name %></h1>
@@ -150,7 +144,7 @@
           setTimeout(() => this.textContent = '📋 Share leaderboard', 2000);
         ">📋 Share leaderboard</button>
         <button class="btn btn-sm btn-ghost" style="color:var(--text-muted);border-color:var(--border)" onclick="
-          navigator.clipboard.writeText(window.LMS_LEADERBOARD_TEXT);
+          navigator.clipboard.writeText(window.LMS_LEADERBOARD_TEXT + '\n\n👉 Make your pick: ' + location.origin + '/game/<%= game.id %>/lms/picks');
           this.textContent = '✓ Copied!';
           setTimeout(() => this.textContent = '📝 Copy leaderboard', 2000);
         ">📝 Copy leaderboard</button>
