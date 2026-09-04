@@ -55,7 +55,14 @@ if (isProduction) app.set('trust proxy', 1);
 // domain. No HTTP healthcheck is configured on this Railway service
 // (confirmed via `railway status`), so a 301 here can't be mistaken for a
 // deploy failure.
-const CANONICAL_HOST = 'pickmates.co.uk';
+//
+// MUST be www.pickmates.co.uk, not the bare domain — confirmed via
+// `railway status` that Railway's only attached (and therefore only
+// SSL-valid) custom domain is the www one; the bare domain isn't attached
+// to Railway at all and its DNS doesn't even point here. Using the bare
+// domain here briefly took the site down for anyone on the working www
+// domain, since this redirect sent them to a host with no valid cert.
+const CANONICAL_HOST = 'www.pickmates.co.uk';
 if (isProduction) {
   app.use((req, res, next) => {
     if (req.secure && req.headers.host === CANONICAL_HOST) return next();
