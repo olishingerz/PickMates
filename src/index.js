@@ -42,15 +42,24 @@ app.set('views', path.join(__dirname, 'views'));
 // sees every request as plain HTTP and a `secure` cookie would never get set.
 if (isProduction) app.set('trust proxy', 1);
 
-// Force HTTPS — Railway issues a valid cert for the custom domain, but
-// without this, a request that happens to arrive over plain http:// (a typed
-// URL with no scheme, an old bookmark, the bare apex domain, etc.) just gets
-// served insecurely instead of upgraded, which is what was showing as
-// "connection is not secure" despite the certificate itself being valid.
+// Force HTTPS + the canonical custom domain, in one redirect — Railway
+// issues a valid cert for the custom domain, but without forcing https a
+// request that happens to arrive over plain http:// (a typed URL with no
+// scheme, an old bookmark, the bare apex domain, etc.) just gets served
+// insecurely instead of upgraded, which is what was showing as "connection
+// is not secure" despite the certificate itself being valid. Also catches
+// anyone still landing on the old Railway subdomain (bookmarked, shared
+// before the custom domain was set up, etc.) and sends them to the real
+// domain instead — checking both here means that's a single redirect
+// rather than one hop to https on the old host and a second to the new
+// domain. No HTTP healthcheck is configured on this Railway service
+// (confirmed via `railway status`), so a 301 here can't be mistaken for a
+// deploy failure.
+const CANONICAL_HOST = 'pickmates.co.uk';
 if (isProduction) {
   app.use((req, res, next) => {
-    if (req.secure) return next();
-    res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
+    if (req.secure && req.headers.host === CANONICAL_HOST) return next();
+    res.redirect(301, `https://${CANONICAL_HOST}${req.originalUrl}`);
   });
 }
 
