@@ -54,6 +54,15 @@
           <div class="card" style="background:#fef2f2;border:1px solid #ef4444">
             <p style="margin:0">This entry was eliminated in week <%= entry.eliminatedWeek %>.</p>
           </div>
+        <% } else if (game.prize_individual > 0 && !entry.has_paid) { %>
+          <div class="card" style="background:#fef2f2;border:1px solid #ef4444">
+            <p style="margin:0">💰 You haven't paid your entry fee yet — picking is blocked until the host ticks you off as paid.</p>
+            <% if (game.host_payment_details) { %>
+              <div style="margin-top:.4rem;white-space:pre-wrap;font-size:.88rem"><strong>Pay <%= game.host_username %>:</strong> <%= game.host_payment_details %></div>
+            <% } else { %>
+              <div style="margin-top:.4rem;font-size:.88rem">Ask <%= game.host_username %> how to pay.</div>
+            <% } %>
+          </div>
         <% } else { %>
           <!-- Teams already used -->
           <% if (entry.usedTeamIds.size > 0) { %>

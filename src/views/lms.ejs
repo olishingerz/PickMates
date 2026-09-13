@@ -24,7 +24,8 @@
       // game — each entry picks, survives, or is eliminated independently.
       const myEntries      = user ? standings.filter(s => s.user_id === user.id) : [];
       const alreadyJoined  = myEntries.length > 0;
-      const entryCanPick   = e => game.is_started && !e.eliminated && !e.myCurrentPick && !weekObj?.results_locked;
+      const entryCanPick   = e => game.is_started && !e.eliminated && !e.myCurrentPick && !weekObj?.results_locked
+        && (game.prize_individual === 0 || e.has_paid);
 
       // Picks are hidden until every alive player has submitted for the current week.
       // No `aliveStandings.length > 0` guard here on purpose — once everyone's

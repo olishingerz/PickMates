@@ -230,6 +230,12 @@ router.post('/picks', requireAuth, async (req, res) => {
       return res.redirect(base + '?error=' + encodeURIComponent('That entry has already been eliminated.'));
     }
 
+    // Check they've actually paid, when there's an entry fee to pay — a free
+    // game (prize_individual === 0) has nothing to enforce here.
+    if (data.game.prize_individual > 0 && !entry.has_paid) {
+      return res.redirect(base + '?error=' + encodeURIComponent("You haven't paid your entry fee yet — pick is blocked until the host ticks you off as paid."));
+    }
+
     // Check deadline
     if (data.weekObj?.deadline && new Date() > new Date(data.weekObj.deadline)) {
       return res.redirect(base + '?error=' + encodeURIComponent('The deadline for this week has passed.'));
