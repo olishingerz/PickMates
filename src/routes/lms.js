@@ -103,12 +103,16 @@ async function getLmsData(gameId, userId) {
       LEFT JOIN users hu ON hu.id = g.host_user_id
       WHERE g.id = $1
     `, [gameId]),
+    // pending_next_round entries were added by the host mid-round and don't
+    // belong to the round currently in progress — excluded entirely here so
+    // they never show in standings/picks until restartRound (or a plain game
+    // start) clears the flag once a fresh round actually begins.
     pool.query(`
       SELECT gp.id AS participant_id, u.id AS user_id, u.username, u.avatar,
              gp.draft_position, gp.team_name, gp.is_co_host, gp.has_paid
       FROM game_participants gp
       JOIN users u ON u.id = gp.user_id
-      WHERE gp.game_id = $1
+      WHERE gp.game_id = $1 AND gp.pending_next_round IS NOT TRUE
       ORDER BY gp.draft_position ASC NULLS LAST, u.username ASC
     `, [gameId]),
     pool.query(
@@ -282,6 +286,7 @@ router.post('/set-deadline', requireAuth, async (req, res) => {
 async function resetToLobby(gameId) {
   await pool.query('DELETE FROM lms_picks WHERE game_id = $1', [gameId]);
   await pool.query('DELETE FROM lms_weeks WHERE game_id = $1', [gameId]);
+  await pool.query('UPDATE game_participants SET pending_next_round = FALSE WHERE game_id = $1', [gameId]);
   await pool.query(
     'UPDATE games SET is_started = FALSE, is_complete = FALSE, lms_current_week = 1 WHERE id = $1',
     [gameId]
@@ -289,10 +294,13 @@ async function resetToLobby(gameId) {
 }
 
 // Wipe picks/weeks but keep the game live at week 1 — used when continuous mode
-// is on, so the host doesn't have to click Start Game again after every round
+// is on, so the host doesn't have to click Start Game again after every round.
+// Anyone the host added mid-round (pending_next_round) becomes a full
+// participant right here, since this is exactly the moment a fresh round begins.
 async function restartRound(gameId) {
   await pool.query('DELETE FROM lms_picks WHERE game_id = $1', [gameId]);
   await pool.query('DELETE FROM lms_weeks WHERE game_id = $1', [gameId]);
+  await pool.query('UPDATE game_participants SET pending_next_round = FALSE WHERE game_id = $1', [gameId]);
   await pool.query(
     'UPDATE games SET is_complete = FALSE, lms_current_week = 1 WHERE id = $1',
     [gameId]

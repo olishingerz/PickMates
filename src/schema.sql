@@ -788,6 +788,21 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- LMS: lets a host add someone mid-round (a continuous game's auto-restart
+-- means there may never be a natural "back in the lobby" moment to add
+-- players at) without them joining the round already in progress. Set on
+-- insert when added to an already-started LMS game; cleared for everyone
+-- the moment a fresh round actually begins (restartRound, and a plain game
+-- start) — until then, getLmsData excludes them from standings/picks
+-- entirely, so they're invisible on the game page but still show in the
+-- lobby as queued to join next round.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='game_participants' AND column_name='pending_next_round') THEN
+    ALTER TABLE game_participants ADD COLUMN pending_next_round BOOLEAN DEFAULT FALSE;
+  END IF;
+END $$;
+
 -- ── One-time data fixes ───────────────────────────────────────────────────────
 -- Fix ESPN name mismatches for Masters 2026 (Samuel Stevens / Nicolas Echavarria)
 UPDATE picks SET player_name = 'Sam Stevens'

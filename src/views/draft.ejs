@@ -132,7 +132,12 @@
             <tbody>
               <% participants.forEach(p => { %>
                 <tr>
-                  <td><%= p.team_name || p.username %></td>
+                  <td>
+                    <%= p.team_name || p.username %>
+                    <% if (p.pending_next_round) { %>
+                      <span class="status-badge status-draft" style="margin-left:.4rem" title="Added mid-round — joins once a new round starts">Next round</span>
+                    <% } %>
+                  </td>
                   <td>
                     <form action="/game/<%= gameId %>/draft/toggle-paid" method="POST" style="display:inline">
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
@@ -353,29 +358,38 @@
               <p class="admin-hint">Shown to players on the leaderboard. Doubles automatically on a rollover (no winner).</p>
             </div>
             <div class="admin-divider"></div>
-            <div class="admin-section">
-              <p class="label-small">Add a player</p>
-              <% if (friendsToAdd.length > 0) { %>
-                <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.3rem">
-                  <% friendsToAdd.forEach(f => { %>
-                    <form action="/game/<%= gameId %>/draft/add-user" method="POST" style="display:inline">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                      <input type="hidden" name="username" value="<%= f.username %>" />
-                      <button type="submit" class="btn btn-sm btn-ghost" style="padding:.2rem .6rem;font-size:.8rem">+ <%= f.username %></button>
-                    </form>
-                  <% }) %>
-                </div>
-              <% } %>
-              <form action="/game/<%= gameId %>/draft/add-user" method="POST" style="display:flex;gap:.5rem;align-items:center;margin-top:.3rem">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                <input type="text" name="username" placeholder="Username" required
-                       style="padding:.4rem .7rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.88rem;width:180px" />
-                <button type="submit" class="btn btn-sm">Add player</button>
-              </form>
-              <p class="admin-hint">Adds an existing registered user by username.</p>
-            </div>
-            <div class="admin-divider"></div>
           <% } %>
+          <!-- Add a player — unlike the rest of this pre-start-only block,
+               LMS keeps this open once started too: a continuous game's
+               auto-restart means it may never naturally return to the lobby
+               for the host to add someone. Added as pending_next_round
+               instead (see POST /add-user), so they don't join the round
+               already under way. -->
+          <div class="admin-section">
+            <p class="label-small">Add a player</p>
+            <% if (state.is_started) { %>
+              <p class="admin-hint" style="margin-bottom:.3rem">The round's already under way — anyone added now joins once a new round starts (a rollover, or the current one ending).</p>
+            <% } %>
+            <% if (friendsToAdd.length > 0) { %>
+              <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.3rem">
+                <% friendsToAdd.forEach(f => { %>
+                  <form action="/game/<%= gameId %>/draft/add-user" method="POST" style="display:inline">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <input type="hidden" name="username" value="<%= f.username %>" />
+                    <button type="submit" class="btn btn-sm btn-ghost" style="padding:.2rem .6rem;font-size:.8rem">+ <%= f.username %></button>
+                  </form>
+                <% }) %>
+              </div>
+            <% } %>
+            <form action="/game/<%= gameId %>/draft/add-user" method="POST" style="display:flex;gap:.5rem;align-items:center;margin-top:.3rem">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <input type="text" name="username" placeholder="Username" required
+                     style="padding:.4rem .7rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.88rem;width:180px" />
+              <button type="submit" class="btn btn-sm">Add player</button>
+            </form>
+            <p class="admin-hint">Adds an existing registered user by username.</p>
+          </div>
+          <div class="admin-divider"></div>
           <div class="admin-row">
             <% if (!state.is_started) { %>
               <form action="/game/<%= gameId %>/draft/start" method="POST" style="display:inline"

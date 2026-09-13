@@ -24,7 +24,8 @@ function generateSnakeOrder(numPlayers, picksEach) {
 async function getDraftData(userId, gameId) {
   const [participantsRes, picksRes, stateRes, lbRes] = await Promise.all([
     pool.query(`
-      SELECT u.id, u.username, gp.id AS participant_id, gp.draft_position, gp.team_name, gp.has_paid, gp.is_co_host
+      SELECT u.id, u.username, gp.id AS participant_id, gp.draft_position, gp.team_name, gp.has_paid, gp.is_co_host,
+             gp.pending_next_round
       FROM game_participants gp
       JOIN users u ON u.id = gp.user_id
       WHERE gp.game_id = $1
@@ -175,10 +176,12 @@ router.get('/', requireAuth, async (req, res) => {
       lmsWinners = rows;
     }
 
-    // Host's friends not already in this game — quick-add shortcuts, only
-    // relevant pre-start (same guard the manual "add user" form uses).
+    // Host's friends not already in this game — quick-add shortcuts. Normally
+    // only relevant pre-start (same guard the manual "add user" form uses),
+    // except LMS also allows adding mid-round (as pending_next_round, see
+    // POST /add-user), so it needs this too even once started.
     let friendsToAdd = [];
-    if (manageFlag && !data.state.is_started) {
+    if (manageFlag && (!data.state.is_started || data.state.game_type === 'last_man_standing')) {
       const { rows } = await pool.query(
         `SELECT u.id, u.username, u.avatar
          FROM friends f
@@ -504,11 +507,17 @@ router.post('/add-user', requireAuth, async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    const { rows: stateRows } = await client.query('SELECT name, is_started FROM games WHERE id = $1', [gameId]);
-    if (stateRows[0]?.is_started) {
+    const { rows: stateRows } = await client.query('SELECT name, is_started, game_type FROM games WHERE id = $1', [gameId]);
+    const isLms = stateRows[0]?.game_type === 'last_man_standing';
+    // LMS is the one game type this doesn't block on is_started for — a
+    // continuous game's auto-restart means it may never naturally go back to
+    // "not started" for the host to add someone. Added as pending_next_round
+    // instead, so they don't join the round that's already under way.
+    if (stateRows[0]?.is_started && !isLms) {
       await client.query('ROLLBACK');
       return res.redirect(base + '?error=' + encodeURIComponent('Cannot add players after the draft has started.'));
     }
+    const addingMidRound = isLms && stateRows[0]?.is_started;
 
     // Must be an existing, registered account — no longer auto-created
     const { rows: existing } = await client.query(
@@ -540,13 +549,15 @@ router.post('/add-user', requireAuth, async (req, res) => {
     const draftPosition = parseInt(taken[0].cnt) + 1;
 
     await client.query(
-      'INSERT INTO game_participants (game_id, user_id, draft_position) VALUES ($1, $2, $3)',
-      [gameId, userId, draftPosition]
+      'INSERT INTO game_participants (game_id, user_id, draft_position, pending_next_round) VALUES ($1, $2, $3, $4)',
+      [gameId, userId, draftPosition, addingMidRound]
     );
     await client.query('COMMIT');
     logActivity(gameId, `${username} joined ${stateRows[0].name}`);
 
-    res.redirect(base + '?success=' + encodeURIComponent(`${username} added at position #${draftPosition}.`));
+    res.redirect(base + '?success=' + encodeURIComponent(addingMidRound
+      ? `${username} added — they'll join once a new round starts.`
+      : `${username} added at position #${draftPosition}.`));
   } catch (err) {
     await client.query('ROLLBACK');
     if (err.code === '23505') {
@@ -632,16 +643,19 @@ router.post('/remove-user', requireAuth, async (req, res) => {
 
   try {
     const { rows: stateRows } = await pool.query('SELECT is_started, host_user_id FROM games WHERE id = $1', [gameId]);
-    if (stateRows[0]?.is_started) {
-      return res.redirect(base + '?error=' + encodeURIComponent('Cannot remove players after the draft has started.'));
-    }
 
     const { rows: participantRows } = await pool.query(
-      'SELECT user_id FROM game_participants WHERE id = $1 AND game_id = $2',
+      'SELECT user_id, pending_next_round FROM game_participants WHERE id = $1 AND game_id = $2',
       [participantId, gameId]
     );
     if (!participantRows[0]) {
       return res.redirect(base + '?error=' + encodeURIComponent('Player not found.'));
+    }
+    // A pending_next_round entry hasn't actually joined the round in
+    // progress yet, so removing it is always safe — only block removal of
+    // an already-active participant once the game's started.
+    if (stateRows[0]?.is_started && !participantRows[0].pending_next_round) {
+      return res.redirect(base + '?error=' + encodeURIComponent('Cannot remove players after the draft has started.'));
     }
     // Only block this if it would remove the host's last remaining entry —
     // a host with multiple LMS entries can freely remove the extra ones.
