@@ -818,6 +818,26 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- lms_rollover_in_progress only ever gets set going forward, from inside
+-- processGameResults — a game that had already rolled over before that
+-- column existed would never get it set retroactively otherwise, so its
+-- unpaid-fee message would keep showing the full doubled rate instead of
+-- just the top-up. One-time backfill: a game's most recent lms_winners row
+-- being a rollover (not a win) means it's currently sitting in an unresolved
+-- rollover state right now.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE name = 'lms_rollover_in_progress_backfill_2026') THEN
+    UPDATE games g SET lms_rollover_in_progress = TRUE
+    WHERE EXISTS (
+      SELECT 1 FROM lms_winners lw
+      WHERE lw.game_id = g.id
+        AND lw.id = (SELECT MAX(id) FROM lms_winners WHERE game_id = g.id)
+        AND lw.is_rollover = TRUE
+    );
+    INSERT INTO schema_migrations (name) VALUES ('lms_rollover_in_progress_backfill_2026');
+  END IF;
+END $$;
+
 -- ── One-time data fixes ───────────────────────────────────────────────────────
 -- Fix ESPN name mismatches for Masters 2026 (Samuel Stevens / Nicolas Echavarria)
 UPDATE picks SET player_name = 'Sam Stevens'
