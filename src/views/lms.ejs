@@ -26,10 +26,18 @@
       const alreadyJoined  = myEntries.length > 0;
       const entryCanPick   = e => game.is_started && !e.eliminated && !e.myCurrentPick && !weekObj?.results_locked;
 
-      // Picks are hidden until every alive player has submitted for the current week
+      // Picks are hidden until every alive player has submitted for the current week.
+      // No `aliveStandings.length > 0` guard here on purpose — once everyone's
+      // individual pick for this week has already been graded a loss/draw
+      // (computeLmsStandings marks them eliminated as each result comes in,
+      // even before the whole round locks), aliveStandings can genuinely be
+      // empty. That's exactly the case where reveal is safe (nobody's left to
+      // protect a hidden pick from), but a `> 0` guard would keep it locked
+      // forever instead — pickedCount is 0 too in that case, so 0 >= 0 still
+      // correctly reveals rather than requiring a nonexistent survivor to "pick".
       const aliveStandings   = standings.filter(s => !s.eliminated);
       const pickedCount      = aliveStandings.filter(s => s.myCurrentPick || s.picks.some(p => p.week_number === currentWeek)).length;
-      const allPickedIn      = aliveStandings.length > 0 && pickedCount >= aliveStandings.length;
+      const allPickedIn      = pickedCount >= aliveStandings.length;
 
       // Plain-text version of the standings table, for the "Copy leaderboard"
       // button — formatted to paste cleanly into WhatsApp. Mirrors the
