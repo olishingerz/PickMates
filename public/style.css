@@ -154,6 +154,7 @@ nav {
 /* The "pending action" button — Lobby/Draft/Make pick, shared across every
    game type's pre-start and mid-round primary CTA. */
 .btn-gold { background: var(--gold-action); color: var(--gold-action-text); }
+.btn-green { background: var(--green); color: #fff; }
 
 .btn-ghost {
   background: transparent;

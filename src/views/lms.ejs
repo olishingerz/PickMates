@@ -193,11 +193,6 @@
           ">🔗 Share invite link</button>
         <% } %>
         <button class="btn btn-sm btn-ghost" style="color:var(--text-muted);border-color:var(--border)" onclick="
-          navigator.clipboard.writeText(location.href);
-          this.textContent = '✓ Copied!';
-          setTimeout(() => this.textContent = '📋 Share leaderboard', 2000);
-        ">📋 Share leaderboard</button>
-        <button class="btn btn-sm btn-ghost" style="color:var(--text-muted);border-color:var(--border)" onclick="
           navigator.clipboard.writeText(window.LMS_LEADERBOARD_TEXT + '\n\n👉 Make your pick: ' + location.origin + '/game/<%= game.id %>/lms/picks');
           this.textContent = '✓ Copied!';
           setTimeout(() => this.textContent = '📝 Copy leaderboard', 2000);

@@ -63,7 +63,7 @@
         <p style="margin:0">You're not in this game yet.</p>
         <form action="/game/<%= gameId %>/join" method="POST" style="display:inline">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-          <button type="submit" class="btn" style="background:var(--green);color:#fff">Join game</button>
+          <button type="submit" class="btn btn-green">Join game</button>
         </form>
       </div>
     <% } %>
@@ -334,7 +334,7 @@
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                   <input type="hidden" name="user_id" value="<%= p.id %>" />
                   <span style="flex:1;font-size:.88rem"><%= p.username %></span>
-                  <button type="submit" class="btn btn-sm" style="padding:.2rem .55rem;font-size:.78rem;<%= p.is_co_host ? 'background:var(--green);color:#fff' : 'background:var(--card-border);color:var(--text)' %>">
+                  <button type="submit" class="btn btn-sm <%= p.is_co_host ? 'btn-green' : '' %>" style="padding:.2rem .55rem;font-size:.78rem;<%= p.is_co_host ? '' : 'background:var(--card-border);color:var(--text)' %>">
                     <%= p.is_co_host ? '👑 Co-host' : 'Make co-host' %>
                   </button>
                 </form>
@@ -395,7 +395,7 @@
               <form action="/game/<%= gameId %>/draft/start" method="POST" style="display:inline"
                     onsubmit="return confirm('Start the game? Players will be able to submit their picks.')">
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">
+                <button type="submit" class="btn btn-sm btn-green">
                   ▶ Start Game (<%= participants.length %> players)
                 </button>
               </form>
@@ -495,7 +495,7 @@
               <form action="/game/<%= gameId %>/draft/start" method="POST" style="display:inline"
                     onsubmit="return confirm('Start the draft? Pick order will be locked in.')">
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                <button type="submit" class="btn btn-sm" style="background:var(--green);color:#fff">
+                <button type="submit" class="btn btn-sm btn-green">
                   ▶ Start Draft (<%= participants.length %> players)
                 </button>
               </form>
