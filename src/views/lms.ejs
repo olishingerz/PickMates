@@ -301,21 +301,27 @@
                     const revealThisWeek = w < currentWeek || allPickedIn || weekLocked;
                     const isMyPick = user && s.user_id === user.id;
                     const crest = pick && typeof crestByTeamId !== 'undefined' ? crestByTeamId.get(pick.team_id) : null;
+                    // Table stays compact with the short name (e.g. "ARS") —
+                    // the picks page itself still shows the full team name
+                    // when actually choosing. Falls back to the full name
+                    // already stored on the pick if this team has no cached
+                    // short name (older cached weeks predate the field).
+                    const pickLabel = pick ? (typeof shortNameByTeamId !== 'undefined' && shortNameByTeamId.get(pick.team_id)) || pick.team_name : null;
                   %>
                   <td class="lms-pick-cell">
                     <% if (pick) { %>
                       <% if (!revealThisWeek && !isMyPick) { %>
                         <span class="lms-pick pending" title="Waiting for all picks">🔒</span>
                       <% } else if (pick.result === 'win') { %>
-                        <span class="lms-pick win"><% if (crest) { %><img src="<%= crest %>" class="lms-pick-crest" alt="" /><% } %><%= pick.team_name %> ✓</span>
+                        <span class="lms-pick win" title="<%= pick.team_name %>"><% if (crest) { %><img src="<%= crest %>" class="lms-pick-crest" alt="" /><% } %><%= pickLabel %> ✓</span>
                       <% } else if (pick.result === 'loss') { %>
-                        <span class="lms-pick loss"><% if (crest) { %><img src="<%= crest %>" class="lms-pick-crest" alt="" /><% } %><%= pick.team_name %> ✗</span>
+                        <span class="lms-pick loss" title="<%= pick.team_name %>"><% if (crest) { %><img src="<%= crest %>" class="lms-pick-crest" alt="" /><% } %><%= pickLabel %> ✗</span>
                       <% } else if (pick.result === 'draw') { %>
-                        <span class="lms-pick draw"><% if (crest) { %><img src="<%= crest %>" class="lms-pick-crest" alt="" /><% } %><%= pick.team_name %> ═</span>
+                        <span class="lms-pick draw" title="<%= pick.team_name %>"><% if (crest) { %><img src="<%= crest %>" class="lms-pick-crest" alt="" /><% } %><%= pickLabel %> ═</span>
                       <% } else if (pick.result === 'postponed') { %>
-                        <span class="lms-pick win" title="Fixture postponed — through automatically, team can't be picked again"><% if (crest) { %><img src="<%= crest %>" class="lms-pick-crest" alt="" /><% } %><%= pick.team_name %> ⏸</span>
+                        <span class="lms-pick win" title="<%= pick.team_name %> — fixture postponed, through automatically, team can't be picked again"><% if (crest) { %><img src="<%= crest %>" class="lms-pick-crest" alt="" /><% } %><%= pickLabel %> ⏸</span>
                       <% } else { %>
-                        <span class="lms-pick pending"><% if (crest) { %><img src="<%= crest %>" class="lms-pick-crest" alt="" /><% } %><%= pick.team_name %></span>
+                        <span class="lms-pick pending" title="<%= pick.team_name %>"><% if (crest) { %><img src="<%= crest %>" class="lms-pick-crest" alt="" /><% } %><%= pickLabel %></span>
                       <% } %>
                     <% } else if (weekLocked || isPastWeek) { %>
                       <span class="lms-pick no-pick">No pick</span>

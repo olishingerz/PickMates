@@ -131,17 +131,22 @@ router.get('/:gameId', async (req, res) => {
         }
       }
 
-      // team_id -> crest URL, for the standings table's pick chips. Built from
-      // every week's own cached fixture list (not just the current week's —
-      // older weeks keep their own cache) since a team's ESPN id is stable
-      // across weeks; some older cached weeks predate logos being added to
-      // the fixture shape, so a team simply won't have an entry here and the
-      // view falls back to icon/text-only for it.
+      // team_id -> crest URL / short name, for the standings table's pick
+      // chips (the picks page itself keeps the full team name — this is
+      // just for the compact table). Built from every week's own cached
+      // fixture list (not just the current week's — older weeks keep their
+      // own cache) since a team's ESPN id is stable across weeks; some older
+      // cached weeks predate logos/short names being added to the fixture
+      // shape, so a team simply won't have an entry and the view falls back
+      // to the full team_name already stored on the pick itself.
       const crestByTeamId = new Map();
+      const shortNameByTeamId = new Map();
       for (const w of data.weeks) {
         for (const f of (w.fixtures_cache || [])) {
           if (f.homeTeam?.logo && !crestByTeamId.has(f.homeTeam.id)) crestByTeamId.set(f.homeTeam.id, f.homeTeam.logo);
           if (f.awayTeam?.logo && !crestByTeamId.has(f.awayTeam.id)) crestByTeamId.set(f.awayTeam.id, f.awayTeam.logo);
+          if (f.homeTeam?.shortName && !shortNameByTeamId.has(f.homeTeam.id)) shortNameByTeamId.set(f.homeTeam.id, f.homeTeam.shortName);
+          if (f.awayTeam?.shortName && !shortNameByTeamId.has(f.awayTeam.id)) shortNameByTeamId.set(f.awayTeam.id, f.awayTeam.shortName);
         }
       }
 
@@ -152,6 +157,7 @@ router.get('/:gameId', async (req, res) => {
         LEAGUE_NAMES,
         suggestedDeadline,
         crestByTeamId,
+        shortNameByTeamId,
         error:   req.query.error   || null,
         success: req.query.success || null,
       });
