@@ -128,6 +128,14 @@
       <%
         const alive = standings.filter(s => !s.eliminated).length;
         const total = standings.length;
+        // A rollover doubles prize_individual, but a continuing player
+        // already paid the old rate into the pot — they only owe the
+        // difference, which is always exactly half the new rate since it
+        // always doubles. New joiners mid-rollover would technically owe
+        // the full amount, not just the top-up, but the app has no record
+        // of who'd already paid before the roster reopened, so this can't
+        // tell them apart — a reasonable simplification for the common case.
+        const amountDue = game.lms_rollover_in_progress ? game.prize_individual / 2 : game.prize_individual;
       %>
       <p class="muted" style="margin-top:.3rem"><strong><%= alive %></strong> of <strong><%= total %></strong> still alive — Week <strong><%= currentWeek %></strong></p>
       <% if (game.host_username) { %>
@@ -139,7 +147,7 @@
       <% } %>
       <% if (game.prize_individual > 0 && myEntries.some(e => !e.has_paid)) { %>
         <div class="alert alert-error" style="margin-top:.6rem">
-          💰 You haven't paid your £<%= game.prize_individual %> entry fee yet<% if (myEntries.length > 1) { %> for one or more entries<% } %>.
+          💰 <% if (game.lms_rollover_in_progress) { %>Rollover — you need to send another £<%= amountDue %><% } else { %>You haven't paid your £<%= amountDue %> entry fee yet<% } %><% if (myEntries.length > 1) { %> for one or more entries<% } %>.
           <% if (game.host_payment_details) { %>
             <div style="margin-top:.4rem;white-space:pre-wrap;font-size:.88rem"><strong>Pay <%= game.host_username %>:</strong> <%= game.host_payment_details %></div>
           <% } else { %>

@@ -803,6 +803,21 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- LMS: a rollover doubles prize_individual (the per-player rate), but a
+-- continuing player already paid the *old* rate into the pot — they only
+-- owe the difference, not the new rate from scratch. Since it always
+-- exactly doubles, that difference always equals half the new rate, so no
+-- need to store the amount itself — just whether the current rate reflects
+-- a rollover-in-progress at all. Set at rollover time; cleared whenever a
+-- genuinely fresh round begins (a win, not a rollover) so a brand new pot
+-- goes back to showing the full rate.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='games' AND column_name='lms_rollover_in_progress') THEN
+    ALTER TABLE games ADD COLUMN lms_rollover_in_progress BOOLEAN DEFAULT FALSE;
+  END IF;
+END $$;
+
 -- ── One-time data fixes ───────────────────────────────────────────────────────
 -- Fix ESPN name mismatches for Masters 2026 (Samuel Stevens / Nicolas Echavarria)
 UPDATE picks SET player_name = 'Sam Stevens'

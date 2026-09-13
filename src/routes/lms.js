@@ -98,7 +98,7 @@ async function getLmsData(gameId, userId) {
     pool.query(`
       SELECT g.id, g.name, g.lms_leagues, g.lms_current_week, g.is_complete, g.is_started, g.tournament_complete,
              g.host_user_id, g.invite_code, g.prize_individual, g.lms_continuous, g.visibility, hu.username AS host_username,
-             hu.payment_details AS host_payment_details
+             hu.payment_details AS host_payment_details, g.lms_rollover_in_progress
       FROM games g
       LEFT JOIN users hu ON hu.id = g.host_user_id
       WHERE g.id = $1
@@ -383,6 +383,9 @@ async function processGameResults(gameId) {
        VALUES ($1,$2,$3,FALSE,$4,$5)`,
       [gameId, winner.user_id, winner.username, week, payout]
     );
+    // A win closes out the pot entirely — any rollover-in-progress flag from
+    // an earlier round doesn't carry forward into a genuinely fresh one.
+    await pool.query('UPDATE games SET lms_rollover_in_progress = FALSE WHERE id = $1', [gameId]);
     logActivity(gameId, `🏆 ${winner.username} won ${gameName}!`);
     if (continuous) {
       await restartRound(gameId);
@@ -405,7 +408,11 @@ async function processGameResults(gameId) {
     const playerCount = data.standings.length;
     const newPot = newPrize * playerCount;
     const potBreakdown = `£${newPot} (£${newPrize} × ${playerCount} player${playerCount !== 1 ? 's' : ''})`;
-    await pool.query('UPDATE games SET prize_individual = $1 WHERE id = $2', [newPrize, gameId]);
+    // lms_rollover_in_progress lets the unpaid-fee messages show only the
+    // top-up still owed (always exactly half the new rate, since it always
+    // doubles) rather than the full new rate — a continuing player already
+    // paid the old rate into the pot.
+    await pool.query('UPDATE games SET prize_individual = $1, lms_rollover_in_progress = TRUE WHERE id = $2', [newPrize, gameId]);
     await pool.query(
       `INSERT INTO lms_winners (game_id, user_id, username, is_rollover, final_week, prize_amount)
        VALUES ($1,NULL,NULL,TRUE,$2,$3)`,
