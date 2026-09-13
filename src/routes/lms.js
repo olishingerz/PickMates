@@ -286,7 +286,10 @@ router.post('/set-deadline', requireAuth, async (req, res) => {
 async function resetToLobby(gameId) {
   await pool.query('DELETE FROM lms_picks WHERE game_id = $1', [gameId]);
   await pool.query('DELETE FROM lms_weeks WHERE game_id = $1', [gameId]);
-  await pool.query('UPDATE game_participants SET pending_next_round = FALSE WHERE game_id = $1', [gameId]);
+  // A new round means a new pot everyone needs to pay into — whether this
+  // round just concluded in a win or a rollover, "has_paid" from the round
+  // that just ended doesn't carry over.
+  await pool.query('UPDATE game_participants SET pending_next_round = FALSE, has_paid = FALSE WHERE game_id = $1', [gameId]);
   await pool.query(
     'UPDATE games SET is_started = FALSE, is_complete = FALSE, lms_current_week = 1 WHERE id = $1',
     [gameId]
@@ -300,7 +303,9 @@ async function resetToLobby(gameId) {
 async function restartRound(gameId) {
   await pool.query('DELETE FROM lms_picks WHERE game_id = $1', [gameId]);
   await pool.query('DELETE FROM lms_weeks WHERE game_id = $1', [gameId]);
-  await pool.query('UPDATE game_participants SET pending_next_round = FALSE WHERE game_id = $1', [gameId]);
+  // Same reasoning as resetToLobby — everyone needs to pay into the new
+  // round's pot, so last round's paid status doesn't carry forward.
+  await pool.query('UPDATE game_participants SET pending_next_round = FALSE, has_paid = FALSE WHERE game_id = $1', [gameId]);
   await pool.query(
     'UPDATE games SET is_complete = FALSE, lms_current_week = 1 WHERE id = $1',
     [gameId]
