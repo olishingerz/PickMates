@@ -39,6 +39,19 @@
       const pickedCount      = aliveStandings.filter(s => s.myCurrentPick || s.picks.some(p => p.week_number === currentWeek)).length;
       const allPickedIn      = pickedCount >= aliveStandings.length;
 
+      // What an eliminated player sees instead of a contentless "better luck
+      // next time" once the round's effectively decided — inferred from who's
+      // still alive right now, same as allPickedIn above, rather than waiting
+      // for processGameResults to officially lock the week and record the
+      // winner/rollover (which can lag behind by however long the remaining
+      // fixtures take to finish). Null while the game's still genuinely
+      // undecided (more than one alive player left).
+      const roundStatusNote = aliveStandings.length === 0
+        ? "Everyone's been eliminated this round — looks like it's heading for a rollover once results are finalised! 🔄"
+        : aliveStandings.length === 1
+          ? `${aliveStandings[0].team_name || aliveStandings[0].username} is the last one standing — they'll be declared the winner once results are finalised! 🏆`
+          : null;
+
       // Plain-text version of the standings table, for the "Copy leaderboard"
       // button — formatted to paste cleanly into WhatsApp. Mirrors the
       // table's own reveal rule exactly (a still-hidden current-week pick
@@ -234,8 +247,9 @@
             <% if (multiEntry) { %><strong><%= entry.team_name || entry.username %></strong>: <% } %>
             <% if (entry.eliminatedReason === 'no_pick') { %>
               💀 <strong>UR OUTTT!</strong> <% if (!multiEntry) { %>You didn't pick<% } else { %>Didn't pick<% } %> before the week <%= entry.eliminatedWeek %> deadline.
+              <% if (roundStatusNote) { %> <%= roundStatusNote %><% } %>
             <% } else { %>
-              <% if (!multiEntry) { %>You were<% } else { %>Was<% } %> eliminated in week <%= entry.eliminatedWeek %>. Better luck next time!
+              <% if (!multiEntry) { %>You were<% } else { %>Was<% } %> eliminated in week <%= entry.eliminatedWeek %>. <%= roundStatusNote || 'Better luck next time!' %>
             <% } %>
           </div>
         <% } %>
