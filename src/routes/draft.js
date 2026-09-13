@@ -11,6 +11,26 @@ const { requireAuth, getGameId, isHost, canManage } = require('../services/permi
 // mergeParams so we can read :gameId set by the parent router in games.js
 const router = express.Router({ mergeParams: true });
 
+// LMS-only: is the roster still freely editable? True before the game
+// starts (every game type already works this way), OR once started but
+// still in week 1 before its own deadline has passed — nothing's actually
+// been decided yet at that point (no picks graded, nobody eliminated), so
+// there's no reason to restrict add/remove the way there is once the round
+// has genuinely got under way. `game` needs is_started, game_type, and
+// lms_current_week.
+async function isLmsRosterOpen(client, gameId, game) {
+  if (!game.is_started) return true;
+  if (game.game_type !== 'last_man_standing' || game.lms_current_week !== 1) return false;
+  const { rows } = await client.query(
+    'SELECT deadline, results_locked FROM lms_weeks WHERE game_id = $1 AND week_number = 1',
+    [gameId]
+  );
+  const week1 = rows[0];
+  if (!week1) return true; // no week-1 row yet — deadline not even set
+  if (week1.results_locked) return false;
+  return !week1.deadline || new Date(week1.deadline) > new Date();
+}
+
 function generateSnakeOrder(numPlayers, picksEach) {
   const order = [];
   for (let round = 0; round < picksEach; round++) {
@@ -42,7 +62,8 @@ async function getDraftData(userId, gameId) {
     `, [gameId]),
     pool.query(`
       SELECT g.id, g.name, g.tournament_id, g.tournament_name, g.current_pick_index, g.is_started, g.is_complete,
-             g.player_source, g.game_type, g.invite_code, g.prize_individual, g.host_user_id, g.visibility, hu.username AS host_username
+             g.player_source, g.game_type, g.invite_code, g.prize_individual, g.host_user_id, g.visibility,
+             g.lms_current_week, hu.username AS host_username
       FROM games g
       LEFT JOIN users hu ON hu.id = g.host_user_id
       WHERE g.id = $1
@@ -194,12 +215,19 @@ router.get('/', requireAuth, async (req, res) => {
       friendsToAdd = rows;
     }
 
+    // Only meaningful for the "Add a player" hint text once the LMS game's
+    // started — pre-start it's always open anyway (see isLmsRosterOpen).
+    const lmsRosterOpen = data.state.game_type === 'last_man_standing'
+      ? await isLmsRosterOpen(pool, gameId, data.state)
+      : true;
+
     res.render('draft', {
       ...data,
       isHost:    hostFlag,
       canManage: manageFlag,
       lmsWinners,
       friendsToAdd,
+      lmsRosterOpen,
       error:   req.query.error   || null,
       success: req.query.success || null,
     });
@@ -507,17 +535,22 @@ router.post('/add-user', requireAuth, async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    const { rows: stateRows } = await client.query('SELECT name, is_started, game_type FROM games WHERE id = $1', [gameId]);
+    const { rows: stateRows } = await client.query(
+      'SELECT name, is_started, game_type, lms_current_week FROM games WHERE id = $1', [gameId]
+    );
     const isLms = stateRows[0]?.game_type === 'last_man_standing';
     // LMS is the one game type this doesn't block on is_started for — a
     // continuous game's auto-restart means it may never naturally go back to
     // "not started" for the host to add someone. Added as pending_next_round
-    // instead, so they don't join the round that's already under way.
+    // instead, so they don't join the round that's already under way — unless
+    // the roster's still open (week 1, before its own deadline), in which
+    // case nothing's been decided yet and this is just a normal add.
     if (stateRows[0]?.is_started && !isLms) {
       await client.query('ROLLBACK');
       return res.redirect(base + '?error=' + encodeURIComponent('Cannot add players after the draft has started.'));
     }
-    const addingMidRound = isLms && stateRows[0]?.is_started;
+    const rosterOpen     = isLms ? await isLmsRosterOpen(client, gameId, stateRows[0]) : true;
+    const addingMidRound = Boolean(stateRows[0]?.is_started) && !rosterOpen;
 
     // Must be an existing, registered account — no longer auto-created
     const { rows: existing } = await client.query(
@@ -642,7 +675,9 @@ router.post('/remove-user', requireAuth, async (req, res) => {
   if (!participantId) return res.redirect(base + '?error=' + encodeURIComponent('Invalid player.'));
 
   try {
-    const { rows: stateRows } = await pool.query('SELECT is_started, host_user_id FROM games WHERE id = $1', [gameId]);
+    const { rows: stateRows } = await pool.query(
+      'SELECT is_started, host_user_id, game_type, lms_current_week FROM games WHERE id = $1', [gameId]
+    );
 
     const { rows: participantRows } = await pool.query(
       'SELECT user_id, pending_next_round FROM game_participants WHERE id = $1 AND game_id = $2',
@@ -652,9 +687,14 @@ router.post('/remove-user', requireAuth, async (req, res) => {
       return res.redirect(base + '?error=' + encodeURIComponent('Player not found.'));
     }
     // A pending_next_round entry hasn't actually joined the round in
-    // progress yet, so removing it is always safe — only block removal of
-    // an already-active participant once the game's started.
-    if (stateRows[0]?.is_started && !participantRows[0].pending_next_round) {
+    // progress yet, so removing it is always safe. An already-active
+    // participant can also still be freely removed while the LMS roster's
+    // still open (week 1, before its own deadline) — otherwise blocked once
+    // the game's started, same as every other game type.
+    const rosterOpen = stateRows[0]?.game_type === 'last_man_standing'
+      ? await isLmsRosterOpen(pool, gameId, stateRows[0])
+      : !stateRows[0]?.is_started;
+    if (stateRows[0]?.is_started && !rosterOpen && !participantRows[0].pending_next_round) {
       return res.redirect(base + '?error=' + encodeURIComponent('Cannot remove players after the draft has started.'));
     }
     // Only block this if it would remove the host's last remaining entry —

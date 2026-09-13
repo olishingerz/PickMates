@@ -391,22 +391,30 @@ async function processGameResults(gameId) {
 
   if (data.standings.length > 0 && alive.length === 0) {
     const oldPrize = parseFloat(game[0]?.prize_individual) || 0;
-    const newPrize = oldPrize * 2;
+    const newPrize = oldPrize * 2; // per-player rate, doubled
+    // prize_individual is a per-player rate, not the pot (same convention as
+    // the win payout above, and the "Prize pot: £X (£rate × N players)" line
+    // on the LMS page itself) — the messages below need the real total, not
+    // the raw rate, or a rollover with more than one player understates the
+    // actual prize.
+    const playerCount = data.standings.length;
+    const newPot = newPrize * playerCount;
+    const potBreakdown = `£${newPot} (£${newPrize} × ${playerCount} player${playerCount !== 1 ? 's' : ''})`;
     await pool.query('UPDATE games SET prize_individual = $1 WHERE id = $2', [newPrize, gameId]);
     await pool.query(
       `INSERT INTO lms_winners (game_id, user_id, username, is_rollover, final_week, prize_amount)
        VALUES ($1,NULL,NULL,TRUE,$2,$3)`,
-      [gameId, week, newPrize]
+      [gameId, week, newPot]
     );
-    logActivity(gameId, `😱 Everyone eliminated in ${gameName} week ${week} — rollover! Prize is now £${newPrize}.`);
+    logActivity(gameId, `😱 Everyone eliminated in ${gameName} week ${week} — rollover! Prize is now ${potBreakdown}.`);
     if (continuous) {
       await restartRound(gameId);
       return { week, updated, concluded: 'rollover', continuous: true,
-        message: `😱 Everyone was eliminated in week ${week} — rollover! Prize is now £${newPrize}. A new round has started automatically — Week 1.` };
+        message: `😱 Everyone was eliminated in week ${week} — rollover! Prize is now ${potBreakdown}. A new round has started automatically — Week 1.` };
     }
     await resetToLobby(gameId);
     return { week, updated, concluded: 'rollover', continuous: false,
-      message: `😱 Everyone was eliminated in week ${week} — rollover! Prize is now £${newPrize}. The game is back in the lobby — start again when ready.` };
+      message: `😱 Everyone was eliminated in week ${week} — rollover! Prize is now ${potBreakdown}. The game is back in the lobby — start again when ready.` };
   }
 
   // More than one survivor — the round continues. Advance to the next week

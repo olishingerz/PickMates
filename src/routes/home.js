@@ -20,7 +20,7 @@ async function getHomeData(userId, isAdmin) {
              g.tournament_start_date, g.tournament_end_date, g.completed_at,
              g.game_type, g.host_user_id, g.visibility, g.lms_leagues, g.scorecard_course_name,
              g.prize_team, g.prize_individual, g.scorecard_entry_fee, g.current_pick_index,
-             COUNT(gp.id)::int AS participant_count,
+             COUNT(gp.id) FILTER (WHERE gp.pending_next_round IS NOT TRUE)::int AS participant_count,
              BOOL_OR(gp.user_id = $1) AS user_joined
       FROM games g
       LEFT JOIN game_participants gp ON gp.game_id = g.id
@@ -39,7 +39,7 @@ async function getHomeData(userId, isAdmin) {
         SELECT gp.game_id, u.username, u.avatar
         FROM game_participants gp
         JOIN users u ON u.id = gp.user_id
-        WHERE gp.game_id = ANY($1)
+        WHERE gp.game_id = ANY($1) AND gp.pending_next_round IS NOT TRUE
         ORDER BY gp.id ASC
       `, [games.map(g => g.id)]);
       const avatarsByGame = new Map();

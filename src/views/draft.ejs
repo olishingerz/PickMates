@@ -367,7 +367,7 @@
                already under way. -->
           <div class="admin-section">
             <p class="label-small">Add a player</p>
-            <% if (state.is_started) { %>
+            <% if (state.is_started && !lmsRosterOpen) { %>
               <p class="admin-hint" style="margin-bottom:.3rem">The round's already under way — anyone added now joins once a new round starts (a rollover, or the current one ending).</p>
             <% } %>
             <% if (friendsToAdd.length > 0) { %>
