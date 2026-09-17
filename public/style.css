@@ -1075,6 +1075,13 @@ a.nav-user:hover { color: var(--green); }
   transition: background .15s;
 }
 .nav-dropdown-trigger:hover { background: rgba(255,255,255,.18); }
+.nav-dropdown-trigger-guest {
+  background: rgba(0,0,0,.12);
+  border: 1px dashed rgba(255,255,255,.55);
+  font-weight: 600;
+  font-style: italic;
+}
+.nav-dropdown-trigger-guest:hover { background: rgba(0,0,0,.2); }
 .nav-username { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dropdown-caret { font-size: .68rem; opacity: .75; }
 
