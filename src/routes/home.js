@@ -20,10 +20,12 @@ async function getHomeData(userId, isAdmin) {
              g.tournament_start_date, g.tournament_end_date, g.completed_at,
              g.game_type, g.host_user_id, g.visibility, g.lms_leagues, g.scorecard_course_name,
              g.prize_team, g.prize_individual, g.scorecard_entry_fee, g.current_pick_index,
+             MAX(hu.username) AS host_username,
              COUNT(gp.id) FILTER (WHERE gp.pending_next_round IS NOT TRUE)::int AS participant_count,
              BOOL_OR(gp.user_id = $1) AS user_joined
       FROM games g
       LEFT JOIN game_participants gp ON gp.game_id = g.id
+      LEFT JOIN users hu ON hu.id = g.host_user_id
       GROUP BY g.id
       HAVING g.visibility != 'private' OR g.host_user_id = $1 OR BOOL_OR(gp.user_id = $1) OR $2
       ORDER BY BOOL_OR(gp.user_id = $1) DESC NULLS LAST,

@@ -67,6 +67,9 @@
       <% } else { %>
         <p class="muted game-card-tournament">No tournament selected</p>
       <% } %>
+      <% if (g.host_username) { %>
+        <p class="muted" style="font-size:.78rem;margin-top:.15rem">👤 Hosted by <%= g.host_username %></p>
+      <% } %>
     </div>
     <% if (statusLabel) { %><span class="status-badge <%= statusClass %>"><%= statusLabel %></span><% } %>
   </div>
