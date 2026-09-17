@@ -290,17 +290,17 @@
               <% const isMe = user && s.user_id === user.id; %>
               <tr class="<%= isMe ? 'my-row' : '' %> <%= s.eliminated ? 'lms-eliminated' : '' %>">
                 <td>
-                  <span style="display:inline-flex;align-items:center;gap:.4rem">
+                  <a href="/profile/<%= s.username %>" style="display:inline-flex;align-items:center;gap:.4rem;color:inherit;text-decoration:none">
                     <%- include('partials/player-avatar', { avatar: s.avatar, username: s.username }) %>
                     <% if (s.team_name) { %>
                       <span>
                         <strong><%= s.team_name.length > 22 ? s.team_name.slice(0, 22) + '…' : s.team_name %></strong>
-                        <br /><a href="/profile/<%= s.username %>" class="muted" style="font-size:.75rem">@<%= s.username %></a>
+                        <br /><span class="muted" style="font-size:.75rem">@<%= s.username %></span>
                       </span>
                     <% } else { %>
-                      <a href="/profile/<%= s.username %>" style="color:inherit"><strong><%= s.username %></strong></a>
+                      <strong><%= s.username %></strong>
                     <% } %>
-                  </span>
+                  </a>
                 </td>
                 <td>
                   <% if (game.prize_individual > 0 && !s.has_paid && !s.eliminated) { %>
