@@ -1,19 +1,10 @@
 const express = require('express');
 const bcrypt  = require('bcrypt');
-const multer  = require('multer');
 const { pool } = require('../db');
 const { computeScorecardPrizeSplit } = require('../services/scorecardPrizes');
 const { issueVerificationEmail } = require('./auth');
 
 const router = express.Router();
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB max
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only image files are allowed.'));
-  },
-});
 
 function requireAuth(req, res, next) {
   if (!req.session.user) return res.redirect('/auth/login');
@@ -296,7 +287,11 @@ router.post('/resend-verification', requireAuth, async (req, res) => {
 });
 
 // POST /profile/avatar
-router.post('/avatar', requireAuth, upload.single('avatar'), async (req, res) => {
+// multer already ran for this path in index.js, before the CSRF check — see
+// the comment there for why (multipart/form-data isn't something
+// express.urlencoded() can parse, so req.body._csrf needs it done earlier
+// than route-level middleware here could manage).
+router.post('/avatar', requireAuth, async (req, res) => {
   try {
     let avatarData = null;
     if (req.file) {

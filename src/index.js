@@ -1,6 +1,7 @@
 require('dotenv').config();
 const crypto = require('crypto');
 const express = require('express');
+const multer = require('multer');
 const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
 const path = require('path');
@@ -179,6 +180,25 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// The profile picture upload is the one form on the whole site that submits
+// as multipart/form-data (required for a file field), not the urlencoded
+// body express.urlencoded() above already parses. Without this, the CSRF
+// check just below never sees _csrf for that request at all — req.body is
+// still empty — and rejects every single avatar upload with a session-
+// expired-looking 403, regardless of whether the session/token were
+// actually fine. Parsing it here, scoped to just this path and before the
+// CSRF check, means req.body._csrf (and req.file) are populated in time;
+// the route in profile.js no longer needs its own multer call.
+const avatarUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB max
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only image files are allowed.'));
+  },
+});
+app.use('/profile/avatar', avatarUpload.single('avatar'));
 
 app.use((req, res, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
