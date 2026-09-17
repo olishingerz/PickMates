@@ -49,6 +49,17 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ── Scroll reveal ─────────────────────────────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity .5s ease, transform .5s ease;
+}
+.reveal.in-view { opacity: 1; transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
+
 a { color: var(--green); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
