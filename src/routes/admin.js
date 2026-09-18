@@ -38,7 +38,7 @@ function requireAdmin(req, res, next) {
 // ── GET /admin ────────────────────────────────────────────────────────────────
 router.get('/', requireAdmin, async (req, res) => {
   try {
-    const [usersRes, gamesRes, gameCreationRoles, lmsWinnersRes] = await Promise.all([
+    const [usersRes, gamesRes, gameCreationRoles, lmsWinnersRes, activeNowRes] = await Promise.all([
       pool.query(`
         SELECT u.id, u.username, u.email, u.email_prompt_shown,
                u.is_admin, u.is_paid, u.is_banned, u.created_at, u.last_seen,
@@ -67,11 +67,21 @@ router.get('/', requireAdmin, async (req, res) => {
         WHERE lw.is_rollover = FALSE
         ORDER BY lw.created_at DESC
       `),
+      // visitor_log.last_seen updates on every request (no throttling, unlike
+      // users.last_seen which is capped to once per 5 min per session), so
+      // it's the most real-time signal available for "who's here right now".
+      pool.query(`
+        SELECT COUNT(*)::int AS active_now
+        FROM visitor_log vl
+        LEFT JOIN users u ON u.id = vl.user_id
+        WHERE u.is_admin IS NOT TRUE AND vl.last_seen > NOW() - INTERVAL '5 minutes'
+      `),
     ]);
     res.render('admin', {
       users:  usersRes.rows,
       games:  gamesRes.rows,
       lmsWinners: lmsWinnersRes.rows,
+      activeNow: activeNowRes.rows[0].active_now,
       emailConfigured: isEmailConfigured(),
       gameCreationRoles,
       ROLE_OPTIONS,
@@ -102,6 +112,7 @@ router.get('/visitors', requireAdmin, async (req, res) => {
         SELECT
           COUNT(*)::int AS total_visitors,
           COALESCE(SUM(vl.visit_count), 0)::int AS total_visits,
+          COUNT(*) FILTER (WHERE vl.last_seen > NOW() - INTERVAL '5 minutes')::int AS active_now,
           COUNT(*) FILTER (WHERE vl.last_seen > NOW() - INTERVAL '24 hours')::int AS active_today,
           COUNT(*) FILTER (WHERE vl.last_seen > NOW() - INTERVAL '7 days')::int   AS active_week
         FROM visitor_log vl
@@ -109,7 +120,8 @@ router.get('/visitors', requireAdmin, async (req, res) => {
         WHERE u.is_admin IS NOT TRUE
       `),
       pool.query(`
-        SELECT vl.last_path, vl.ip_address, vl.last_seen, vl.first_seen, vl.visit_count, u.username
+        SELECT vl.last_path, vl.ip_address, vl.last_seen, vl.first_seen, vl.visit_count, u.username,
+               vl.last_seen > NOW() - INTERVAL '5 minutes' AS is_active
         FROM visitor_log vl
         LEFT JOIN users u ON u.id = vl.user_id
         WHERE u.is_admin IS NOT TRUE

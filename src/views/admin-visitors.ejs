@@ -25,7 +25,11 @@
     <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
 
     <div class="card" style="margin-bottom:1.2rem">
-      <div class="stats-cols" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1.2rem">
+      <div class="stats-cols" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:1.2rem">
+        <div>
+          <p class="label-small">Active now</p>
+          <strong style="font-size:1.6rem;color:var(--green-dark)"><% if (stats.active_now > 0) { %>🟢 <% } %><%= stats.active_now %></strong>
+        </div>
         <div>
           <p class="label-small">Total known visitors</p>
           <strong style="font-size:1.6rem"><%= stats.total_visitors %></strong>
@@ -64,7 +68,7 @@
             <tbody>
               <% visitors.forEach(v => { %>
                 <tr>
-                  <td class="muted" style="white-space:nowrap;font-size:.82rem"><%= new Date(v.last_seen).toLocaleString('en-GB', { timeZone:'Europe/London', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %></td>
+                  <td class="muted" style="white-space:nowrap;font-size:.82rem"><% if (v.is_active) { %>🟢 <% } %><%= new Date(v.last_seen).toLocaleString('en-GB', { timeZone:'Europe/London', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) %></td>
                   <td style="font-family:monospace;font-size:.85rem"><%= v.last_path %></td>
                   <td><%= v.username || 'Guest' %></td>
                   <td class="muted" style="font-size:.82rem"><%= v.ip_address || '—' %></td>

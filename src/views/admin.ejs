@@ -36,7 +36,7 @@
 
     <!-- ── At a glance ────────────────────────────────────────────────────── -->
     <div class="card" style="margin-bottom:1.5rem">
-      <div class="stats-cols" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1.2rem">
+      <div class="stats-cols" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:1.2rem">
         <div>
           <p class="label-small">Users</p>
           <strong style="font-size:1.6rem"><%= users.length %></strong>
@@ -52,6 +52,11 @@
         <div>
           <p class="label-small">Complete</p>
           <strong style="font-size:1.6rem"><%= completeGamesCount %></strong>
+        </div>
+        <div>
+          <p class="label-small">Active now</p>
+          <strong style="font-size:1.6rem;color:var(--green-dark)"><% if (activeNow > 0) { %>🟢 <% } %><%= activeNow %></strong>
+          <p class="muted" style="font-size:.72rem"><a href="/admin/visitors">who? →</a></p>
         </div>
       </div>
     </div>
