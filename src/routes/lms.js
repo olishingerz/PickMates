@@ -259,6 +259,17 @@ router.post('/picks', requireAuth, async (req, res) => {
     // until everyone's submitted for the week, so revealing it in the
     // activity feed the moment it's made would leak it early.
     logActivity(gameId, `${req.session.user.username} locked in their pick for ${data.game.name} (Week ${data.currentWeek})`);
+
+    // Check whether this was the last pick needed to complete the week —
+    // re-fetch rather than patching `data` locally, since myCurrentPick/picks
+    // need to reflect the row just inserted above.
+    const afterData  = await getLmsData(gameId, userId);
+    const aliveNow   = afterData.standings.filter(s => !s.eliminated);
+    const pickedNow  = aliveNow.filter(s => s.myCurrentPick);
+    if (aliveNow.length > 0 && pickedNow.length >= aliveNow.length) {
+      logActivity(gameId, `✅ All picks are in for ${data.game.name} (Week ${data.currentWeek}) — check the standings to see who picked what!`);
+    }
+
     res.redirect(`/game/${gameId}?success=` + encodeURIComponent(`Pick submitted: ${team_name}`));
   } catch (err) {
     console.error('[lms picks POST]', err);
@@ -377,6 +388,15 @@ async function processGameResults(gameId) {
   // zero survivors is a rollover (prize carries over, doubled).
   const data  = await getLmsData(gameId, null);
   const alive = data.standings.filter(s => !s.eliminated);
+
+  // Anyone whose elimination is dated to the week just locked (as opposed to
+  // an earlier week, already logged when that week locked) newly went out
+  // this round — log them as one combined entry rather than one per player.
+  const eliminatedThisWeek = data.standings.filter(s => s.eliminatedWeek === week);
+  if (eliminatedThisWeek.length > 0) {
+    const names = eliminatedThisWeek.map(s => s.username).join(', ');
+    logActivity(gameId, `❌ ${names} ${eliminatedThisWeek.length === 1 ? 'was' : 'were'} eliminated from ${gameName} in week ${week}.`);
+  }
 
   if (data.standings.length > 0 && alive.length === 1) {
     const winner = alive[0];
