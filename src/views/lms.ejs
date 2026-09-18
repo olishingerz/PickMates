@@ -156,9 +156,6 @@
           <% } %>
         </div>
       <% } %>
-      <% if (game.lms_continuous) { %>
-        <p class="muted" style="margin-top:.2rem;font-size:.78rem">🔁 Auto-restarts a new round when this one ends</p>
-      <% } %>
     <% if (game.is_started && !weekObj?.results_locked) { %>
       <p class="muted" style="margin-top:.2rem;font-size:.85rem">
         <% if (allPickedIn) { %>
