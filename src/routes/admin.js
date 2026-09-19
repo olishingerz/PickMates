@@ -614,10 +614,18 @@ router.get('/lms-state-debug/:gameId', requireAdmin, async (req, res) => {
     const [weeksRes, winnersRes, picksRes] = await Promise.all([
       pool.query('SELECT * FROM lms_weeks WHERE game_id = $1 ORDER BY week_number', [gameId]),
       pool.query('SELECT * FROM lms_winners WHERE game_id = $1 ORDER BY id', [gameId]),
-      pool.query('SELECT week_number, count(*) FROM lms_picks WHERE game_id = $1 GROUP BY week_number ORDER BY week_number', [gameId]),
+      pool.query(
+        `SELECT lp.week_number, lp.participant_id, u.username, lp.team_id, lp.team_name, lp.result, lp.created_at
+         FROM lms_picks lp
+         JOIN game_participants gp ON gp.id = lp.participant_id
+         JOIN users u ON u.id = gp.user_id
+         WHERE lp.game_id = $1
+         ORDER BY lp.week_number, lp.created_at`,
+        [gameId]
+      ),
     ]);
 
-    res.json({ game, weeks: weeksRes.rows, winners: winnersRes.rows, picksByWeek: picksRes.rows });
+    res.json({ game, weeks: weeksRes.rows, winners: winnersRes.rows, picks: picksRes.rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
