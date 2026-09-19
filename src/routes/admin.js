@@ -669,10 +669,14 @@ router.get('/lms-live-check/:gameId', requireAdmin, async (req, res) => {
       try { return { label, ok: true, count: (await fn()).length }; }
       catch (err) { return { label, ok: false, error: err.message }; }
     };
+    const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const probes = await Promise.all([
       attempt('eng.1 only, same range', () => fetchFixtures(['eng.1'], `${start}-${end}`)),
       attempt('eng.1, no date param (today)', () => fetchFixtures(['eng.1'], undefined)),
       attempt('both leagues, single-day range (start only)', () => fetchFixtures(leagues, `${start}-${start}`)),
+      attempt('eng.1, explicit range = today only', () => fetchFixtures(['eng.1'], `${todayStr}-${todayStr}`)),
+      attempt('eng.1 same range, retry 1', () => fetchFixtures(['eng.1'], `${start}-${end}`)),
+      attempt('eng.1 same range, retry 2', () => fetchFixtures(['eng.1'], `${start}-${end}`)),
     ]);
 
     res.json({ week, leagues, storedFixtureCount: storedFixtures.length, liveFixtures, dateRangeTried: `${start}-${end}`, probes });
