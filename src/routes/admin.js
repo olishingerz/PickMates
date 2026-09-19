@@ -670,16 +670,28 @@ router.get('/lms-live-check/:gameId', requireAdmin, async (req, res) => {
       catch (err) { return { label, ok: false, error: err.message }; }
     };
     const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const bristolFixture = storedFixtures.find(f => f.homeTeam?.name === 'Bristol City' || f.awayTeam?.name === 'Bristol City');
+    const attemptRaw = async (label, url) => {
+      try {
+        const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } });
+        const body = await r.text();
+        return { label, status: r.status, bodyPreview: body.slice(0, 500) };
+      } catch (err) { return { label, error: err.message }; }
+    };
     const probes = await Promise.all([
       attempt('eng.1 only, same range', () => fetchFixtures(['eng.1'], `${start}-${end}`)),
       attempt('eng.1, no date param (today)', () => fetchFixtures(['eng.1'], undefined)),
       attempt('both leagues, single-day range (start only)', () => fetchFixtures(leagues, `${start}-${start}`)),
       attempt('eng.1, explicit range = today only', () => fetchFixtures(['eng.1'], `${todayStr}-${todayStr}`)),
-      attempt('eng.1 same range, retry 1', () => fetchFixtures(['eng.1'], `${start}-${end}`)),
-      attempt('eng.1 same range, retry 2', () => fetchFixtures(['eng.1'], `${start}-${end}`)),
+      bristolFixture
+        ? attemptRaw('by event ID: /scoreboard/{id}', `https://site.api.espn.com/apis/site/v2/sports/soccer/eng.2/scoreboard/${bristolFixture.id}`)
+        : Promise.resolve({ label: 'by event ID: /scoreboard/{id}', skipped: 'no bristol fixture found in cache' }),
+      bristolFixture
+        ? attemptRaw('by event ID: /summary?event=', `https://site.api.espn.com/apis/site/v2/sports/soccer/eng.2/summary?event=${bristolFixture.id}`)
+        : Promise.resolve({ label: 'by event ID: /summary?event=', skipped: 'no bristol fixture found in cache' }),
     ]);
 
-    res.json({ week, leagues, storedFixtureCount: storedFixtures.length, liveFixtures, dateRangeTried: `${start}-${end}`, probes });
+    res.json({ week, leagues, storedFixtureCount: storedFixtures.length, liveFixtures, dateRangeTried: `${start}-${end}`, bristolEventId: bristolFixture?.id, probes });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
