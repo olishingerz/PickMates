@@ -5,7 +5,7 @@ const { ROLE_OPTIONS, getGameCreationRoles, setGameCreationRoles } = require('..
 const { generateTempPassword } = require('../utils');
 const { computeGolfDraftWinner } = require('../services/golfWinner');
 const { sendTestEmail, isConfigured: isEmailConfigured } = require('../services/email');
-const { getCurrentGameweekFixtures, refetchFixtures, fetchFixtures } = require('../services/football');
+const { getCurrentGameweekFixtures, refetchFixtures } = require('../services/football');
 const { refreshFixtureCache } = require('./lms');
 const net = require('net');
 
@@ -657,41 +657,7 @@ router.get('/lms-live-check/:gameId', requireAdmin, async (req, res) => {
     const leagues = (game.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean);
 
     const liveFixtures = await refetchFixtures(leagues, storedFixtures);
-
-    // Isolating the 400: try a handful of variant requests against the same
-    // ESPN endpoint (single league, no date param at all, a wider range) to
-    // tell a genuinely-broken date range apart from ESPN's endpoint being
-    // down full stop right now.
-    const dateStrs = storedFixtures.map(f => new Date(f.kickoff).toISOString().slice(0, 10).replace(/-/g, ''));
-    const start = dateStrs.reduce((a, b) => (a < b ? a : b), dateStrs[0]);
-    const end   = dateStrs.reduce((a, b) => (a > b ? a : b), dateStrs[0]);
-    const attempt = async (label, fn) => {
-      try { return { label, ok: true, count: (await fn()).length }; }
-      catch (err) { return { label, ok: false, error: err.message }; }
-    };
-    const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const bristolFixture = storedFixtures.find(f => f.homeTeam?.name === 'Bristol City' || f.awayTeam?.name === 'Bristol City');
-    const attemptRaw = async (label, url) => {
-      try {
-        const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } });
-        const body = await r.text();
-        return { label, status: r.status, bodyPreview: body.slice(0, 500) };
-      } catch (err) { return { label, error: err.message }; }
-    };
-    const probes = await Promise.all([
-      attempt('eng.1 only, same range', () => fetchFixtures(['eng.1'], `${start}-${end}`)),
-      attempt('eng.1, no date param (today)', () => fetchFixtures(['eng.1'], undefined)),
-      attempt('both leagues, single-day range (start only)', () => fetchFixtures(leagues, `${start}-${start}`)),
-      attempt('eng.1, explicit range = today only', () => fetchFixtures(['eng.1'], `${todayStr}-${todayStr}`)),
-      bristolFixture
-        ? attemptRaw('by event ID: /scoreboard/{id}', `https://site.api.espn.com/apis/site/v2/sports/soccer/eng.2/scoreboard/${bristolFixture.id}`)
-        : Promise.resolve({ label: 'by event ID: /scoreboard/{id}', skipped: 'no bristol fixture found in cache' }),
-      bristolFixture
-        ? attemptRaw('by event ID: /summary?event=', `https://site.api.espn.com/apis/site/v2/sports/soccer/eng.2/summary?event=${bristolFixture.id}`)
-        : Promise.resolve({ label: 'by event ID: /summary?event=', skipped: 'no bristol fixture found in cache' }),
-    ]);
-
-    res.json({ week, leagues, storedFixtureCount: storedFixtures.length, liveFixtures, dateRangeTried: `${start}-${end}`, bristolEventId: bristolFixture?.id, probes });
+    res.json({ week, leagues, storedFixtureCount: storedFixtures.length, liveFixtures });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

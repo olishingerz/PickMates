@@ -19,6 +19,54 @@ async function fetchJSON(url) {
   return res.json();
 }
 
+// Normalizes one ESPN "event" object (same shape whether it came from a
+// scoreboard list's `events[]` or a single-event `/scoreboard/{id}` lookup)
+// into this app's fixture shape. Returns null for a malformed event (missing
+// competitors) rather than throwing, so one bad event doesn't take down a
+// whole batch.
+function parseEspnEvent(event, code) {
+  const comp = event.competitions?.[0];
+  if (!comp) return null;
+  const home = comp.competitors?.find(c => c.homeAway === 'home');
+  const away = comp.competitors?.find(c => c.homeAway === 'away');
+  if (!home || !away) return null;
+
+  const statusName = comp.status?.type?.name || '';
+  // ESPN's convention for a match that won't produce a normal result — not
+  // verified against a live fixture in each of these states (most weren't
+  // in progress when this was written), based on the standard ESPN
+  // status.type.name enum. Treated the same as postponed: pickers pass
+  // through automatically, no win/loss/draw. Abandoned/suspended/forfeit
+  // added alongside the original postponed/canceled — a match stuck in
+  // any of these never reaches completed:true either, and previously had
+  // no fallback at all, which could stall a whole LMS round indefinitely
+  // (see the deadline-passed staleness fallback in index.js's grading
+  // cron for the belt-and-braces version of this same fix).
+  const postponed  = ['STATUS_POSTPONED', 'STATUS_CANCELED', 'STATUS_ABANDONED', 'STATUS_SUSPENDED', 'STATUS_FORFEIT'].includes(statusName);
+  const completed  = comp.status?.type?.completed === true;
+  const homeScore  = parseInt(home.score) || 0;
+  const awayScore  = parseInt(away.score) || 0;
+  let winnerId = null;
+  if (completed) {
+    if (homeScore > awayScore) winnerId = home.team.id;
+    else if (awayScore > homeScore) winnerId = away.team.id;
+    // draw: winnerId stays null
+  }
+
+  return {
+    id:        event.id,
+    league:    code,
+    leagueName: LEAGUE_NAMES[code] || code,
+    kickoff:   event.date,
+    completed,
+    postponed,
+    homeTeam:  { id: home.team.id, name: home.team.displayName, shortName: home.team.abbreviation, score: homeScore, logo: home.team.logo || null },
+    awayTeam:  { id: away.team.id, name: away.team.displayName, shortName: away.team.abbreviation, score: awayScore, logo: away.team.logo || null },
+    winnerId,
+    isDraw:    completed && homeScore === awayScore,
+  };
+}
+
 // Fetch fixtures for the given league codes (e.g. ['eng.1', 'eng.2']).
 // datesParam, if given, is an ESPN-format range like '20260821-20260824'; otherwise
 // ESPN defaults to whatever it considers "today".
@@ -36,46 +84,8 @@ async function fetchFixtures(leagueCodes, datesParam) {
       continue;
     }
     for (const event of (data.events || [])) {
-      const comp = event.competitions?.[0];
-      if (!comp) continue;
-      const home = comp.competitors?.find(c => c.homeAway === 'home');
-      const away = comp.competitors?.find(c => c.homeAway === 'away');
-      if (!home || !away) continue;
-
-      const statusName = comp.status?.type?.name || '';
-      // ESPN's convention for a match that won't produce a normal result — not
-      // verified against a live fixture in each of these states (most weren't
-      // in progress when this was written), based on the standard ESPN
-      // status.type.name enum. Treated the same as postponed: pickers pass
-      // through automatically, no win/loss/draw. Abandoned/suspended/forfeit
-      // added alongside the original postponed/canceled — a match stuck in
-      // any of these never reaches completed:true either, and previously had
-      // no fallback at all, which could stall a whole LMS round indefinitely
-      // (see the deadline-passed staleness fallback in index.js's grading
-      // cron for the belt-and-braces version of this same fix).
-      const postponed  = ['STATUS_POSTPONED', 'STATUS_CANCELED', 'STATUS_ABANDONED', 'STATUS_SUSPENDED', 'STATUS_FORFEIT'].includes(statusName);
-      const completed  = comp.status?.type?.completed === true;
-      const homeScore  = parseInt(home.score) || 0;
-      const awayScore  = parseInt(away.score) || 0;
-      let winnerId = null;
-      if (completed) {
-        if (homeScore > awayScore) winnerId = home.team.id;
-        else if (awayScore > homeScore) winnerId = away.team.id;
-        // draw: winnerId stays null
-      }
-
-      fixtures.push({
-        id:        event.id,
-        league:    code,
-        leagueName: LEAGUE_NAMES[code] || code,
-        kickoff:   event.date,
-        completed,
-        postponed,
-        homeTeam:  { id: home.team.id, name: home.team.displayName, shortName: home.team.abbreviation, score: homeScore, logo: home.team.logo || null },
-        awayTeam:  { id: away.team.id, name: away.team.displayName, shortName: away.team.abbreviation, score: awayScore, logo: away.team.logo || null },
-        winnerId,
-        isDraw:    completed && homeScore === awayScore,
-      });
+      const fixture = parseEspnEvent(event, code);
+      if (fixture) fixtures.push(fixture);
     }
   }
   // Sort by kickoff time
@@ -256,17 +266,38 @@ async function getCurrentGameweekFixtures(leagueCodes, opts) {
 // fixture (which the staleness fallback in index.js's cron handles), but the
 // wrong *set* of fixtures entirely. Since a week's own fixture list is
 // already known once it starts, there's no need to re-derive "which round is
-// this" at grading time at all — just ask ESPN for fresh data over the same
-// fixed date range those fixtures already fall in.
+// this" at grading time at all — just ask ESPN directly about each fixture
+// it already knows about.
+//
+// Originally did that as a single ranged `scoreboard?dates=` query across the
+// round's date span, like getCurrentGameweekFixtures. Dropped that after
+// discovering (2026-09-19, diagnosing a stuck Bristol City v Watford pick)
+// that ESPN's `dates` parameter can start silently returning zero events for
+// *any* explicit value — including today's own date passed explicitly —
+// while the exact same endpoint with no date param at all still works fine.
+// A per-event lookup via `/scoreboard/{id}` sidesteps that parameter
+// entirely, confirmed against that same fixture (ESPN correctly reports
+// STATUS_FULL_TIME for it there, despite the ranged query returning nothing).
+// Only fixtures not yet decided are re-fetched — a completed/postponed
+// result can't change, and it keeps each refresh cheap. `leagueCodes` is no
+// longer needed here (each stored fixture already carries its own league)
+// but kept in the signature since callers already pass it.
 async function refetchFixtures(leagueCodes, storedFixtures) {
   if (!storedFixtures || storedFixtures.length === 0) return [];
-  const dateStrs = storedFixtures
-    .map(f => new Date(f.kickoff).toISOString().slice(0, 10).replace(/-/g, ''))
-    .filter(d => d.length === 8);
-  if (dateStrs.length === 0) return [];
-  const start = dateStrs.reduce((a, b) => (a < b ? a : b));
-  const end   = dateStrs.reduce((a, b) => (a > b ? a : b));
-  return fetchFixtures(leagueCodes, `${start}-${end}`);
+  const toRefetch      = storedFixtures.filter(f => !f.completed && !f.postponed);
+  const alreadyDecided = storedFixtures.filter(f => f.completed || f.postponed);
+
+  const refetched = await Promise.all(toRefetch.map(async f => {
+    try {
+      const data = await fetchJSON(`${ESPN_SOCCER}/${f.league}/scoreboard/${f.id}`);
+      return parseEspnEvent(data, f.league) || f;
+    } catch (err) {
+      console.warn(`[football] Could not refetch fixture ${f.id} (${f.league}):`, err.message);
+      return f; // keep the stale cached row rather than dropping the fixture entirely
+    }
+  }));
+
+  return [...alreadyDecided, ...refetched];
 }
 
 // Process results for a game week — updates lms_picks result column.
