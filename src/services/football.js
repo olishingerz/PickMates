@@ -9,7 +9,13 @@ async function fetchJSON(url) {
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
   });
-  if (!res.ok) throw new Error(`ESPN soccer API ${res.status} for ${url}`);
+  if (!res.ok) {
+    // ESPN's error body usually names the actual problem (e.g. an invalid
+    // date range) — a bare status code alone isn't enough to tell a bad
+    // request apart from rate-limiting or an outage.
+    const body = await res.text().catch(() => '');
+    throw new Error(`ESPN soccer API ${res.status} for ${url}${body ? ` — ${body.slice(0, 300)}` : ''}`);
+  }
   return res.json();
 }
 
