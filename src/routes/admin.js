@@ -5,7 +5,7 @@ const { ROLE_OPTIONS, getGameCreationRoles, setGameCreationRoles } = require('..
 const { generateTempPassword } = require('../utils');
 const { computeGolfDraftWinner } = require('../services/golfWinner');
 const { sendTestEmail, isConfigured: isEmailConfigured } = require('../services/email');
-const { getCurrentGameweekFixtures } = require('../services/football');
+const { getCurrentGameweekFixtures, refetchFixtures } = require('../services/football');
 const { refreshFixtureCache } = require('./lms');
 const net = require('net');
 
@@ -626,6 +626,38 @@ router.get('/lms-state-debug/:gameId', requireAdmin, async (req, res) => {
     ]);
 
     res.json({ game, weeks: weeksRes.rows, winners: winnersRes.rows, picks: picksRes.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /admin/lms-live-check/:gameId — re-runs the exact same ESPN fetch the
+// grading cron uses for this game's current week (refetchFixtures, keyed off
+// the round's own cached fixture list) and returns it as-is, so a "why hasn't
+// this pick graded" question can be checked against what ESPN is actually
+// returning *from Railway's own network* right now — a local/dev machine can
+// get blocked by ESPN's bot protection in a way production never sees, so
+// reproducing it from here is the only way to tell a real ESPN-side issue
+// (postponement, a status this app doesn't recognise, a stuck match) apart
+// from a purely local fetch failure.
+router.get('/lms-live-check/:gameId', requireAdmin, async (req, res) => {
+  const gameId = parseInt(req.params.gameId);
+  try {
+    const { rows: gameRows } = await pool.query(
+      'SELECT lms_leagues, lms_current_week FROM games WHERE id = $1', [gameId]
+    );
+    const game = gameRows[0];
+    if (!game) return res.status(404).json({ error: 'Game not found' });
+
+    const week = game.lms_current_week || 1;
+    const { rows: weekRows } = await pool.query(
+      'SELECT fixtures_cache FROM lms_weeks WHERE game_id = $1 AND week_number = $2', [gameId, week]
+    );
+    const storedFixtures = weekRows[0]?.fixtures_cache || [];
+    const leagues = (game.lms_leagues || 'eng.1').split(',').map(s => s.trim()).filter(Boolean);
+
+    const liveFixtures = await refetchFixtures(leagues, storedFixtures);
+    res.json({ week, leagues, storedFixtureCount: storedFixtures.length, liveFixtures });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
