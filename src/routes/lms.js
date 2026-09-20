@@ -391,12 +391,10 @@ async function processGameResults(gameId) {
 
   // Anyone whose elimination is dated to the week just locked (as opposed to
   // an earlier week, already logged when that week locked) newly went out
-  // this round — log them as one combined entry rather than one per player.
+  // this round — folded into the "week finished" message below rather than
+  // its own entry, since the winner/rollover messages already fully cover
+  // eliminations for those two outcomes.
   const eliminatedThisWeek = data.standings.filter(s => s.eliminatedWeek === week);
-  if (eliminatedThisWeek.length > 0) {
-    const names = eliminatedThisWeek.map(s => s.username).join(', ');
-    logActivity(gameId, `❌ ${names} ${eliminatedThisWeek.length === 1 ? 'was' : 'were'} eliminated from ${gameName} in week ${week}.`);
-  }
 
   if (data.standings.length > 0 && alive.length === 1) {
     const winner = alive[0];
@@ -463,7 +461,10 @@ async function processGameResults(gameId) {
   try { await refreshFixtureCache(gameId, nextWeek); }
   catch (err) { console.warn(`[lms] fixture cache refresh failed after auto-advancing week for game ${gameId}:`, err.message); }
 
-  logActivity(gameId, `Week ${week} finished in ${gameName} — advanced to week ${nextWeek}.`);
+  const outClause = eliminatedThisWeek.length > 0
+    ? ` — ${eliminatedThisWeek.length} out, ${alive.length} remain`
+    : '';
+  logActivity(gameId, `Week ${week} finished in ${gameName}${outClause}.`);
   return { week, updated, concluded: null, continuous,
     message: `Results processed for week ${week} — ${updated} picks updated. Advanced to week ${nextWeek}.` };
 }
