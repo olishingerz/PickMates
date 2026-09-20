@@ -663,4 +663,27 @@ router.get('/lms-live-check/:gameId', requireAdmin, async (req, res) => {
   }
 });
 
+// ── TEMP GET /admin/espn-probe — researching a replacement for the broken
+// scoreboard?dates= discovery query (used when populating a brand-new week's
+// fixture list, as opposed to refetchFixtures' now-fixed per-event lookup for
+// an already-known one). To be removed once the real fix lands.
+router.get('/espn-probe', requireAdmin, async (req, res) => {
+  const raw = async (url) => {
+    try {
+      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } });
+      const body = await r.text();
+      return { url, status: r.status, bodyPreview: body.slice(0, 800) };
+    } catch (err) { return { url, error: err.message }; }
+  };
+  try {
+    const [teamsList, teamSchedule] = await Promise.all([
+      raw('https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams'),
+      raw('https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams/382/schedule'),
+    ]);
+    res.json({ teamsList, teamSchedule });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
