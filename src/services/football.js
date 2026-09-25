@@ -101,7 +101,10 @@ async function fetchAllFixturesForLeagues(leagueCodes) {
       console.warn(`[football] Could not list ${code} teams:`, err.message);
       continue;
     }
+    console.log(`[football] ${code}: found ${teamIds.length} teams`);
 
+    let scheduleFailures = 0;
+    const beforeCount = fixturesById.size;
     for (let i = 0; i < teamIds.length; i += CONCURRENCY) {
       const batch = teamIds.slice(i, i + CONCURRENCY);
       await Promise.all(batch.map(async teamId => {
@@ -113,10 +116,12 @@ async function fetchAllFixturesForLeagues(leagueCodes) {
             if (fixture) fixturesById.set(event.id, fixture);
           }
         } catch (err) {
+          scheduleFailures++;
           console.warn(`[football] Could not fetch schedule for ${code} team ${teamId}:`, err.message);
         }
       }));
     }
+    console.log(`[football] ${code}: ${fixturesById.size - beforeCount} fixtures added (${scheduleFailures}/${teamIds.length} team schedule fetches failed)`);
   }
 
   return [...fixturesById.values()].sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
@@ -283,9 +288,11 @@ async function getCurrentGameweekFixtures(leagueCodes, opts = {}) {
 
   const anchorFixtures = allFixtures.filter(f => f.league === anchorCode);
   const window = pickWindowFromFixtures(anchorFixtures, new Date(), requireUpcomingDeadline);
+  console.log(`[football] leagues=${leagueCodes.join(',')} anchor=${anchorCode} totalDiscovered=${allFixtures.length} anchorDiscovered=${anchorFixtures.length} window=${window ? `${window.start}..${window.end}` : 'none'}`);
   if (!window) return { fixtures: [], suggestedDeadline: null };
 
   const fixtures = fixturesInWindow(allFixtures, window);
+  console.log(`[football] ${fixtures.length} fixture(s) fall inside window ${window.start}..${window.end}`);
   const kickoffs = fixtures.map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
   const suggestedDeadline = kickoffs.length ? new Date(Math.min(...kickoffs) - 60 * 60 * 1000) : null;
 
