@@ -663,30 +663,4 @@ router.get('/lms-live-check/:gameId', requireAdmin, async (req, res) => {
   }
 });
 
-// ── TEMP GET /admin/espn-probe2 — the team schedule endpoint (used by
-// fetchAllFixturesForLeagues) is only returning already-played games, not
-// future ones — Man City's schedule came back with exactly 5 events, matching
-// its 5-0-0 record exactly. Testing whether a query param unlocks the full
-// season. To be removed once resolved.
-router.get('/espn-probe2', requireAdmin, async (req, res) => {
-  const variants = {
-    plain:            'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams/382/schedule',
-    seasontype2:      'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams/382/schedule?seasontype=2',
-    season2026:       'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams/382/schedule?season=2026',
-    fixture:          'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams/382/schedule?fixture=true',
-  };
-  const results = {};
-  await Promise.all(Object.entries(variants).map(async ([label, url]) => {
-    try {
-      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' } });
-      const data = await r.json();
-      const dates = (data.events || []).map(e => e.date).sort();
-      results[label] = { status: r.status, eventCount: data.events?.length || 0, earliestDate: dates[0], latestDate: dates[dates.length - 1] };
-    } catch (err) {
-      results[label] = { error: err.message };
-    }
-  }));
-  res.json(results);
-});
-
 module.exports = router;

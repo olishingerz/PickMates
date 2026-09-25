@@ -84,10 +84,18 @@ function parseEspnEvent(event, code) {
 // `dates=` query entirely (see refetchFixtures's comment for why that
 // stopped being usable) by instead listing each league's teams and reading
 // their full-season schedules, which need no date param to begin with.
+//
+// A team's schedule is actually split across two separate calls, confirmed
+// 2026-09-25: the plain endpoint only returns already-played games (Man
+// City's came back with exactly 5 events, matching its 5-0-0 record to the
+// game), while `?fixture=true` returns only the *upcoming* ones — the two
+// don't overlap. Both are needed for a genuinely complete season.
+//
 // Events are deduped by id, since each fixture appears in both teams'
-// schedules. Modest concurrency per league (rather than firing off ~20-24
-// requests at once) since ESPN's bot protection has previously blocked this
-// app's requests entirely for reasons that were never fully pinned down.
+// schedules (and potentially both calls, if ESPN ever does overlap them).
+// Modest concurrency per league (rather than firing off ~20-24 teams' worth
+// of requests at once) since ESPN's bot protection has previously blocked
+// this app's requests entirely for reasons that were never fully pinned down.
 async function fetchAllFixturesForLeagues(leagueCodes) {
   const CONCURRENCY = 5;
   const fixturesById = new Map();
@@ -108,20 +116,26 @@ async function fetchAllFixturesForLeagues(leagueCodes) {
     for (let i = 0; i < teamIds.length; i += CONCURRENCY) {
       const batch = teamIds.slice(i, i + CONCURRENCY);
       await Promise.all(batch.map(async teamId => {
-        try {
-          const schedData = await fetchJSON(`${ESPN_SOCCER}/${code}/teams/${teamId}/schedule`);
-          for (const event of (schedData.events || [])) {
-            if (fixturesById.has(event.id)) continue;
-            const fixture = parseEspnEvent(event, code);
-            if (fixture) fixturesById.set(event.id, fixture);
+        const urls = [
+          `${ESPN_SOCCER}/${code}/teams/${teamId}/schedule`,
+          `${ESPN_SOCCER}/${code}/teams/${teamId}/schedule?fixture=true`,
+        ];
+        for (const url of urls) {
+          try {
+            const schedData = await fetchJSON(url);
+            for (const event of (schedData.events || [])) {
+              if (fixturesById.has(event.id)) continue;
+              const fixture = parseEspnEvent(event, code);
+              if (fixture) fixturesById.set(event.id, fixture);
+            }
+          } catch (err) {
+            scheduleFailures++;
+            console.warn(`[football] Could not fetch ${url}:`, err.message);
           }
-        } catch (err) {
-          scheduleFailures++;
-          console.warn(`[football] Could not fetch schedule for ${code} team ${teamId}:`, err.message);
         }
       }));
     }
-    console.log(`[football] ${code}: ${fixturesById.size - beforeCount} fixtures added (${scheduleFailures}/${teamIds.length} team schedule fetches failed)`);
+    console.log(`[football] ${code}: ${fixturesById.size - beforeCount} fixtures added (${scheduleFailures}/${teamIds.length * 2} schedule fetches failed)`);
   }
 
   return [...fixturesById.values()].sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
