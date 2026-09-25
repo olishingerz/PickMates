@@ -293,6 +293,17 @@ async function getCurrentGameweekFixtures(leagueCodes, opts = {}) {
 
   const fixtures = fixturesInWindow(allFixtures, window);
   console.log(`[football] ${fixtures.length} fixture(s) fall inside window ${window.start}..${window.end}`);
+  if (fixtures.length === 0) {
+    // Nothing in the chosen window — log the nearest upcoming fixtures across
+    // all selected leagues so it's clear whether this is a genuine blank
+    // weekend or the window itself is just missing a midweek/rearranged date.
+    const now = Date.now();
+    const upcoming = allFixtures
+      .filter(f => new Date(f.kickoff).getTime() > now)
+      .slice(0, 8)
+      .map(f => `${f.kickoff} [${f.league}] ${f.homeTeam.name} v ${f.awayTeam.name}`);
+    console.log(`[football] no fixtures in window — next ${upcoming.length} upcoming across all selected leagues: ${upcoming.join(' | ') || 'none found'}`);
+  }
   const kickoffs = fixtures.map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
   const suggestedDeadline = kickoffs.length ? new Date(Math.min(...kickoffs) - 60 * 60 * 1000) : null;
 
