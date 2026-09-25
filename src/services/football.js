@@ -46,8 +46,18 @@ function parseEspnEvent(event, code) {
   // cron for the belt-and-braces version of this same fix).
   const postponed  = ['STATUS_POSTPONED', 'STATUS_CANCELED', 'STATUS_ABANDONED', 'STATUS_SUSPENDED', 'STATUS_FORFEIT'].includes(statusName);
   const completed  = comp.status?.type?.completed === true;
-  const homeScore  = parseInt(home.score) || 0;
-  const awayScore  = parseInt(away.score) || 0;
+  // A scoreboard-list event's `score` is a plain string/number; a team
+  // schedule event's is an object ({ value, displayValue, ... }) — same data,
+  // different shape depending which ESPN endpoint the event came from.
+  const extractScore = (score) => {
+    if (score == null) return 0;
+    if (typeof score === 'object') return parseInt(score.value, 10) || 0;
+    return parseInt(score, 10) || 0;
+  };
+  const homeScore  = extractScore(home.score);
+  const awayScore  = extractScore(away.score);
+  // Likewise a single `logo` string vs a `logos[]` array of variants.
+  const extractLogo = (team) => team.logo || team.logos?.[0]?.href || null;
   let winnerId = null;
   if (completed) {
     if (homeScore > awayScore) winnerId = home.team.id;
@@ -62,44 +72,72 @@ function parseEspnEvent(event, code) {
     kickoff:   event.date,
     completed,
     postponed,
-    homeTeam:  { id: home.team.id, name: home.team.displayName, shortName: home.team.abbreviation, score: homeScore, logo: home.team.logo || null },
-    awayTeam:  { id: away.team.id, name: away.team.displayName, shortName: away.team.abbreviation, score: awayScore, logo: away.team.logo || null },
+    homeTeam:  { id: home.team.id, name: home.team.displayName, shortName: home.team.abbreviation, score: homeScore, logo: extractLogo(home.team) },
+    awayTeam:  { id: away.team.id, name: away.team.displayName, shortName: away.team.abbreviation, score: awayScore, logo: extractLogo(away.team) },
     winnerId,
     isDraw:    completed && homeScore === awayScore,
   };
 }
 
-// Fetch fixtures for the given league codes (e.g. ['eng.1', 'eng.2']).
-// datesParam, if given, is an ESPN-format range like '20260821-20260824'; otherwise
-// ESPN defaults to whatever it considers "today".
-async function fetchFixtures(leagueCodes, datesParam) {
-  const fixtures = [];
+// Fetches every fixture ESPN has for the given leagues, for the whole
+// season, with no date filter at all — sidesteps the scoreboard endpoint's
+// `dates=` query entirely (see refetchFixtures's comment for why that
+// stopped being usable) by instead listing each league's teams and reading
+// their full-season schedules, which need no date param to begin with.
+// Events are deduped by id, since each fixture appears in both teams'
+// schedules. Modest concurrency per league (rather than firing off ~20-24
+// requests at once) since ESPN's bot protection has previously blocked this
+// app's requests entirely for reasons that were never fully pinned down.
+async function fetchAllFixturesForLeagues(leagueCodes) {
+  const CONCURRENCY = 5;
+  const fixturesById = new Map();
+
   for (const code of leagueCodes) {
-    let data;
+    let teamIds;
     try {
-      const url = datesParam
-        ? `${ESPN_SOCCER}/${code}/scoreboard?dates=${datesParam}`
-        : `${ESPN_SOCCER}/${code}/scoreboard`;
-      data = await fetchJSON(url);
+      const teamsData = await fetchJSON(`${ESPN_SOCCER}/${code}/teams`);
+      teamIds = (teamsData.sports?.[0]?.leagues?.[0]?.teams || []).map(t => t.team?.id).filter(Boolean);
     } catch (err) {
-      console.warn(`[football] Could not fetch ${code}:`, err.message);
+      console.warn(`[football] Could not list ${code} teams:`, err.message);
       continue;
     }
-    for (const event of (data.events || [])) {
-      const fixture = parseEspnEvent(event, code);
-      if (fixture) fixtures.push(fixture);
+
+    for (let i = 0; i < teamIds.length; i += CONCURRENCY) {
+      const batch = teamIds.slice(i, i + CONCURRENCY);
+      await Promise.all(batch.map(async teamId => {
+        try {
+          const schedData = await fetchJSON(`${ESPN_SOCCER}/${code}/teams/${teamId}/schedule`);
+          for (const event of (schedData.events || [])) {
+            if (fixturesById.has(event.id)) continue;
+            const fixture = parseEspnEvent(event, code);
+            if (fixture) fixturesById.set(event.id, fixture);
+          }
+        } catch (err) {
+          console.warn(`[football] Could not fetch schedule for ${code} team ${teamId}:`, err.message);
+        }
+      }));
     }
   }
-  // Sort by kickoff time
-  fixtures.sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
-  return fixtures;
+
+  return [...fixturesById.values()].sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
 }
 
-// ESPN's soccer API has no explicit "gameweek" number — it only exposes a flat
-// calendar of match dates per league. A round is inferred by clustering dates that
-// fall close together, treating a gap of 4+ days as the boundary to the next round.
-// Only used as the Christmas-period fallback now (see getGameweekWindow) — the
-// rest of the season uses a fixed Friday-Monday window instead.
+// Fixtures (from an already-fetched list) whose kickoff falls within a
+// { start, end } window of 'YYYY-MM-DD' dates, inclusive of both days.
+function fixturesInWindow(fixtures, window) {
+  const startMs = new Date(`${window.start}T00:00:00Z`).getTime();
+  const endMs   = new Date(`${window.end}T23:59:59.999Z`).getTime();
+  return fixtures.filter(f => {
+    const t = new Date(f.kickoff).getTime();
+    return !isNaN(t) && t >= startMs && t <= endMs;
+  });
+}
+
+// ESPN's soccer API has no explicit "gameweek" number — a round is inferred by
+// clustering match dates that fall close together, treating a gap of 4+ days
+// as the boundary to the next round. Only used as the Christmas-period
+// fallback now (see pickWindowFromFixtures) — the rest of the season uses a
+// fixed Friday-Monday window instead.
 function clusterDates(calendarDates) {
   const sorted = [...new Set(calendarDates)].sort();
   if (sorted.length === 0) return [];
@@ -147,37 +185,31 @@ function nextWeekendWindow(window) {
 
 // Fixture calendars are unreliable for round boundaries close to Christmas
 // (games most days, not clustered around one weekend), so this is only ever
-// reached from getGameweekWindow during that period — the old date-clustering
-// approach, still fine for that irregular stretch even though it's no longer
-// used for the rest of the season.
-async function getGameweekWindowDynamic(anchorCode, requireUpcomingDeadline) {
-  try {
-    const data = await fetchJSON(`${ESPN_SOCCER}/${anchorCode}/scoreboard`);
-    const calendar = (data.leagues?.[0]?.calendar || []).map(d => d.slice(0, 10));
-    const clusters = clusterDates(calendar);
-    if (clusters.length === 0) return null;
+// reached from pickWindowFromFixtures during that period — the old
+// date-clustering approach, still fine for that irregular stretch even
+// though it's no longer used for the rest of the season. Pure (no fetch) —
+// operates on a season's worth of anchor-league fixtures already in hand.
+function pickChristmasWindow(anchorFixtures, now, requireUpcomingDeadline) {
+  const calendar = anchorFixtures.map(f => new Date(f.kickoff).toISOString().slice(0, 10));
+  const clusters = clusterDates(calendar);
+  if (clusters.length === 0) return null;
 
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const fallback = clusters[clusters.length - 1];
-    const candidates = clusters.filter(c => c.end >= todayStr);
+  const todayStr = now.toISOString().slice(0, 10);
+  const fallback = clusters[clusters.length - 1];
+  const candidates = clusters.filter(c => c.end >= todayStr);
 
-    for (const candidate of (candidates.length ? candidates : [fallback])) {
-      const datesParam = `${candidate.start.replace(/-/g, '')}-${candidate.end.replace(/-/g, '')}`;
-      const fixtures = await fetchFixtures([anchorCode], datesParam);
-      const stillLive = fixtures.length === 0 || fixtures.some(f => !f.completed && !f.postponed);
-      if (!stillLive) continue;
-      if (requireUpcomingDeadline) {
-        const kickoffs = fixtures.filter(f => !f.postponed).map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
-        const deadlineAhead = kickoffs.length === 0 || (Math.min(...kickoffs) - 60 * 60 * 1000) > Date.now();
-        if (!deadlineAhead) continue;
-      }
-      return candidate;
+  for (const candidate of (candidates.length ? candidates : [fallback])) {
+    const fixtures = fixturesInWindow(anchorFixtures, candidate);
+    const stillLive = fixtures.length === 0 || fixtures.some(f => !f.completed && !f.postponed);
+    if (!stillLive) continue;
+    if (requireUpcomingDeadline) {
+      const kickoffs = fixtures.filter(f => !f.postponed).map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
+      const deadlineAhead = kickoffs.length === 0 || (Math.min(...kickoffs) - 60 * 60 * 1000) > Date.now();
+      if (!deadlineAhead) continue;
     }
-    return candidates[candidates.length - 1] || fallback;
-  } catch (err) {
-    console.warn(`[football] calendar fetch failed for ${anchorCode}:`, err.message);
-    return null;
+    return candidate;
   }
+  return candidates[candidates.length - 1] || fallback;
 }
 
 // Premier League is treated as the anchor league when it's selected — its
@@ -206,47 +238,54 @@ async function getGameweekWindowDynamic(anchorCode, requireUpcomingDeadline) {
 // week to players (refreshFixtureCache) pass true; callers grading an
 // already-assigned week (the results cron, processGameResults) must not, or
 // they'd skip straight past the round they're meant to be grading.
-async function getGameweekWindow(leagueCodes, { requireUpcomingDeadline = false } = {}) {
-  const anchorCode = leagueCodes.includes('eng.1') ? 'eng.1' : leagueCodes[0];
-  if (!anchorCode) return null;
-
-  const now = new Date();
+//
+// Pure (no fetch) — operates on a season's worth of anchor-league fixtures
+// already in hand, so the caller can reuse the same fetch for both picking
+// the window and reading the actual fixtures inside it.
+function pickWindowFromFixtures(anchorFixtures, now, requireUpcomingDeadline) {
   if (isChristmasPeriod(now)) {
-    return getGameweekWindowDynamic(anchorCode, requireUpcomingDeadline);
+    return pickChristmasWindow(anchorFixtures, now, requireUpcomingDeadline);
   }
 
-  try {
-    let window = weekendWindowFor(now);
-    const MAX_WEEKS_AHEAD = 6; // safety bound — an empty fixture list forever shouldn't loop forever
-    for (let i = 0; i < MAX_WEEKS_AHEAD; i++) {
-      const datesParam = `${window.start.replace(/-/g, '')}-${window.end.replace(/-/g, '')}`;
-      const fixtures = await fetchFixtures([anchorCode], datesParam);
-      const stillLive = fixtures.length === 0 || fixtures.some(f => !f.completed && !f.postponed);
-      if (stillLive) {
-        if (!requireUpcomingDeadline) return window;
-        const kickoffs = fixtures.filter(f => !f.postponed).map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
-        const deadlineAhead = kickoffs.length === 0 || (Math.min(...kickoffs) - 60 * 60 * 1000) > Date.now();
-        if (deadlineAhead) return window;
-      }
-      window = nextWeekendWindow(window);
+  let window = weekendWindowFor(now);
+  const MAX_WEEKS_AHEAD = 6; // safety bound — an empty fixture list forever shouldn't loop forever
+  for (let i = 0; i < MAX_WEEKS_AHEAD; i++) {
+    const fixtures = fixturesInWindow(anchorFixtures, window);
+    const stillLive = fixtures.length === 0 || fixtures.some(f => !f.completed && !f.postponed);
+    if (stillLive) {
+      if (!requireUpcomingDeadline) return window;
+      const kickoffs = fixtures.filter(f => !f.postponed).map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
+      const deadlineAhead = kickoffs.length === 0 || (Math.min(...kickoffs) - 60 * 60 * 1000) > Date.now();
+      if (deadlineAhead) return window;
     }
-    return window;
-  } catch (err) {
-    console.warn(`[football] fixture fetch failed for ${anchorCode}:`, err.message);
-    return null;
+    window = nextWeekendWindow(window);
   }
+  return window;
 }
 
-// Fixtures for the current gameweek (by date clustering) plus a suggested pick
-// deadline of an hour before the earliest kickoff in that window. See
-// getGameweekWindow for what requireUpcomingDeadline changes.
-async function getCurrentGameweekFixtures(leagueCodes, opts) {
-  const window = await getGameweekWindow(leagueCodes, opts);
+// Fixtures for the current gameweek plus a suggested pick deadline of an hour
+// before the earliest kickoff in that window. See pickWindowFromFixtures for
+// what requireUpcomingDeadline changes. Fetches each selected league's whole
+// season once (fetchAllFixturesForLeagues) rather than a per-window ESPN
+// query, so picking the window and reading its fixtures share one fetch.
+async function getCurrentGameweekFixtures(leagueCodes, opts = {}) {
+  const { requireUpcomingDeadline = false } = opts;
+  const anchorCode = leagueCodes.includes('eng.1') ? 'eng.1' : leagueCodes[0];
+  if (!anchorCode) return { fixtures: [], suggestedDeadline: null };
+
+  let allFixtures;
+  try {
+    allFixtures = await fetchAllFixturesForLeagues(leagueCodes);
+  } catch (err) {
+    console.warn('[football] fixture discovery failed:', err.message);
+    return { fixtures: [], suggestedDeadline: null };
+  }
+
+  const anchorFixtures = allFixtures.filter(f => f.league === anchorCode);
+  const window = pickWindowFromFixtures(anchorFixtures, new Date(), requireUpcomingDeadline);
   if (!window) return { fixtures: [], suggestedDeadline: null };
 
-  const datesParam = `${window.start.replace(/-/g, '')}-${window.end.replace(/-/g, '')}`;
-  const fixtures = await fetchFixtures(leagueCodes, datesParam);
-
+  const fixtures = fixturesInWindow(allFixtures, window);
   const kickoffs = fixtures.map(f => new Date(f.kickoff).getTime()).filter(t => !isNaN(t));
   const suggestedDeadline = kickoffs.length ? new Date(Math.min(...kickoffs) - 60 * 60 * 1000) : null;
 
@@ -303,12 +342,12 @@ async function refetchFixtures(leagueCodes, storedFixtures) {
 }
 
 // Process results for a game week — updates lms_picks result column.
-// `fixtures` must be the properly gameweek-scoped list (from getCurrentGameweekFixtures),
-// not a raw fetchFixtures() call, which defaults to ESPN's ambiguous "today" view and can
-// miss matches from other days in the same gameweek. Only fixtures that have actually
-// finished (completed: true) or been postponed contribute a result — everything else is
-// left as-is, so this can be called repeatedly as individual matches finish without
-// waiting for the whole gameweek to wrap up.
+// `fixtures` must be the properly gameweek-scoped list (from
+// getCurrentGameweekFixtures or refetchFixtures), not an unfiltered fetch.
+// Only fixtures that have actually finished (completed: true) or been
+// postponed contribute a result — everything else is left as-is, so this can
+// be called repeatedly as individual matches finish without waiting for the
+// whole gameweek to wrap up.
 async function processResults(pool, gameId, weekNumber, fixtures) {
   // Build a map from team_id → result
   const teamResults = {};
@@ -347,4 +386,4 @@ async function processResults(pool, gameId, weekNumber, fixtures) {
   return { updated, teamResults };
 }
 
-module.exports = { fetchFixtures, getCurrentGameweekFixtures, refetchFixtures, processResults, LEAGUE_NAMES };
+module.exports = { getCurrentGameweekFixtures, refetchFixtures, processResults, LEAGUE_NAMES };
