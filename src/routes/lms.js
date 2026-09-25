@@ -299,6 +299,60 @@ router.post('/set-deadline', requireAuth, async (req, res) => {
   }
 });
 
+// POST /game/:gameId/lms/leagues — host: change which leagues fixtures/picks
+// are drawn from (e.g. adding League One/Two to fill gaps during an
+// international break, when Premier League/Championship have little or
+// nothing on). If the current week hasn't locked or passed its deadline yet,
+// immediately refreshes this week's fixture cache too, so the newly-added
+// league's fixtures show up for anyone still picking — otherwise only future
+// weeks pick up the change, since re-searching now could otherwise silently
+// land on a different week entirely (see refreshFixtureCache's
+// requireUpcomingDeadline, which only accepts a window whose earliest
+// kickoff is still ahead).
+router.post('/leagues', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  if (!await canManage(req, gameId)) return res.redirect(`/game/${gameId}`);
+
+  const rawLeagues = Array.isArray(req.body.lms_leagues)
+    ? req.body.lms_leagues
+    : req.body.lms_leagues ? [req.body.lms_leagues] : [];
+  const leagues = rawLeagues.map(s => s.trim()).filter(Boolean);
+  if (leagues.length === 0) {
+    return res.redirect(`/game/${gameId}?error=` + encodeURIComponent('Pick at least one league.'));
+  }
+
+  try {
+    await pool.query('UPDATE games SET lms_leagues = $1 WHERE id = $2', [leagues.join(','), gameId]);
+
+    const { rows: gameRows } = await pool.query('SELECT lms_current_week, is_started FROM games WHERE id = $1', [gameId]);
+    if (!gameRows[0]?.is_started) {
+      return res.redirect(`/game/${gameId}?success=` + encodeURIComponent('Leagues updated.'));
+    }
+    const currentWeek = gameRows[0].lms_current_week || 1;
+
+    const { rows: weekRows } = await pool.query(
+      'SELECT results_locked, deadline FROM lms_weeks WHERE game_id = $1 AND week_number = $2', [gameId, currentWeek]
+    );
+    const week = weekRows[0];
+    const stillOpen = week && !week.results_locked && (!week.deadline || new Date(week.deadline) > new Date());
+
+    if (stillOpen) {
+      try {
+        await refreshFixtureCache(gameId, currentWeek);
+        return res.redirect(`/game/${gameId}?success=` + encodeURIComponent("Leagues updated — this week's fixtures refreshed too."));
+      } catch (err) {
+        console.warn(`[lms leagues] fixture refresh failed for game ${gameId}:`, err.message);
+        return res.redirect(`/game/${gameId}?success=` + encodeURIComponent("Leagues updated, but refreshing this week's fixtures failed — try again shortly."));
+      }
+    }
+
+    res.redirect(`/game/${gameId}?success=` + encodeURIComponent("Leagues updated — takes effect from next week (this week's deadline has already passed)."));
+  } catch (err) {
+    console.error('[lms leagues]', err);
+    res.redirect(`/game/${gameId}?error=` + encodeURIComponent('Failed to update leagues.'));
+  }
+});
+
 // Wipe picks/weeks and send the game back to the lobby for a new round
 async function resetToLobby(gameId) {
   await pool.query('DELETE FROM lms_picks WHERE game_id = $1', [gameId]);

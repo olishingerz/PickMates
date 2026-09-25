@@ -420,6 +420,22 @@
             </form>
           </div>
 
+          <!-- Leagues -->
+          <div>
+            <p class="label-small" style="margin-bottom:.3rem">Leagues</p>
+            <form action="/game/<%= game.id %>/lms/leagues" method="POST" style="display:flex;flex-direction:column;gap:.3rem">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <% ['eng.1', 'eng.2', 'eng.3', 'eng.4'].forEach(code => { %>
+                <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer">
+                  <input type="checkbox" name="lms_leagues" value="<%= code %>" <%= leagues.includes(code) ? 'checked' : '' %> />
+                  <%= LEAGUE_NAMES[code] || code %>
+                </label>
+              <% }) %>
+              <button type="submit" class="btn btn-sm" style="width:100%">Save leagues</button>
+              <p class="admin-hint" style="margin:0">Add League One/Two to fill gaps during an international break — if this week's deadline hasn't passed yet, its fixtures refresh right away too.</p>
+            </form>
+          </div>
+
           <!-- Process results -->
           <form action="/game/<%= game.id %>/lms/process-results" method="POST"
                 onsubmit="return confirm('Fetch results from ESPN and lock week <%= currentWeek %>? This cannot be undone.')">

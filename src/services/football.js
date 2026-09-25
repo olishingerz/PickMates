@@ -3,6 +3,8 @@ const ESPN_SOCCER = 'https://site.api.espn.com/apis/site/v2/sports/soccer';
 const LEAGUE_NAMES = {
   'eng.1': 'Premier League',
   'eng.2': 'Championship',
+  'eng.3': 'League One',
+  'eng.4': 'League Two',
 };
 
 async function fetchJSON(url) {
