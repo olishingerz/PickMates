@@ -663,4 +663,53 @@ router.get('/lms-live-check/:gameId', requireAdmin, async (req, res) => {
   }
 });
 
+// ── TEMP GET /admin/game10-oneoff-fix — one-off: game 10's host added
+// League One/Two to fill an international-break gap, then wanted to revert
+// to just Premier League/Championship and undo the one pick (JHoops) that
+// used a team from the leagues being removed. Scoped to this specific game
+// and username on purpose — to be removed once run.
+router.get('/game10-oneoff-fix', requireAdmin, async (req, res) => {
+  const gameId = 10;
+  try {
+    await pool.query("UPDATE games SET lms_leagues = 'eng.1,eng.2' WHERE id = $1", [gameId]);
+
+    const { rows: gameRows } = await pool.query('SELECT lms_current_week FROM games WHERE id = $1', [gameId]);
+    const week = gameRows[0]?.lms_current_week || 1;
+
+    const { rows: deletedPicks } = await pool.query(
+      `DELETE FROM lms_picks
+       WHERE game_id = $1 AND week_number = $2
+         AND participant_id IN (
+           SELECT gp.id FROM game_participants gp
+           JOIN users u ON u.id = gp.user_id
+           WHERE gp.game_id = $1 AND u.username ILIKE 'JHoops'
+         )
+       RETURNING id, participant_id, team_name`,
+      [gameId, week]
+    );
+
+    const { rows: weekRows } = await pool.query(
+      'SELECT results_locked, deadline FROM lms_weeks WHERE game_id = $1 AND week_number = $2', [gameId, week]
+    );
+    const weekRow = weekRows[0];
+    const stillOpen = weekRow && !weekRow.results_locked && (!weekRow.deadline || new Date(weekRow.deadline) > new Date());
+
+    let fixtureResult;
+    if (stillOpen) {
+      try {
+        const fixtures = await refreshFixtureCache(gameId, week);
+        fixtureResult = { refreshed: true, fixtureCount: fixtures.length };
+      } catch (err) {
+        fixtureResult = { refreshed: false, error: err.message };
+      }
+    } else {
+      fixtureResult = { refreshed: false, reason: 'week not open (locked, or deadline already passed)' };
+    }
+
+    res.json({ ok: true, leaguesSetTo: 'eng.1,eng.2', week, picksDeleted: deletedPicks, fixtureResult });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
