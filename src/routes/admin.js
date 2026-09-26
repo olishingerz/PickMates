@@ -671,22 +671,38 @@ router.get('/lms-live-check/:gameId', requireAdmin, async (req, res) => {
 router.get('/game10-oneoff-fix', requireAdmin, async (req, res) => {
   const gameId = 10;
   try {
-    await pool.query("UPDATE games SET lms_leagues = 'eng.1,eng.2' WHERE id = $1", [gameId]);
-
     const { rows: gameRows } = await pool.query('SELECT lms_current_week FROM games WHERE id = $1', [gameId]);
     const week = gameRows[0]?.lms_current_week || 1;
 
-    const { rows: deletedPicks } = await pool.query(
-      `DELETE FROM lms_picks
-       WHERE game_id = $1 AND week_number = $2
-         AND participant_id IN (
-           SELECT gp.id FROM game_participants gp
-           JOIN users u ON u.id = gp.user_id
-           WHERE gp.game_id = $1 AND u.username ILIKE 'JHoops'
-         )
-       RETURNING id, participant_id, team_name`,
+    // Which of this week's cached fixtures belong to League One/Two — read
+    // before lms_leagues/the cache get overwritten below, since that's the
+    // only place team-to-league is known (lms_picks itself only stores
+    // team_id/team_name, not league).
+    const { rows: weekRowsBefore } = await pool.query(
+      'SELECT fixtures_cache FROM lms_weeks WHERE game_id = $1 AND week_number = $2', [gameId, week]
+    );
+    const removedLeagueTeamIds = new Set();
+    for (const f of (weekRowsBefore[0]?.fixtures_cache || [])) {
+      if (f.league === 'eng.3' || f.league === 'eng.4') {
+        removedLeagueTeamIds.add(f.homeTeam.id);
+        removedLeagueTeamIds.add(f.awayTeam.id);
+      }
+    }
+
+    await pool.query("UPDATE games SET lms_leagues = 'eng.1,eng.2' WHERE id = $1", [gameId]);
+
+    const { rows: jhoopsPicks } = await pool.query(
+      `SELECT lp.id, lp.team_id, lp.team_name
+       FROM lms_picks lp
+       JOIN game_participants gp ON gp.id = lp.participant_id
+       JOIN users u ON u.id = gp.user_id
+       WHERE lp.game_id = $1 AND lp.week_number = $2 AND u.username ILIKE 'JHoops'`,
       [gameId, week]
     );
+    const toDeleteIds = jhoopsPicks.filter(p => removedLeagueTeamIds.has(p.team_id)).map(p => p.id);
+    const deletedPicks = toDeleteIds.length
+      ? (await pool.query('DELETE FROM lms_picks WHERE id = ANY($1) RETURNING id, team_id, team_name', [toDeleteIds])).rows
+      : [];
 
     const { rows: weekRows } = await pool.query(
       'SELECT results_locked, deadline FROM lms_weeks WHERE game_id = $1 AND week_number = $2', [gameId, week]
@@ -706,7 +722,7 @@ router.get('/game10-oneoff-fix', requireAdmin, async (req, res) => {
       fixtureResult = { refreshed: false, reason: 'week not open (locked, or deadline already passed)' };
     }
 
-    res.json({ ok: true, leaguesSetTo: 'eng.1,eng.2', week, picksDeleted: deletedPicks, fixtureResult });
+    res.json({ ok: true, leaguesSetTo: 'eng.1,eng.2', week, jhoopsPicksThisWeek: jhoopsPicks, picksDeleted: deletedPicks, fixtureResult });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
