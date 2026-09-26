@@ -284,6 +284,28 @@ router.post('/picks', requireAuth, async (req, res) => {
   }
 });
 
+// POST /game/:gameId/lms/mark-paid — self-service: a player marks their own
+// unpaid entry/entries as paid, so the host doesn't have to individually
+// tick everyone off once the money's actually been sent. Scoped to the
+// calling user's own entries only — the host's own toggle-paid control still
+// exists separately if they ever need to correct someone's mistake.
+router.post('/mark-paid', requireAuth, async (req, res) => {
+  const gameId = getGameId(req);
+  const userId = req.session.user.id;
+  try {
+    const { rowCount } = await pool.query(
+      'UPDATE game_participants SET has_paid = TRUE WHERE game_id = $1 AND user_id = $2 AND has_paid = FALSE',
+      [gameId, userId]
+    );
+    res.redirect(`/game/${gameId}?success=` + encodeURIComponent(
+      rowCount > 0 ? "Thanks — you're marked as paid!" : 'You were already marked as paid.'
+    ));
+  } catch (err) {
+    console.error('[lms mark-paid]', err);
+    res.redirect(`/game/${gameId}?error=` + encodeURIComponent('Failed to update paid status.'));
+  }
+});
+
 // POST /game/:gameId/lms/set-deadline — host: set deadline for current week
 router.post('/set-deadline', requireAuth, async (req, res) => {
   const gameId = getGameId(req);

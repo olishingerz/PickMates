@@ -154,6 +154,13 @@
           <% } else { %>
             <div style="margin-top:.4rem;font-size:.88rem">Ask <%= game.host_username %> how to pay.</div>
           <% } %>
+          <form action="/game/<%= game.id %>/lms/mark-paid" method="POST" style="margin-top:.5rem">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <label style="display:flex;align-items:center;gap:.4rem;font-size:.88rem;cursor:pointer">
+              <input type="checkbox" onchange="if(this.checked && confirm('Mark yourself as paid?')){this.form.submit()}else{this.checked=false}" />
+              I've sent the money — mark myself as paid
+            </label>
+          </form>
         </div>
       <% } %>
     <% if (game.is_started && !weekObj?.results_locked) { %>
