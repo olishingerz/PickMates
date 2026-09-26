@@ -125,7 +125,7 @@
               <td class="muted" style="font-size:.82rem"><%= g.id %></td>
               <td><a href="/game/<%= g.id %>" style="font-weight:600"><%= g.name %></a>
                 <% if (g.game_type === 'golf_draft') { %>
-                  <a href="/admin/espn-debug/<%= g.id %>" target="_blank" style="font-size:.72rem;margin-left:.4rem">ESPN debug</a>
+                  <a href="/admin/espn-debug/<%= g.id %>" target="_blank" style="font-size:.72rem;margin-left:.4rem">Fixture debug</a>
                 <% } %>
                 <% if (g.tournament_name) { %><br/><span class="muted" style="font-size:.78rem"><%= g.tournament_name %></span><% } %>
               </td>
@@ -314,7 +314,7 @@
       <!-- Rename player pick -->
       <div class="card">
         <h3 class="section-title" style="font-size:.95rem">Rename Player Pick</h3>
-        <p class="muted" style="font-size:.82rem;margin-bottom:.8rem">Fix ESPN name mismatches (e.g. "Samuel Stevens" → "Sam Stevens").</p>
+        <p class="muted" style="font-size:.82rem;margin-bottom:.8rem">Fix name mismatches from the scores feed (e.g. "Samuel Stevens" → "Sam Stevens").</p>
         <form action="/admin/rename-pick" method="POST">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
           <div class="form-group">
@@ -326,7 +326,7 @@
             <input type="text" name="old_name" required placeholder="e.g. Samuel Stevens" />
           </div>
           <div class="form-group">
-            <label>New name (ESPN name)</label>
+            <label>New name (feed name)</label>
             <input type="text" name="new_name" required placeholder="e.g. Sam Stevens" />
           </div>
           <button type="submit" class="btn btn-sm">Rename</button>

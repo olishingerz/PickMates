@@ -94,7 +94,7 @@
         <input type="hidden" name="tournament_end_date"   id="t-end"   value="" />
 
         <% if (tournaments.length === 0) { %>
-          <p class="muted">Could not load tournament list from ESPN. You can select a tournament later from the draft room.</p>
+          <p class="muted">Could not load the tournament list. You can select a tournament later from the draft room.</p>
         <% } else { %>
           <div class="tournament-list" id="tournament-list">
             <% tournaments.forEach(t => { %>

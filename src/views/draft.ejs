@@ -425,7 +425,7 @@
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                 <input type="hidden" name="player_source" value="espn" />
                 <button type="submit" class="btn btn-sm <%= playerSource === 'espn' ? '' : 'btn-ghost' %>"
-                        style="<%= playerSource === 'espn' ? '' : 'color:var(--text)' %>">ESPN (auto)</button>
+                        style="<%= playerSource === 'espn' ? '' : 'color:var(--text)' %>">Auto</button>
               </form>
               <form action="/game/<%= gameId %>/draft/player-source" method="POST" style="display:inline">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
@@ -448,14 +448,14 @@
                           style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;font-family:inherit;resize:vertical"></textarea>
                 <button type="submit" class="btn btn-sm" style="margin-top:.4rem">Load player list</button>
               </form>
-              <p class="admin-hint">Copy names from Masters.com or any other source — one name per line. This replaces the current player list. Once the tournament starts, ESPN scores will update automatically for matching names.</p>
+              <p class="admin-hint">Copy names from Masters.com or any other source — one name per line. This replaces the current player list. Once the tournament starts, scores will update automatically for matching names.</p>
             <% } else { %>
               <% if (playerListCount > 0) { %>
                 <p style="margin-top:.4rem;font-size:.85rem">
-                  <span style="color:var(--green-dark);font-weight:600">✓ <%= playerListCount %> player<%= playerListCount !== 1 ? 's' : '' %> loaded from ESPN</span>
+                  <span style="color:var(--green-dark);font-weight:600">✓ <%= playerListCount %> player<%= playerListCount !== 1 ? 's' : '' %> loaded automatically</span>
                 </p>
               <% } %>
-              <p class="admin-hint">Players are fetched from ESPN when a tournament is selected. Switch to Custom list if ESPN doesn't have the field yet.</p>
+              <p class="admin-hint">Players are fetched automatically when a tournament is selected. Switch to Custom list if the field isn't available yet.</p>
             <% } %>
           </div>
 

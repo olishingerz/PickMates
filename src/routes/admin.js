@@ -451,11 +451,11 @@ router.get('/espn-debug/:gameId', requireAdmin, async (req, res) => {
 
     res.setHeader('Content-Type', 'text/html');
     res.send(`
-      <h2>ESPN Debug: ${escapeHtml(name)} (game ${gameId})</h2>
+      <h2>Fixture Debug: ${escapeHtml(name)} (game ${gameId})</h2>
       <p>Tournament ID: ${tournament_id} · Current period: ${currentPeriod} · R3 started: ${r3HasStarted}</p>
       <p><em>Cut detection: ${r3HasStarted ? 'ACTIVE — players without R3 linescore = missed cut' : 'NOT YET — still in R1/R2'}</em></p>
       <table border="1" cellpadding="4" style="border-collapse:collapse;font-family:monospace;font-size:13px">
-        <tr><th>ESPN Name</th><th>score</th><th>linescore periods</th><th>hasR3</th><th>→ made_cut</th><th>DB made_cut</th></tr>
+        <tr><th>Name</th><th>score</th><th>linescore periods</th><th>hasR3</th><th>→ made_cut</th><th>DB made_cut</th></tr>
         ${rows2.map(r => {
           const computed = r3HasStarted ? r.hasR3 : null;
           const mismatch = computed !== null && computed !== r.db_made_cut;

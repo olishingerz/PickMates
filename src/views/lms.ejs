@@ -438,7 +438,7 @@
 
           <!-- Process results -->
           <form action="/game/<%= game.id %>/lms/process-results" method="POST"
-                onsubmit="return confirm('Fetch results from ESPN and lock week <%= currentWeek %>? This cannot be undone.')">
+                onsubmit="return confirm('Fetch results and lock week <%= currentWeek %>? This cannot be undone.')">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <button type="submit" class="btn btn-sm" style="width:100%;background:var(--green);color:#fff">
               Process results — Wk <%= currentWeek %>

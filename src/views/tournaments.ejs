@@ -19,7 +19,7 @@
   <main>
     <div class="page-header">
       <h1>Select Tournament</h1>
-      <p class="last-updated">PGA Tour schedule from ESPN. Pick the tournament your group is playing for.</p>
+      <p class="last-updated">PGA Tour schedule. Pick the tournament your group is playing for.</p>
     </div>
 
     <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
@@ -27,7 +27,7 @@
 
     <% if (tournaments.length === 0) { %>
       <div class="card empty-state">
-        <p>No tournaments found. ESPN may be unavailable — try again shortly.</p>
+        <p>No tournaments found. The schedule may be unavailable — try again shortly.</p>
       </div>
     <% } else { %>
       <form action="/game/<%= gameId %>/draft/tournaments" method="POST">

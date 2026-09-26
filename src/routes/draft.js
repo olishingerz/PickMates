@@ -814,7 +814,7 @@ router.post('/player-source', requireAuth, async (req, res) => {
   const source = req.body.player_source === 'custom' ? 'custom' : 'espn';
   try {
     await pool.query('UPDATE games SET player_source = $1 WHERE id = $2', [source, gameId]);
-    res.redirect(base + '?success=' + encodeURIComponent(`Player source set to ${source === 'custom' ? 'custom list' : 'ESPN'}.`));
+    res.redirect(base + '?success=' + encodeURIComponent(`Player source set to ${source === 'custom' ? 'custom list' : 'auto'}.`));
   } catch (err) {
     console.error('[player-source]', err);
     res.redirect(base + '?error=' + encodeURIComponent('Failed to update player source.'));
@@ -876,7 +876,7 @@ router.get('/tournaments', requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error('[tournaments]', err);
-    res.redirect(`/game/${gameId}/draft?error=` + encodeURIComponent('Could not load tournament list from ESPN.'));
+    res.redirect(`/game/${gameId}/draft?error=` + encodeURIComponent('Could not load the tournament list.'));
   }
 });
 

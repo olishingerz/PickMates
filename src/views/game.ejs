@@ -99,7 +99,7 @@
           <div style="position:absolute;top:calc(100% + .3rem);right:0;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.5rem;display:flex;flex-direction:column;gap:.4rem;min-width:180px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.08)">
             <% if (game.tournament_complete) { %>
               <form action="/game/<%= game.id %>/uncomplete" method="POST"
-                    onsubmit="return confirm('Unmark as complete? Scores will resume updating from ESPN.')">
+                    onsubmit="return confirm('Unmark as complete? Scores will resume updating automatically.')">
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                 <button type="submit" class="btn btn-sm btn-ghost" style="width:100%;text-align:left">Unmark complete</button>
               </form>
