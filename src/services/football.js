@@ -93,11 +93,12 @@ function parseEspnEvent(event, code) {
 //
 // Events are deduped by id, since each fixture appears in both teams'
 // schedules (and potentially both calls, if ESPN ever does overlap them).
-// Modest concurrency per league (rather than firing off ~20-24 teams' worth
+// Capped concurrency per league (rather than firing off every team's worth
 // of requests at once) since ESPN's bot protection has previously blocked
-// this app's requests entirely for reasons that were never fully pinned down.
+// this app's requests entirely for reasons that were never fully pinned
+// down — 10 has run cleanly in production for every discovery so far.
 async function fetchAllFixturesForLeagues(leagueCodes) {
-  const CONCURRENCY = 5;
+  const CONCURRENCY = 10;
   const fixturesById = new Map();
 
   for (const code of leagueCodes) {

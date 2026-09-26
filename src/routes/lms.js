@@ -158,10 +158,17 @@ router.get('/picks', requireAuth, async (req, res) => {
       return res.redirect(`/game/${gameId}?error=` + encodeURIComponent("The host hasn't started the game yet."));
     }
 
-    // Use the fixture list cached at round-start; only hit ESPN live if that
-    // fetch never happened (e.g. it failed) — this also re-populates the cache.
+    // Use the fixture list cached at round-start; only do a live discovery
+    // fetch (a full team-by-team search — several seconds) if this week has
+    // never been checked at all. An empty cache from an already-completed
+    // check (e.g. a genuine gap between rounds during an international
+    // break) is trusted as-is rather than redone on every single page view —
+    // refreshFixtureCache already gets called proactively at every real
+    // transition (round start/restart, week advance, a host changing
+    // leagues), so this is purely a first-time bootstrap safety net, not
+    // meant to re-run the expensive search on repeat visits.
     let fixtures = data.weekObj?.fixtures_cache || [];
-    if (fixtures.length === 0) {
+    if (!data.weekObj) {
       try { fixtures = await refreshFixtureCache(gameId, data.currentWeek); }
       catch (err) { console.warn('[lms picks] fixture fetch failed:', err.message); }
     }
